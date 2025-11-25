@@ -1,0 +1,392 @@
+
+import { GoogleGenAI, Type } from "@google/genai";
+import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience, ReferenceAnalysis, AuthorityAnalysis } from '../types';
+import { calculateCost, getLanguageInstruction, extractRawSnippets } from './promptService';
+
+// 1. Analyze Context & Generate Action Plan
+export const extractKeywordActionPlans = async (referenceContent: string, keywords: KeywordData[], targetAudience: TargetAudience): Promise<ServiceResponse<KeywordActionPlan[]>> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    // 1. Pre-process: Identify snippets locally
+    const topTokens = keywords.slice(15); // Increased from 15 to get slightly more data if available
+    const analysisPayload = topTokens.map(k => ({
+        word: k.token,
+        snippets: extractRawSnippets(referenceContent, k.token)
+    })).filter(item => item.snippets.length > 0);
+
+    if (analysisPayload.length === 0) {
+        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+    }
+
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    const prompt = `
+    I have a list of High-Frequency Keywords and their "Context Snippets" from a Reference Text.
+    
+    TASK:
+    For each keyword, analyze its context snippets to understand the specific **Sentence Structure** and **Syntactic placement** used by the author.
+    Generate a "Usage Action Plan" (Max 3 points) for a ghostwriter.
+    
+    ${languageInstruction}
+
+    The Action Plan must be specific about the **Sentence Context** (NOT the paragraph type):
+    1. **Syntactic Placement**: Analyze where in the *sentence* this word appears. Does it usually start the sentence? Is it used in a dependent clause? Is it part of a list? Is it used as a transition?
+    2. **Collocations**: What specific words, prepositions, or adjectives immediately precede or follow it in the snippets?
+    3. **Tone/Function**: Is it used to qualify a previous statement, introduce a technical detail, or provide a concrete example?
+
+    INPUT DATA:
+    ${JSON.stringify(analysisPayload.slice(0, 20), null, 2)}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        plans: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    word: { type: Type.STRING },
+                                    plan: { 
+                                        type: Type.ARRAY, 
+                                        items: { type: Type.STRING },
+                                        description: "List of 1-3 short rules on how to use this word in a sentence."
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        });
+
+        const result = JSON.parse(response.text || "{}");
+        const plans: any[] = result.plans || [];
+
+        const uniquePlans = new Map();
+        plans.forEach((p: any) => {
+             if (p && p.word && !uniquePlans.has(p.word)) {
+                 uniquePlans.set(p.word, p);
+             }
+        });
+
+        const finalPlans = Array.from(uniquePlans.values()).map((p: any) => {
+            const original = analysisPayload.find(ap => ap.word === p.word);
+            return {
+                word: p.word,
+                plan: p.plan || [], 
+                snippets: original ? original.snippets : []
+            };
+        });
+
+        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+
+        return {
+            data: finalPlans,
+            ...metrics
+        };
+
+    } catch (e) {
+        console.error("Action Plan extraction failed", e);
+        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+    }
+};
+
+// Extract Structure and General Strategy (Includes Replacement Rules)
+export const analyzeReferenceStructure = async (referenceContent: string, targetAudience: TargetAudience): Promise<ServiceResponse<ReferenceAnalysis>> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    const prompt = `
+    Analyze the following Reference Content.
+    
+    ${languageInstruction}
+    
+    TASK 1: Analyze the structure. Break the article down into main sections (H2/H3). The titles should be in the Target Language.
+    TASK 2: For EACH section, write a specific "Narrative Action Plan". How did the author write *this specific part*? (e.g., "Started with a rhetorical question," "Used a bullet list for benefits").
+    TASK 3: Create a "General Action Plan" (3 key points) on how to mimic this author's overall voice.
+    TASK 4: Create a "Conversion & Value Strategy" (3 key points). How does this author present the *Value* or *Benefits*?
+    TASK 5: Extract "Key Information Points". List all the unique facts, arguments, statistics, or high-density concepts found in the text.
+    TASK 6: **COMPETITOR RECONNAISSANCE**.
+           Identify specific **Brand Names** (e.g., "EVRbeauty", "Tesla") and **Product Models** (e.g., "GentleLase", "Model S") mentioned in the text that are NOT general terms.
+           - competitorBrands: The name of the company.
+           - competitorProducts: The specific machine, cream, or service model.
+
+    REFERENCE CONTENT:
+    ${referenceContent.substring(0, 30000)} 
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        structure: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    title: { type: Type.STRING },
+                                    narrativePlan: { type: Type.ARRAY, items: {type: Type.STRING} }
+                                }
+                            }
+                        },
+                        generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        replacementRules: { type: Type.ARRAY, items: { type: Type.STRING } }, // Legacy
+                        competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } }, // NEW
+                        competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } } // NEW
+                    }
+                }
+            }
+        });
+
+        const data = JSON.parse(response.text || "{}");
+        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+        
+        // Combine new fields into legacy replacementRules for backward compatibility if needed, or just use new fields
+        const combinedRules = [
+            ...(data.competitorBrands || []),
+            ...(data.competitorProducts || [])
+        ];
+
+        return {
+            data: {
+                structure: data.structure || [],
+                generalPlan: data.generalPlan || [],
+                conversionPlan: data.conversionPlan || [],
+                keyInformationPoints: data.keyInformationPoints || [],
+                replacementRules: combinedRules,
+                competitorBrands: data.competitorBrands || [],
+                competitorProducts: data.competitorProducts || []
+            },
+            ...metrics
+        };
+    } catch (e) {
+        console.error("Structure analysis failed", e);
+        return { 
+            data: { structure: [], generalPlan: [], conversionPlan: [], keyInformationPoints: [], competitorBrands: [], competitorProducts: [] }, 
+            usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
+            cost: {inputCost:0, outputCost:0, totalCost:0} 
+        };
+    }
+};
+
+// Analyze Authority Terms with Website Context
+export const analyzeAuthorityTerms = async (authorityInput: string, topic: string, websiteType: string, targetAudience: TargetAudience): Promise<ServiceResponse<AuthorityAnalysis | null>> => {
+    if (!authorityInput || !authorityInput.trim()) {
+        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    const prompt = `
+    I have a list of "Authority Attribute Terms" (Brand specs, ingredients, certifications, etc.), a target Article Topic, and a description of the Website Type.
+    
+    ${languageInstruction}
+
+    WEBSITE / BRAND CONTEXT:
+    "${websiteType}"
+    
+    TOPIC:
+    "${topic}"
+    
+    TASK:
+    1. **Filter**: Extract ONLY the terms from the list that are highly relevant to the Topic and Website Context. Ignore irrelevant ones.
+    2. **Shorten**: Ensure output terms are **strictly 1-2 English words** or **2-4 Chinese characters** (e.g., "FDA Approved", "無痛", "美國進口"). No long phrases.
+    3. **Strategize**: Create 3 specific "Combination Strategies" (Action Plans) on how to weave these terms into the article to maximize credibility.
+    
+    RAW AUTHORITY TERMS LIST:
+    ${authorityInput.substring(0, 5000)}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        relevantTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        combinations: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    }
+                }
+            }
+        });
+
+        const data = JSON.parse(response.text || "{}");
+        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+
+        return {
+            data: {
+                relevantTerms: data.relevantTerms || [],
+                combinations: data.combinations || []
+            },
+            ...metrics
+        };
+
+    } catch (e) {
+        console.error("Authority analysis failed", e);
+        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+    }
+};
+
+// Renamed from extractBrandInfo
+export const extractWebsiteTypeAndTerm = async (content: string): Promise<ServiceResponse<{ websiteType: string, authorityTerms: string }>> => {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
+    const prompt = `
+    Analyze the following website content.
+    
+    TASK 1: Identify "Website / Brand Context" (e.g., High-End Skincare, Tech SaaS, Travel Blog).
+    
+    TASK 2: List 20 "Authority Attribute Terms" based on the identified Context.
+    
+    **STRICT CONSTRAINT:** 
+    The terms must be extremely short and punchy.
+    - English: 1-2 words max (e.g., "FDA Approved", "Dermatologist Tested", "Organic").
+    - Chinese: 2-4 characters max (e.g., "專業認證", "醫生推薦", "純天然").
+    
+    PROMPT INSTRUCTION: "List 20 short, authoritative terms commonly found in this [Website Context]."
+    
+    CONTENT: ${content.substring(0, 500)}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        websiteType: { type: Type.STRING },
+                        authorityTerms: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    }
+                }
+            }
+        });
+        
+        const data = JSON.parse(response.text || "{}");
+        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+        
+        return {
+            data: {
+                websiteType: data.websiteType || "",
+                authorityTerms: (data.authorityTerms || []).join(', ')
+            },
+            ...metrics
+        };
+    } catch (e) {
+        console.error("Brand info extraction failed", e);
+        return { 
+            data: { websiteType: "", authorityTerms: "" }, 
+            usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
+            cost: {inputCost:0, outputCost:0, totalCost:0} 
+        };
+    }
+};
+
+// Smart Context Filter with Knowledge Base Support (Stronger RAG)
+export const filterSectionContext = async (
+    sectionTitle: string, 
+    allKeyPoints: string[], 
+    allAuthTerms: string[],
+    brandKnowledgeBase: string | undefined,
+    targetAudience: TargetAudience
+): Promise<ServiceResponse<{ filteredPoints: string[], filteredAuthTerms: string[], knowledgeInsights: string[] }>> => {
+    
+    const hasKnowledge = brandKnowledgeBase && brandKnowledgeBase.trim().length > 10;
+    
+    // Optimization: If data is small and no KB, skip
+    if (!hasKnowledge && allKeyPoints.length <= 5 && allAuthTerms.length <= 5) {
+        return {
+            data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
+            usage: {inputTokens:0, outputTokens:0, totalTokens:0},
+            cost: {inputCost:0, outputCost:0, totalCost:0}
+        };
+    }
+
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    const prompt = `
+    I am writing a specific section titled: "${sectionTitle}".
+    
+    I have:
+    1. A database of "Key Information Points".
+    2. A database of "Authority Terms".
+    3. A "BRAND KNOWLEDGE BASE" (Guidelines/Specs).
+    
+    TASK:
+    1. **Filter Data**: Select ONLY the Key Points and Authority Terms strictly relevant to "${sectionTitle}".
+    2. **Agentic Retrieval**: Read the "BRAND KNOWLEDGE BASE". Extract 3-5 specific bullet points (Do's, Don'ts, Specs, Tone) that MUST be applied to this specific section.
+       - If nothing is relevant in the KB for this section, return empty list.
+    
+    ${languageInstruction}
+    
+    DATABASE:
+    Key Points: ${JSON.stringify(allKeyPoints)}
+    Authority Terms: ${JSON.stringify(allAuthTerms)}
+    
+    BRAND KNOWLEDGE BASE:
+    ${brandKnowledgeBase ? brandKnowledgeBase.substring(0, 30000) : "N/A"}
+    `;
+
+    try {
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash', 
+            contents: prompt,
+            config: {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        filteredAuthTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        knowledgeInsights: { 
+                            type: Type.ARRAY, 
+                            items: { type: Type.STRING },
+                            description: "Specific rules or facts extracted from Brand Knowledge Base for this section."
+                        }
+                    }
+                }
+            }
+        });
+
+        const data = JSON.parse(response.text || "{}");
+        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+
+        return {
+            data: {
+                filteredPoints: data.filteredPoints || [],
+                filteredAuthTerms: data.filteredAuthTerms || [],
+                knowledgeInsights: data.knowledgeInsights || []
+            },
+            ...metrics
+        };
+
+    } catch (e) {
+        console.warn("Context filtering failed, falling back to all data", e);
+        return {
+            data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
+            usage: {inputTokens:0, outputTokens:0, totalTokens:0},
+            cost: {inputCost:0, outputCost:0, totalCost:0}
+        };
+    }
+};
