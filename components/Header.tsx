@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { PenLine, Zap, Coins, Layers, PanelLeftClose, PanelRightClose } from 'lucide-react';
+import { PenLine, Zap, Coins, Layers, PanelLeftClose, PanelRightClose, History } from 'lucide-react';
 import { ContentScore } from '../types';
 
 interface HeaderProps {
@@ -10,6 +10,7 @@ interface HeaderProps {
   showSidebar: boolean;
   onToggleInput: () => void;
   onToggleSidebar: () => void;
+  onToggleChangelog: () => void; // New Prop
   contentScore: ContentScore;
 }
 
@@ -20,6 +21,7 @@ export const Header: React.FC<HeaderProps> = ({
     showSidebar,
     onToggleInput,
     onToggleSidebar,
+    onToggleChangelog,
     contentScore
 }) => {
   return (
@@ -30,10 +32,17 @@ export const Header: React.FC<HeaderProps> = ({
             <div className="bg-gradient-to-br from-blue-600 to-blue-700 p-2 rounded-xl shadow-md shadow-blue-200">
                 <PenLine className="w-5 h-5 text-white" />
             </div>
-            <div className="hidden md:block">
+            <div className="hidden md:flex flex-col">
                 <h1 className="text-lg font-bold bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-600 leading-tight">
                 Ai Text Writer <span className="text-blue-600">Pro</span> - Best AI Content Generator
                 </h1>
+                <button 
+                  onClick={onToggleChangelog}
+                  className="text-[10px] text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1 w-fit group"
+                >
+                  <History className="w-3 h-3 group-hover:rotate-12 transition-transform" />
+                  <span>v1.2.0 Changelog</span>
+                </button>
             </div>
         </div>
 

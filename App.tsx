@@ -1,11 +1,11 @@
 
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Header } from './components/Header';
 import { InputForm } from './components/InputForm';
 import { Preview } from './components/Preview';
 import { SeoSidebar } from './components/SeoSidebar';
+import { Changelog } from './components/Changelog'; // Import Changelog
 import { generateSectionContent } from './services/geminiService';
 import { analyzeText } from './services/nlpService';
 import { extractKeywordActionPlans, analyzeReferenceStructure, analyzeAuthorityTerms } from './services/extractionService';
@@ -46,6 +46,7 @@ const App: React.FC = () => {
   // Zen Mode State
   const [showInput, setShowInput] = useState(true);
   const [showSidebar, setShowSidebar] = useState(true);
+  const [showChangelog, setShowChangelog] = useState(false); // New Changelog State
 
   // Lifted Input State for interactions
   const [inputType, setInputType] = useState<'text' | 'url'>('url');
@@ -512,8 +513,12 @@ const App: React.FC = () => {
         showSidebar={showSidebar}
         onToggleInput={() => setShowInput(!showInput)}
         onToggleSidebar={() => setShowSidebar(!showSidebar)}
+        onToggleChangelog={() => setShowChangelog(true)} // Toggle function
         contentScore={contentScore}
       />
+      
+      {/* Changelog Modal */}
+      <Changelog isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
       
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden h-[calc(100vh-64px)] bg-gray-100 p-4 gap-4">
         
