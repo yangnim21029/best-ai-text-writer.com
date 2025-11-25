@@ -5,7 +5,7 @@ import {
   Bold, Italic, Underline, Heading1, Heading2, Heading3, 
   List, ListOrdered, Quote, Link as LinkIcon, Undo, Redo, 
   AlignLeft, AlignCenter, AlignRight, Type, Sparkles, X, ArrowRight, Image as ImageIcon, ListTodo, CheckSquare, Square,
-  GalleryHorizontalEnd, Loader2, Plus, RefreshCw, Map, PlayCircle, Wand2, Eraser, FileCode, ExternalLink, Palette
+  GalleryHorizontalEnd, Loader2, Plus, RefreshCw, Map, PlayCircle, Wand2, Eraser, FileCode, ExternalLink, Palette, MousePointerClick
 } from 'lucide-react';
 import { marked } from 'marked';
 import { generateSnippet } from '../services/geminiService';
@@ -298,19 +298,27 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       }
   };
 
-  const injectImageIntoEditor = (plan: ImageAssetPlan) => {
+  const injectImageIntoEditor = (plan: ImageAssetPlan, method: 'auto' | 'cursor' = 'auto') => {
       if (!editorRef.current || !plan.url) return;
 
+      const imgHtml = `<img src="${plan.url}" alt="${plan.generatedPrompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 24px 0; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" />`;
+
+      // MODE: CURSOR INSERTION (Manual Override)
+      if (method === 'cursor') {
+          // Ensure we have a valid range. If user lost selection, this might fail, so we try to restore selection first.
+          restoreSelection(); 
+          document.execCommand('insertHTML', false, `${imgHtml}<br/>`);
+          handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
+          return;
+      }
+
+      // MODE: AUTO INSERTION (Smart Anchor)
       const anchorText = plan.insertAfter.trim();
       const currentHtml = editorRef.current.innerHTML;
       
       // Check if already inserted
       if (currentHtml.includes(plan.url)) return;
 
-      const imgHtml = `<img src="${plan.url}" alt="${plan.generatedPrompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 24px 0; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" />`;
-      
-      // --- Improved Insertion Strategy with Chunk Fallbacks ---
-      
       // 1. Exact Match
       if (currentHtml.includes(anchorText)) {
           const newHtml = currentHtml.replace(anchorText, `${anchorText}<br/>${imgHtml}`);
@@ -346,26 +354,28 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       }
 
       console.warn("Anchor text not found (Exact or Partial):", anchorText);
-      alert(`Could not find insertion point for: "...${anchorText.substring(0, 20)}...". Try placing cursor and inserting manually.`);
+      alert(`Could not find anchor: "...${anchorText.substring(0, 15)}...". \n\nPlease place your cursor in the text and click the "Cursor" button to insert manually.`);
   };
 
   const updatePlanPrompt = (id: string, newPrompt: string) => {
       setImagePlans(prev => prev.map(p => p.id === id ? { ...p, generatedPrompt: newPrompt } : p));
   };
 
-  const generateSinglePlan = async (plan: ImageAssetPlan) => {
+  const generateSinglePlan = async (plan: ImageAssetPlan): Promise<void> => {
       if (plan.status === 'generating') return;
       
+      // Update state to generating
       setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'generating' } : p));
+      
       try {
           const imgRes = await generateImage(plan.generatedPrompt);
           if (imgRes.data) {
               const updatedPlan = { ...plan, status: 'done' as const, url: imgRes.data || undefined };
+              // Update state to done
               setImagePlans(prev => prev.map(p => p.id === plan.id ? updatedPlan : p));
               if (onAddCost) onAddCost(imgRes.cost, imgRes.usage);
           } else {
               setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'error' } : p));
-              alert("Failed to generate image data.");
           }
       } catch (e) {
           console.error("Single generation failed", e);
@@ -378,26 +388,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       setIsBatchProcessing(true);
 
       const plansToProcess = imagePlans.filter(p => p.status !== 'done');
+      
+      // Parallel Execution: Trigger all requests at once
+      const promises = plansToProcess.map(plan => generateSinglePlan(plan));
 
-      for (let i = 0; i < plansToProcess.length; i++) {
-          const plan = plansToProcess[i];
-          setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'generating' } : p));
-          
-          try {
-              const imgRes = await generateImage(plan.generatedPrompt);
-              if (imgRes.data) {
-                  const updatedPlan = { ...plan, status: 'done' as const, url: imgRes.data || undefined };
-                  setImagePlans(prev => prev.map(p => p.id === plan.id ? updatedPlan : p));
-                  injectImageIntoEditor(updatedPlan);
-                  if (onAddCost) onAddCost(imgRes.cost, imgRes.usage);
-              } else {
-                  setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'error' } : p));
-              }
-          } catch (e) {
-              console.error("Generation failed for plan", plan.id, e);
-              setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'error' } : p));
-          }
-      }
+      // Wait for all to complete (independently updating state)
+      await Promise.all(promises);
+      
       setIsBatchProcessing(false);
   };
 
@@ -677,7 +674,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                 className="flex-1 py-2 bg-green-600 text-white text-xs font-bold rounded-lg hover:bg-green-700 disabled:opacity-50 flex items-center justify-center gap-2 shadow-sm disabled:bg-gray-400 transition-all"
                             >
                                 {isBatchProcessing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <PlayCircle className="w-3.5 h-3.5" />}
-                                {imagePlans.every(p => p.status === 'done') ? 'All Done' : 'Run Batch'}
+                                {imagePlans.every(p => p.status === 'done') ? 'All Done' : 'Run Batch (Async)'}
                             </button>
                             <button 
                                 onClick={handleAutoPlan}
@@ -769,7 +766,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                     <div className="bg-gray-50 p-2 rounded-lg border border-gray-100 flex items-start gap-2">
                                         <Map className="w-3 h-3 text-gray-400 mt-0.5 flex-shrink-0" />
                                         <div className="min-w-0">
-                                            <p className="text-[9px] text-gray-400 uppercase font-bold mb-0.5">Insert After:</p>
+                                            <p className="text-[9px] text-gray-400 uppercase font-bold mb-0.5">Auto-Insert After:</p>
                                             <p className="text-[10px] text-gray-600 leading-tight line-clamp-2 italic truncate">
                                                 "...{plan.insertAfter}..."
                                             </p>
@@ -781,10 +778,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                         {isDone ? (
                                             <>
                                                 <button 
-                                                    onClick={() => injectImageIntoEditor(plan)}
+                                                    onClick={() => injectImageIntoEditor(plan, 'auto')}
                                                     className="flex-1 py-1.5 bg-gray-100 text-gray-700 text-[10px] font-bold rounded hover:bg-gray-200 transition-colors flex items-center justify-center gap-1"
+                                                    title="Auto-insert based on content analysis"
                                                 >
-                                                    <ArrowRight className="w-3 h-3" /> Insert
+                                                    <ArrowRight className="w-3 h-3" /> Auto Place
+                                                </button>
+                                                <button 
+                                                    onClick={() => injectImageIntoEditor(plan, 'cursor')}
+                                                    className="px-3 py-1.5 bg-indigo-50 text-indigo-600 border border-indigo-100 text-[10px] font-bold rounded hover:bg-indigo-100 transition-colors flex items-center justify-center gap-1"
+                                                    title="Insert at current cursor position"
+                                                >
+                                                    <MousePointerClick className="w-3 h-3" /> Cursor
                                                 </button>
                                                 <button 
                                                     onClick={() => generateSinglePlan(plan)}
