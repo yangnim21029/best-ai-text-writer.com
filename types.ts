@@ -69,6 +69,7 @@ export interface ScrapedImage {
   preContext: string;
   postContext: string;
   aiDescription?: string; // NEW: Stores the understanding from Gemini
+  ignored?: boolean; // NEW: Allow UI to ignore individual images
 }
 
 export interface ImageAssetPlan {

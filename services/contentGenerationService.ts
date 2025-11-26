@@ -1,10 +1,11 @@
 import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
-import { filterSectionContext } from './extractionService';
-import { generateContent } from './ai';
+import { filterSectionContext } from './contextFilterService';
 import { Type } from "@google/genai";
 import { promptRegistry } from './promptRegistry';
 import { MODEL } from '../config/constants';
+import { getAiProvider } from './aiProvider';
+import { generateContent } from './ai';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -90,6 +91,47 @@ const getSectionInjectionPlan = (
     injectionPlan += `\n**CTA:** End with a natural link: [${productBrief.ctaLink}] (Anchor: Check ${productBrief.brandName} pricing/details).\n`;
 
     return injectionPlan;
+};
+
+// Demote or strip H1/H2 headings from model output to avoid duplicate section titles.
+const normalizeSectionContent = (content: string): string => {
+    let normalized = content || "";
+    normalized = normalized.replace(/^##\s+/gm, "### "); // Demote H2 -> H3
+    normalized = normalized.replace(/^#\s+/gm, "### ");  // Demote H1 -> H3
+    normalized = normalized.replace(/<h1>(.*?)<\/h1>/gi, "### $1");
+    normalized = normalized.replace(/<h2>(.*?)<\/h2>/gi, "### $1");
+    return normalized;
+};
+
+export const generateSectionHeading = async (
+    config: ArticleConfig,
+    sectionTitle: string,
+    narrativeNotes: string[] | undefined,
+    keywordPlans: KeywordActionPlan[],
+    keyPoints: string[]
+): Promise<ServiceResponse<string>> => {
+    const languageInstruction = getLanguageInstruction(config.targetAudience);
+    const prompt = promptRegistry.build('sectionHeading', {
+        sectionTitle,
+        articleTitle: config.title,
+        languageInstruction,
+        keyPoints: keyPoints.slice(0, 5),
+        keywordPlans: keywordPlans.slice(0, 6),
+        narrativeNotes: narrativeNotes?.slice(0, 4),
+    });
+
+    const res = await generateSnippet(prompt, config.targetAudience);
+    const heading = (res.data || "")
+        .replace(/^#+\s*/, '')
+        .replace(/["“”]/g, '')
+        .trim();
+
+    return {
+        data: heading,
+        usage: res.usage,
+        cost: res.cost,
+        duration: res.duration,
+    };
 };
 
 
@@ -197,6 +239,8 @@ export const generateSectionContent = async (
         totalCost: metrics.cost.totalCost + contextFilter.cost.totalCost
     };
 
+    const normalizedContent = normalizeSectionContent(data.content || "");
+
     const totalUsage = {
         inputTokens: metrics.usage.inputTokens + contextFilter.usage.inputTokens,
         outputTokens: metrics.usage.outputTokens + contextFilter.usage.outputTokens,
@@ -207,7 +251,7 @@ export const generateSectionContent = async (
 
     return {
         data: {
-            content: data.content || "",
+            content: normalizedContent,
             usedPoints: data.usedPoints || [],
             injectedCount: data.injectedCount || 0
         },
@@ -218,15 +262,15 @@ export const generateSectionContent = async (
 };
 
 // AI Rewriter / Formatter (Small Tool)
-export const generateSnippet = async (prompt: string, targetAudience: TargetAudience): Promise<ServiceResponse<string>> => {
-    const startTs = Date.now();
+export const generateSnippet = async (
+    prompt: string,
+    targetAudience: TargetAudience,
+    config?: any
+): Promise<ServiceResponse<string>> => {
     const languageInstruction = getLanguageInstruction(targetAudience);
-
     const fullPrompt = promptRegistry.build('snippet', { prompt, languageInstruction });
-
-    const response = await generateContent(MODEL.FLASH, fullPrompt);
-    const metrics = calculateCost(response.usageMetadata, 'FLASH');
-    return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
+    const res = await getAiProvider().runText(fullPrompt, 'FLASH', config);
+    return { data: res.text, usage: res.usage, cost: res.cost, duration: res.duration };
 };
 
 // REBRAND CONTENT (Global Entity Swap)
@@ -235,15 +279,10 @@ export const rebrandContent = async (
     productBrief: ProductBrief,
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<string>> => {
-    const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
-
     const prompt = promptRegistry.build('rebrandContent', { productBrief, languageInstruction, currentContent });
-
-    const response = await generateContent(MODEL.FLASH, prompt);
-
-    const metrics = calculateCost(response.usageMetadata, 'FLASH');
-    return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
+    const res = await getAiProvider().runText(prompt, 'FLASH');
+    return { data: res.text, usage: res.usage, cost: res.cost, duration: res.duration };
 };
 
 
@@ -282,7 +321,7 @@ export const smartInjectPoint = async (
     // 2. FIND BEST BLOCK (Prompt 1)
     const findPrompt = promptRegistry.build('smartFindBlock', { pointToInject, blocks });
 
-    const findRes = await generateContent(MODEL.FLASH, findPrompt);
+    const findRes = await getAiProvider().runText(findPrompt, 'FLASH');
 
     const bestIdStr = findRes.text?.trim().match(/\d+/)?.[0];
     const bestId = bestIdStr ? parseInt(bestIdStr) : -1;
@@ -296,21 +335,14 @@ export const smartInjectPoint = async (
     // 3. REWRITE BLOCK (Prompt 2)
     const rewritePrompt = promptRegistry.build('smartRewriteBlock', { pointToInject, targetHtml: targetBlock.html, languageInstruction });
 
-    const rewriteRes = await generateContent(MODEL.FLASH, rewritePrompt);
-
-    const cost1 = calculateCost(findRes.usageMetadata, 'FLASH');
-    const cost2 = calculateCost(rewriteRes.usageMetadata, 'FLASH');
+    const rewriteRes = await getAiProvider().runText(rewritePrompt, 'FLASH');
 
     const totalUsage = {
-        inputTokens: cost1.usage.inputTokens + cost2.usage.inputTokens,
-        outputTokens: cost1.usage.outputTokens + cost2.usage.outputTokens,
-        totalTokens: cost1.usage.totalTokens + cost2.usage.totalTokens,
+        inputTokens: (findRes.usage?.inputTokens || 0) + (rewriteRes.usage?.inputTokens || 0),
+        outputTokens: (findRes.usage?.outputTokens || 0) + (rewriteRes.usage?.outputTokens || 0),
+        totalTokens: (findRes.usage?.totalTokens || 0) + (rewriteRes.usage?.totalTokens || 0),
     };
-    const totalCost = {
-        inputCost: cost1.cost.inputCost + cost2.cost.inputCost,
-        outputCost: cost1.cost.outputCost + cost2.cost.outputCost,
-        totalCost: cost1.cost.totalCost + cost2.cost.totalCost,
-    };
+    const totalCost = calculateCost(totalUsage, 'FLASH');
 
     return {
         data: {
@@ -318,7 +350,7 @@ export const smartInjectPoint = async (
             newSnippet: rewriteRes.text?.trim() || targetBlock.html
         },
         usage: totalUsage,
-        cost: totalCost,
+        cost: totalCost.cost,
         duration: Date.now() - startTs
     };
 };

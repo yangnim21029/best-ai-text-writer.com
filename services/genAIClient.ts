@@ -50,7 +50,8 @@ export class GenAIClient {
 
                 if (!response.ok) {
                     const errorData = isJson ? await response.json() : await response.text();
-                    throw new Error(typeof errorData === 'string' ? errorData : errorData.error || `Failed to generate content (HTTP ${response.status})`);
+                    const detail = typeof errorData === 'string' ? errorData : (errorData.error || JSON.stringify(errorData));
+                    throw new Error(`Failed to generate content (HTTP ${response.status}): ${detail}`);
                 }
 
                 const data = isJson ? await response.json() : { text: await response.text() };
@@ -59,6 +60,14 @@ export class GenAIClient {
             } catch (err: any) {
                 lastError = err;
                 clearTimeout(timer);
+                const message = err?.message || '';
+                const retryable = message.includes('503') || message.includes('UNAVAILABLE') || message.toLowerCase().includes('overloaded');
+                if (attempt < attempts - 1 && retryable) {
+                    const wait = delayMs * (attempt + 1);
+                    console.warn(`GenAI retry (${attempt + 1}/${attempts}) after ${wait}ms due to: ${message}`);
+                    await new Promise((res) => setTimeout(res, wait));
+                    continue;
+                }
                 if (attempt < attempts - 1) {
                     await new Promise((res) => setTimeout(res, delayMs));
                 }
