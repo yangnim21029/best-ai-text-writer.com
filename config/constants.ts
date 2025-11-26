@@ -17,5 +17,6 @@ export const PRICING = {
 export const AI_DEFAULTS = {
     RETRY_ATTEMPTS: 2,
     RETRY_DELAY_MS: 300,
-    TIMEOUT_MS: 60000,
+    // Longer timeout to accommodate heavy multimodal/long-context calls
+    TIMEOUT_MS: 120000,
 };
