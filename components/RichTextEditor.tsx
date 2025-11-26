@@ -2,7 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { 
   Bold, Italic, Underline, Heading1, Heading2, Heading3, 
-  List, ListOrdered, Quote, Link as LinkIcon, Undo, Redo, 
+  List, ListOrdered, Quote, Link as LinkIcon, Link2Off, Undo, Redo, 
   AlignLeft, AlignCenter, AlignRight, Type, Sparkles, X, ArrowRight, Image as ImageIcon, ListTodo, CheckSquare, Square,
   GalleryHorizontalEnd, Loader2, Plus, RefreshCw, Map, PlayCircle, Wand2, Eraser, FileCode, ExternalLink, Palette, MousePointerClick, Gem, Eye, Download
 } from 'lucide-react';
@@ -12,6 +12,8 @@ import { TargetAudience, CostBreakdown, TokenUsage, ScrapedImage, ImageAssetPlan
 import { useAIEditor } from '../hooks/useAIEditor';
 import { useImageEditor } from '../hooks/useImageEditor';
 import { useMetaGenerator } from '../hooks/useMetaGenerator';
+import { cn } from '../utils/cn';
+import { TiptapAdapter } from './TiptapAdapter';
 
 // Reusable Checklist Item Component (Extracted for Performance)
 const ChecklistItem: React.FC<{ 
@@ -85,6 +87,28 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const [showKeyPoints, setShowKeyPoints] = useState(false);
   const [showVisualAssets, setShowVisualAssets] = useState(false);
+  const useTiptap = true;
+  const [tiptapApi, setTiptapApi] = useState<{
+    getSelectedText: () => string;
+    insertHtml: (html: string) => void;
+    insertImage: (src: string, alt?: string) => void;
+    getPlainText: () => string;
+    setHtml: (html: string) => void;
+    toggleUnderline: () => void;
+    toggleBold: () => void;
+    toggleItalic: () => void;
+    toggleHeading: (level: 1 | 2 | 3) => void;
+    toggleBlockquote: () => void;
+    toggleBulletList: () => void;
+    toggleOrderedList: () => void;
+    setTextAlign: (align: 'left' | 'center' | 'right' | 'justify') => void;
+    setLink: (href: string) => void;
+    unsetLink: () => void;
+    undo: () => void;
+    redo: () => void;
+    clearBold: () => void;
+  } | null>(null);
+  const tiptapContainerRef = useRef<HTMLDivElement>(null);
   
   // Refine & Rebrand States
   const [refiningPoint, setRefiningPoint] = useState<string | null>(null);
@@ -97,31 +121,98 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [showMetaPanel, setShowMetaPanel] = useState(false);
 
   useEffect(() => {
-    if (editorRef.current && initialHtml) {
+    if (!useTiptap && editorRef.current && initialHtml) {
       if (Math.abs(editorRef.current.innerHTML.length - initialHtml.length) > 5) {
           editorRef.current.innerHTML = initialHtml;
-          updateStats();
-      }
-    }
-  }, [initialHtml]);
-
-  const updateStats = () => {
-      if (editorRef.current) {
           const text = editorRef.current.innerText || "";
-          setCharCount(text.length);
           const cjkCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
           const nonCjkText = text.replace(/[\u4e00-\u9fa5]/g, ' ');
           const englishWords = nonCjkText.trim().split(/\s+/).filter(w => w.length > 0);
+          setCharCount(text.length);
           setWordCount(cjkCount + englishWords.length);
       }
-  };
+    }
+  }, [initialHtml, useTiptap]);
 
   const handleInput = (e: React.FormEvent<HTMLDivElement>) => {
-      updateStats();
+      const text = e.currentTarget.innerText || "";
+      const cjkCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+      const nonCjkText = text.replace(/[\u4e00-\u9fa5]/g, ' ');
+      const englishWords = nonCjkText.trim().split(/\s+/).filter(w => w.length > 0);
+      setCharCount(text.length);
+      setWordCount(cjkCount + englishWords.length);
       onChange?.(e.currentTarget.innerHTML);
   };
 
   const execCommand = (command: string, value: string | undefined = undefined) => {
+    if (useTiptap) {
+        if (!tiptapApi) return;
+        switch (command) {
+            case 'bold': tiptapApi.toggleBold(); return;
+            case 'italic': tiptapApi.toggleItalic(); return;
+            case 'underline': tiptapApi.toggleUnderline?.(); return;
+            case 'blockquote': tiptapApi.toggleBlockquote(); return;
+            case 'insertUnorderedList': tiptapApi.toggleBulletList(); return;
+            case 'insertOrderedList': tiptapApi.toggleOrderedList(); return;
+            case 'alignLeft': tiptapApi.setTextAlign?.('left'); return;
+            case 'alignCenter': tiptapApi.setTextAlign?.('center'); return;
+            case 'alignRight': tiptapApi.setTextAlign?.('right'); return;
+            case 'formatBlock':
+                if (value === '<h2>') tiptapApi.toggleHeading(2);
+                else if (value === '<h3>') tiptapApi.toggleHeading(3);
+                else tiptapApi.toggleHeading(1);
+                return;
+            case 'undo': tiptapApi.undo(); return;
+            case 'redo': tiptapApi.redo(); return;
+            default:
+                return;
+        }
+    }
+    if (useTiptap && tiptapApi) {
+        switch (command) {
+            case 'bold':
+                tiptapApi.toggleBold();
+                break;
+            case 'italic':
+                tiptapApi.toggleItalic();
+                break;
+            case 'underline':
+                tiptapApi.toggleUnderline?.();
+                break;
+            case 'blockquote':
+                tiptapApi.toggleBlockquote();
+                break;
+            case 'insertUnorderedList':
+                tiptapApi.toggleBulletList();
+                break;
+            case 'insertOrderedList':
+                tiptapApi.toggleOrderedList();
+                break;
+            case 'alignLeft':
+                tiptapApi.setTextAlign?.('left');
+                break;
+            case 'alignCenter':
+                tiptapApi.setTextAlign?.('center');
+                break;
+            case 'alignRight':
+                tiptapApi.setTextAlign?.('right');
+                break;
+            case 'formatBlock':
+                if (value === '<h2>') tiptapApi.toggleHeading(2);
+                else if (value === '<h3>') tiptapApi.toggleHeading(3);
+                else tiptapApi.toggleHeading(1);
+                break;
+            case 'undo':
+                tiptapApi.undo();
+                break;
+            case 'redo':
+                tiptapApi.redo();
+                break;
+            default:
+                return;
+        }
+        return;
+    }
     document.execCommand(command, false, value);
     if (editorRef.current) {
       editorRef.current.focus();
@@ -130,6 +221,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   const handleRemoveBold = () => {
+      if (useTiptap && tiptapApi) {
+          tiptapApi.clearBold();
+          return;
+      }
       if (!editorRef.current) return;
       let html = editorRef.current.innerHTML;
       html = html.replace(/<\/?strong[^>]*>/gi, "");
@@ -141,12 +236,29 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
   };
 
+  const handleCreateLink = () => {
+      if (!tiptapApi) return;
+      const href = window.prompt('輸入連結 URL');
+      if (!href) return;
+      tiptapApi.setLink?.(href);
+  };
+
+  const handleRemoveLink = () => {
+      if (!tiptapApi) return;
+      tiptapApi.unsetLink?.();
+  };
+
   const saveSelection = () => {
+      if (useTiptap && tiptapApi) {
+          setSelectedContext(tiptapApi.getSelectedText());
+          return null;
+      }
       const selection = window.getSelection();
       if (selection && selection.rangeCount > 0) {
           const range = selection.getRangeAt(0);
           if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
               setSavedRange(range.cloneRange());
+              setSelectedContext(range.toString());
               return range;
           }
       }
@@ -154,6 +266,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   };
 
   const restoreSelection = () => {
+      if (useTiptap) return;
       if (savedRange) {
           const selection = window.getSelection();
           if (selection) {
@@ -178,9 +291,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     setAiPrompt('');
     setSelectedContext('');
     setIsFormatMode(false);
-    if (editorRef.current) {
-        editorRef.current.focus();
-    }
   };
 
   const { handleAiSubmit, handleRefinePoint } = useAIEditor({
@@ -225,6 +335,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     handleInput,
     saveSelection,
     restoreSelection,
+    tiptapApi,
+    imageContainerRef: tiptapContainerRef,
   });
 
   const {
@@ -258,20 +370,30 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           alert("No Product Profile active. Please select a profile in the sidebar first.");
           return;
       }
-      if (!editorRef.current) return;
+      if (useTiptap && !tiptapApi) {
+          alert("Editor not ready.");
+          return;
+      }
+      if (!useTiptap && !editorRef.current) return;
       if (!confirm(`Rewrite the article to feature "${productBrief.productName}"? This will replace generic terms with your brand.`)) return;
 
       setIsRebranding(true);
       try {
-          // We process the *Markdown* version to save tokens and ensure clean structure
-          const currentMarkdown = editorRef.current.innerText; // or simpler htmlToMarkdown
+          const currentMarkdown = useTiptap
+            ? (tiptapApi?.getPlainText() || '')
+            : (editorRef.current?.innerText || '');
           
           const res = await rebrandContent(currentMarkdown, productBrief, targetAudience as TargetAudience);
           
           if (res.data) {
               const newHtml = marked.parse(res.data, { async: false }) as string;
-              editorRef.current.innerHTML = newHtml;
-              handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
+              if (useTiptap) {
+                  tiptapApi?.setHtml(newHtml);
+                  onChange?.(newHtml);
+              } else if (editorRef.current) {
+                  editorRef.current.innerHTML = newHtml;
+                  handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
+              }
               if (onAddCost) onAddCost(res.cost, res.usage);
           }
       } catch (e) {
@@ -292,7 +414,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         if (onClick) onClick();
         else if (command) execCommand(command, value);
       }}
-      className={`p-2 rounded transition-colors ${active ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:text-gray-100 hover:text-blue-600'}`}
+      className={cn(
+        "p-2 rounded transition-colors",
+        active ? 'bg-blue-100 text-blue-700' : 'text-gray-600 hover:bg-gray-100 hover:text-blue-600'
+      )}
       title={label}
     >
       <Icon className="w-4 h-4" />
@@ -312,7 +437,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <ToolbarButton icon={Type} command="formatBlock" value="<p>" label="Paragraph" />
         </div>
         
-        <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+            <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
           <ToolbarButton icon={Bold} command="bold" label="Bold" />
           <ToolbarButton icon={Italic} command="italic" label="Italic" />
           <ToolbarButton icon={Underline} command="underline" label="Underline" />
@@ -320,13 +445,28 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
 
         <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
-          <ToolbarButton icon={List} command="insertUnorderedList" label="Bullet List" />
-          <ToolbarButton icon={ListOrdered} command="insertOrderedList" label="Numbered List" />
-          <ToolbarButton icon={Quote} command="formatBlock" value="<blockquote>" label="Quote" />
+            <ToolbarButton icon={List} command="insertUnorderedList" label="Bullet List" />
+            <ToolbarButton icon={ListOrdered} command="insertOrderedList" label="Numbered List" />
+            <ToolbarButton icon={Quote} command="formatBlock" value="<blockquote>" label="Quote" />
         </div>
 
         <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
-            <ToolbarButton icon={ImageIcon} onClick={openImageModal} label="Insert AI Image" />
+            <ToolbarButton icon={AlignLeft} command="alignLeft" label="Align Left" />
+            <ToolbarButton icon={AlignCenter} command="alignCenter" label="Align Center" />
+            <ToolbarButton icon={AlignRight} command="alignRight" label="Align Right" />
+        </div>
+
+        <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+            <ToolbarButton icon={LinkIcon} onClick={handleCreateLink} label="Insert Link" />
+            <ToolbarButton icon={Link2Off} onClick={handleRemoveLink} label="Remove Link" />
+        </div>
+
+        <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+            <ToolbarButton
+              icon={ImageIcon}
+              onClick={openImageModal}
+              label="Insert AI Image"
+            />
             <ToolbarButton 
               icon={isDownloadingImages ? Loader2 : Download} 
               onClick={downloadImages} 
@@ -450,25 +590,25 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     />
                 </div>
             </div>
+
         </div>
-      )}
+    )}
 
       <div className="flex-1 flex overflow-hidden relative w-full h-full min-h-0">
           <div className="flex-1 overflow-hidden bg-white relative group min-h-0 flex flex-col">
-            <div
-              ref={editorRef}
-              contentEditable
-              className="editor-content prose prose-lg max-w-none p-8 md:p-12 focus:outline-none flex-1 overflow-y-auto custom-scrollbar pb-20 min-h-0"
-              onInput={handleInput}
-              spellCheck={false}
-              onMouseUp={saveSelection}
-              onKeyUp={saveSelection}
+            <TiptapAdapter
+                initialHtml={initialHtml}
+                onChange={(html, text) => {
+                    onChange?.(html);
+                    const cjkCount = (text.match(/[\u4e00-\u9fa5]/g) || []).length;
+                    const nonCjkText = text.replace(/[\u4e00-\u9fa5]/g, ' ');
+                    const englishWords = nonCjkText.trim().split(/\s+/).filter(w => w.length > 0);
+                    setCharCount(text.length);
+                    setWordCount(cjkCount + englishWords.length);
+                }}
+                onReady={setTiptapApi}
+                containerRef={tiptapContainerRef}
             />
-            
-            <div className="px-4 py-2 bg-gray-50/95 backdrop-blur border-t border-gray-200 text-[10px] text-gray-500 font-mono flex items-center justify-end gap-4 select-none sticky bottom-0 z-10">
-                <span>{wordCount} words</span>
-                <span>{charCount} chars</span>
-            </div>
 
             {showAiModal && (
                 <div 
@@ -491,7 +631,40 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         {selectedContext ? `Context: "...${selectedContext.substring(0, 100)}..."` : "No text selected. AI will write new content."}
                     </div>
                     
-                    <form onSubmit={handleAiSubmit} className="space-y-2">
+                    <form onSubmit={(e) => {
+                        e.preventDefault();
+                        if (useTiptap && tiptapApi) {
+                            // Tiptap AI insert
+                            if (!aiPrompt.trim()) return;
+                            setIsAiLoading(true);
+                            (async () => {
+                                try {
+                                    const selectedText = tiptapApi.getSelectedText();
+                                    let promptToSend = aiPrompt;
+                                    if (isFormatMode && selectedText) {
+                                        promptToSend = `
+                                        TARGET CONTENT: """${selectedText}"""
+                                        FORMATTING INSTRUCTION: ${aiPrompt}
+                                        TASK: Reformat the TARGET CONTENT exactly according to the instruction. Return ONLY the formatted result in Markdown/HTML.
+                                        `;
+                                    } else if (selectedText) {
+                                        promptToSend = `TARGET TEXT TO MODIFY: """${selectedText}"""\n\nINSTRUCTION: ${aiPrompt}\n\nTASK: Rewrite or replace the target text based on the instruction. Return ONLY the result in Markdown/HTML.`;
+                                    }
+                                    const res = await generateSnippet(promptToSend, targetAudience as TargetAudience);
+                                    tiptapApi.insertHtml(res.data || '');
+                                    onAddCost?.(res.cost, res.usage);
+                                    closeAiModal();
+                                } catch (error) {
+                                    console.error("AI Edit failed", error);
+                                    alert("Failed to generate content. Please try again.");
+                                } finally {
+                                    setIsAiLoading(false);
+                                }
+                            })();
+                        } else {
+                            handleAiSubmit(e);
+                        }
+                    }} className="space-y-2">
                         <div className="flex gap-2 mb-2">
                             <button 
                                 type="button" 
@@ -596,7 +769,17 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                         isChecked={checkedPoints.includes(point)}
                                         isProcessing={refiningPoint === point}
                                         onToggle={onTogglePoint || (() => {})}
-                                        onRefine={handleRefinePoint}
+                                        onRefine={(p) => {
+                                            if (useTiptap && !tiptapApi) {
+                                                alert("Editor not ready.");
+                                                return;
+                                            }
+                                            if (useTiptap) {
+                                                alert("Refine is not yet supported in Tiptap mode.");
+                                                return;
+                                            }
+                                            handleRefinePoint(p);
+                                        }}
                                       />
                                   ))}
                               </div>
@@ -615,7 +798,17 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                         isChecked={checkedPoints.includes(point)}
                                         isProcessing={refiningPoint === point}
                                         onToggle={onTogglePoint || (() => {})}
-                                        onRefine={handleRefinePoint}
+                                        onRefine={(p) => {
+                                            if (useTiptap && !tiptapApi) {
+                                                alert("Editor not ready.");
+                                                return;
+                                            }
+                                            if (useTiptap) {
+                                                alert("Refine is not yet supported in Tiptap mode.");
+                                                return;
+                                            }
+                                            handleRefinePoint(p);
+                                        }}
                                       />
                                   ))}
                               </div>
@@ -633,7 +826,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                           Visual Assets
                       </h4>
                       <button 
-                          onClick={autoPlanImages}
+                          onClick={() => useTiptap ? alert("Auto-plan images is not supported in Tiptap mode yet.") : autoPlanImages()}
                           disabled={isPlanning}
                           className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
                       >
