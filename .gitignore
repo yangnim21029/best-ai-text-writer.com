@@ -22,3 +22,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Credentials and secrets
+credential.json
+vertex_key.json
+*.pem
+*.key

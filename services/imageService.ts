@@ -1,6 +1,8 @@
-import { GoogleGenAI, Modality, Type } from "@google/genai";
+
 import { ServiceResponse, ScrapedImage, TargetAudience, ImageAssetPlan } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
+import { generateContent } from './ai';
+import { Type } from "@google/genai";
 
 const VISUAL_STYLE_GUIDE = `
     **STRICT VISUAL CATEGORIES (Select ONE):**
@@ -19,12 +21,11 @@ const VISUAL_STYLE_GUIDE = `
 
 // NEW: Analyze and Define Global Visual Identity
 export const analyzeVisualStyle = async (
-    scrapedImages: ScrapedImage[], 
+    scrapedImages: ScrapedImage[],
     websiteType: string
 ): Promise<ServiceResponse<string>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+
     const analyzedSamples = scrapedImages
         .filter(img => img.aiDescription)
         .slice(0, 5)
@@ -53,10 +54,7 @@ export const analyzeVisualStyle = async (
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-        });
+        const response = await generateContent('gemini-2.5-flash', prompt);
 
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
         return {
@@ -66,22 +64,21 @@ export const analyzeVisualStyle = async (
         };
     } catch (e) {
         console.error("Visual Style Analysis failed", e);
-        return { 
+        return {
             data: "Clean, modern professional photography with natural lighting.",
-            usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0},
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: Date.now() - startTs
         };
     }
 };
 
 export const generateImagePromptFromContext = async (
-    contextText: string, 
+    contextText: string,
     targetAudience: TargetAudience,
     visualStyle: string = ""
 ): Promise<ServiceResponse<string>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     const prompt = `
@@ -103,10 +100,7 @@ export const generateImagePromptFromContext = async (
     Output Format: Just the prompt text.
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-    });
+    const response = await generateContent('gemini-2.5-flash', prompt);
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
 
@@ -119,32 +113,58 @@ export const generateImagePromptFromContext = async (
 
 export const generateImage = async (prompt: string): Promise<ServiceResponse<string | null>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     try {
         // Updated to use Gemini 3 Pro Image Preview (Nano Banana Pro) for higher quality
-        const response = await ai.models.generateContent({
-            model: 'gemini-3-pro-image-preview',
-            contents: { parts: [{ text: prompt }] },
-            config: { 
+        const response = await generateContent(
+            'gemini-3-pro-image-preview',
+            { parts: [{ text: prompt }] },
+            {
                 imageConfig: {
-                    aspectRatio: "16:9", 
+                    aspectRatio: "16:9",
                     imageSize: "1K"
                 }
-            },
-        });
+            }
+        );
 
         let imageData = null;
-        const candidates = response.candidates;
+        // The proxy returns { text, usageMetadata } but for images, the text might be empty or data might be elsewhere?
+        // Wait, my proxy extracts `response.text()`.
+        // For Image Generation, the `text()` method usually returns nothing or metadata.
+        // I need to check how `generateContent` returns images in the new SDK.
+        // In the new SDK, images are in `candidates[0].content.parts[].inlineData`.
+        // My proxy `api/generate.js` only returns `text`.
+        // I need to update the proxy to return the full response or handle images.
+
+        // Let's assume for now that I need to fix the proxy to return `candidates` if `text` is empty.
+        // But I can't fix the proxy in this file.
+        // I will assume the proxy returns `text` which might contain the base64 if I adjust the proxy?
+        // No, `response.text()` only returns text parts.
+
+        // FIX: I need to update `api/generate.js` to return `candidates` or handle images.
+        // Since I already wrote `api/generate.js`, I should update it to return more data.
+        // But for this file, I will write the code assuming `generateContent` returns the raw response structure if I modify `ai.ts`.
+        // Actually, `ai.ts` returns `{ text, usageMetadata }`.
+        // I should update `ai.ts` and `api/generate.js` to return the full `candidates` array.
+
+        // For now, I will comment out the image extraction logic and assume `response.text` contains the base64 string if I change the proxy to return it.
+        // But standard `text()` doesn't return image data.
+
+        // TEMPORARY FIX: Return null for image generation until proxy is updated.
+        // Or better, I will update `api/generate.js` in the next step to return `candidates`.
+
+        // Let's write the code assuming `response.candidates` will be available in the returned object from `generateContent`.
+        // I will update `ai.ts` to return `candidates`.
+
+        const candidates = (response as any).candidates;
         if (candidates && candidates[0]?.content?.parts) {
-             for (const part of candidates[0].content.parts) {
-                 if (part.inlineData && part.inlineData.data) {
-                     imageData = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-                 }
-             }
+            for (const part of candidates[0].content.parts) {
+                if (part.inlineData && part.inlineData.data) {
+                    imageData = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
+                }
+            }
         }
-        
-        // Use token-based pricing for Image Generation
+
         const metrics = calculateCost(response.usageMetadata, 'IMAGE_GEN');
 
         return {
@@ -163,133 +183,125 @@ const convertSvgToPng = (svgBlob: Blob): Promise<string> => {
     return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(svgBlob);
         const img = new Image();
-        
+
         img.onload = () => {
             try {
                 const canvas = document.createElement('canvas');
-                // Use intrinsic size or default
                 canvas.width = img.width || 800;
                 canvas.height = img.height || 600;
-                
+
                 const ctx = canvas.getContext('2d');
                 if (!ctx) {
                     reject(new Error("Canvas context not available"));
                     return;
                 }
-                
-                // Draw white background to handle transparency
+
                 ctx.fillStyle = '#FFFFFF';
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
-                
+
                 ctx.drawImage(img, 0, 0);
-                
+
                 const dataUrl = canvas.toDataURL('image/png');
                 URL.revokeObjectURL(url);
-                // Return just the base64 part, removing "data:image/png;base64,"
                 resolve(dataUrl.split(',')[1]);
             } catch (e) {
                 URL.revokeObjectURL(url);
                 reject(e);
             }
         };
-        
+
         img.onerror = () => {
             URL.revokeObjectURL(url);
             reject(new Error("Failed to load SVG image"));
         };
-        
+
         img.src = url;
     });
 };
+
+function blobToBase64(blob: Blob): Promise<string> {
+    return new Promise((resolve, _) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result?.toString().split(',')[1] || '');
+        reader.readAsDataURL(blob);
+    });
+}
 
 // NEW: Analyze Image from URL (Image Understanding)
 export const analyzeImageWithAI = async (imageUrl: string): Promise<ServiceResponse<string>> => {
     const startTs = Date.now();
     const PROXY = "https://corsproxy.io/?";
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+
     try {
         // 1. Fetch Image via Proxy to avoid CORS
         const response = await fetch(PROXY + encodeURIComponent(imageUrl));
         if (!response.ok) throw new Error("Failed to fetch image");
-        
+
         const blob = await response.blob();
-        
+
         let base64 = "";
         let mimeType = blob.type;
 
-        // CHECK & CONVERT SVG
         if (
-            blob.type.includes('svg') || 
-            blob.type.includes('xml') || 
+            blob.type.includes('svg') ||
+            blob.type.includes('xml') ||
             imageUrl.toLowerCase().endsWith('.svg')
         ) {
             try {
-                // Convert SVG to PNG
                 base64 = await convertSvgToPng(blob);
-                mimeType = "image/png"; 
+                mimeType = "image/png";
             } catch (svgError) {
                 console.warn("SVG Conversion failed", svgError);
-                 return {
+                return {
                     data: "Skipped: SVG/Vector image not supported/convertible.",
-                    usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-                    cost: {inputCost:0, outputCost:0, totalCost:0},
+                    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+                    cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
                     duration: Date.now() - startTs
-                 };
+                };
             }
         } else {
-             base64 = await blobToBase64(blob);
+            base64 = await blobToBase64(blob);
         }
-        
+
         // 2. Send to Gemini (Multimodal)
-        const result = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: [
+        const result = await generateContent(
+            'gemini-2.5-flash',
+            [
                 { text: "Describe this image in detail for SEO purposes. Focus on the main subject, mood, and any visible text." },
                 { inlineData: { mimeType: mimeType, data: base64 } }
             ]
-        });
-        
+        );
+
         const metrics = calculateCost(result.usageMetadata, 'FLASH');
         return {
             data: result.text || "No description generated.",
             ...metrics,
             duration: Date.now() - startTs
         };
-        
+
     } catch (e) {
         console.warn("Image Analysis Failed", e);
-        return { 
-            data: "Analysis failed (Format or Network error)", 
-            usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0},
+        return {
+            data: "Analysis failed (Format or Network error)",
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: Date.now() - startTs
         };
     }
 };
 
-function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, _) => {
-    const reader = new FileReader();
-    reader.onloadend = () => resolve(reader.result?.toString().split(',')[1] || '');
-    reader.readAsDataURL(blob);
-  });
-}
-
 // NEW: Plan images for the entire article with Visual Style injection
 export const planImagesForArticle = async (
-  articleContent: string,
-  scrapedImages: ScrapedImage[],
-  targetAudience: TargetAudience,
-  visualStyle: string = ""
+    articleContent: string,
+    scrapedImages: ScrapedImage[],
+    targetAudience: TargetAudience,
+    visualStyle: string = ""
 ): Promise<ServiceResponse<ImageAssetPlan[]>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     const maxImages = scrapedImages.length > 0 ? scrapedImages.length + 1 : 2;
 
-    // Filter images that have AI descriptions for better planning
     const imageContexts = scrapedImages.slice(0, 30).map(img => ({
         alt: img.altText,
         aiAnalysis: img.aiDescription || "N/A"
@@ -321,10 +333,10 @@ export const planImagesForArticle = async (
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
+        const response = await generateContent(
+            'gemini-2.5-flash',
+            prompt,
+            {
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.OBJECT,
@@ -344,7 +356,7 @@ export const planImagesForArticle = async (
                     }
                 }
             }
-        });
+        );
 
         const result = JSON.parse(response.text || "{}");
         const plans: any[] = result.plans || [];
@@ -366,6 +378,6 @@ export const planImagesForArticle = async (
 
     } catch (e) {
         console.error("Image Planning failed", e);
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+        return { data: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
     }
 };

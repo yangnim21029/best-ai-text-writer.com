@@ -1,21 +1,22 @@
-import { GoogleGenAI, Type } from "@google/genai";
+
 import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience, ReferenceAnalysis, AuthorityAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction, extractRawSnippets } from './promptService';
+import { generateContent } from './ai';
+import { Type } from "@google/genai";
 
 // 1. Analyze Context & Generate Action Plan
 export const extractKeywordActionPlans = async (referenceContent: string, keywords: KeywordData[], targetAudience: TargetAudience): Promise<ServiceResponse<KeywordActionPlan[]>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+
     // 1. Pre-process: Identify snippets locally
-    const topTokens = keywords.slice(15); 
+    const topTokens = keywords.slice(15);
     const analysisPayload = topTokens.map(k => ({
         word: k.token,
         snippets: extractRawSnippets(referenceContent, k.token)
     })).filter(item => item.snippets.length > 0);
 
     if (analysisPayload.length === 0) {
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+        return { data: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
     }
 
     const languageInstruction = getLanguageInstruction(targetAudience);
@@ -39,10 +40,10 @@ export const extractKeywordActionPlans = async (referenceContent: string, keywor
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
+        const response = await generateContent(
+            'gemini-2.5-flash',
+            prompt,
+            {
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.OBJECT,
@@ -53,8 +54,8 @@ export const extractKeywordActionPlans = async (referenceContent: string, keywor
                                 type: Type.OBJECT,
                                 properties: {
                                     word: { type: Type.STRING },
-                                    plan: { 
-                                        type: Type.ARRAY, 
+                                    plan: {
+                                        type: Type.ARRAY,
                                         items: { type: Type.STRING },
                                         description: "List of 1-3 short rules on how to use this word in a sentence."
                                     }
@@ -64,23 +65,23 @@ export const extractKeywordActionPlans = async (referenceContent: string, keywor
                     }
                 }
             }
-        });
+        );
 
         const result = JSON.parse(response.text || "{}");
         const plans: any[] = result.plans || [];
 
         const uniquePlans = new Map();
         plans.forEach((p: any) => {
-             if (p && p.word && !uniquePlans.has(p.word)) {
-                 uniquePlans.set(p.word, p);
-             }
+            if (p && p.word && !uniquePlans.has(p.word)) {
+                uniquePlans.set(p.word, p);
+            }
         });
 
         const finalPlans = Array.from(uniquePlans.values()).map((p: any) => {
             const original = analysisPayload.find(ap => ap.word === p.word);
             return {
                 word: p.word,
-                plan: p.plan || [], 
+                plan: p.plan || [],
                 snippets: original ? original.snippets : []
             };
         });
@@ -95,14 +96,13 @@ export const extractKeywordActionPlans = async (referenceContent: string, keywor
 
     } catch (e) {
         console.error("Action Plan extraction failed", e);
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+        return { data: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
     }
 };
 
 // Extract Structure and General Strategy (Includes Replacement Rules)
 export const analyzeReferenceStructure = async (referenceContent: string, targetAudience: TargetAudience): Promise<ServiceResponse<ReferenceAnalysis>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     const prompt = `
@@ -130,10 +130,10 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
+        const response = await generateContent(
+            'gemini-2.5-flash',
+            prompt,
+            {
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.OBJECT,
@@ -144,7 +144,7 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
                                 type: Type.OBJECT,
                                 properties: {
                                     title: { type: Type.STRING },
-                                    narrativePlan: { type: Type.ARRAY, items: {type: Type.STRING} }
+                                    narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } }
                                 }
                             }
                         },
@@ -153,16 +153,16 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
                         keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "General industry facts and knowledge" },
                         brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Brand specific USPs, pricing, or unique features" },
                         replacementRules: { type: Type.ARRAY, items: { type: Type.STRING } }, // Legacy
-                        competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } }, 
-                        competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } } 
+                        competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } }
                     }
                 }
             }
-        });
+        );
 
         const data = JSON.parse(response.text || "{}");
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
-        
+
         const combinedRules = [
             ...(data.competitorBrands || []),
             ...(data.competitorProducts || [])
@@ -184,10 +184,10 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
         };
     } catch (e) {
         console.error("Structure analysis failed", e);
-        return { 
-            data: { structure: [], generalPlan: [], conversionPlan: [], keyInformationPoints: [], brandExclusivePoints: [], competitorBrands: [], competitorProducts: [] }, 
-            usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0},
+        return {
+            data: { structure: [], generalPlan: [], conversionPlan: [], keyInformationPoints: [], brandExclusivePoints: [], competitorBrands: [], competitorProducts: [] },
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: Date.now() - startTs
         };
     }
@@ -197,10 +197,9 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
 export const analyzeAuthorityTerms = async (authorityInput: string, topic: string, websiteType: string, targetAudience: TargetAudience): Promise<ServiceResponse<AuthorityAnalysis | null>> => {
     const startTs = Date.now();
     if (!authorityInput || !authorityInput.trim()) {
-        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: 0 };
+        return { data: null, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: 0 };
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     const prompt = `
@@ -224,10 +223,10 @@ export const analyzeAuthorityTerms = async (authorityInput: string, topic: strin
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
+        const response = await generateContent(
+            'gemini-2.5-flash',
+            prompt,
+            {
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.OBJECT,
@@ -237,7 +236,7 @@ export const analyzeAuthorityTerms = async (authorityInput: string, topic: strin
                     }
                 }
             }
-        });
+        );
 
         const data = JSON.parse(response.text || "{}");
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
@@ -253,14 +252,13 @@ export const analyzeAuthorityTerms = async (authorityInput: string, topic: strin
 
     } catch (e) {
         console.error("Authority analysis failed", e);
-        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+        return { data: null, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
     }
 };
 
 export const extractWebsiteTypeAndTerm = async (content: string): Promise<ServiceResponse<{ websiteType: string, authorityTerms: string }>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
+
     const prompt = `
     Analyze the following website content.
     
@@ -279,10 +277,10 @@ export const extractWebsiteTypeAndTerm = async (content: string): Promise<Servic
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
-            contents: prompt,
-            config: {
+        const response = await generateContent(
+            'gemini-2.5-flash',
+            prompt,
+            {
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.OBJECT,
@@ -292,11 +290,11 @@ export const extractWebsiteTypeAndTerm = async (content: string): Promise<Servic
                     }
                 }
             }
-        });
-        
+        );
+
         const data = JSON.parse(response.text || "{}");
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
-        
+
         return {
             data: {
                 websiteType: data.websiteType || "",
@@ -307,10 +305,10 @@ export const extractWebsiteTypeAndTerm = async (content: string): Promise<Servic
         };
     } catch (e) {
         console.error("Brand info extraction failed", e);
-        return { 
-            data: { websiteType: "", authorityTerms: "" }, 
-            usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0},
+        return {
+            data: { websiteType: "", authorityTerms: "" },
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: Date.now() - startTs
         };
     }
@@ -318,27 +316,26 @@ export const extractWebsiteTypeAndTerm = async (content: string): Promise<Servic
 
 // Smart Context Filter with Knowledge Base Support (Stronger RAG)
 export const filterSectionContext = async (
-    sectionTitle: string, 
-    allKeyPoints: string[], 
+    sectionTitle: string,
+    allKeyPoints: string[],
     allAuthTerms: string[],
     brandKnowledgeBase: string | undefined,
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<{ filteredPoints: string[], filteredAuthTerms: string[], knowledgeInsights: string[] }>> => {
-    
+
     const startTs = Date.now();
     const hasKnowledge = brandKnowledgeBase && brandKnowledgeBase.trim().length > 10;
-    
+
     // Optimization: If data is small and no KB, skip
     if (!hasKnowledge && allKeyPoints.length <= 5 && allAuthTerms.length <= 5) {
         return {
             data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
-            usage: {inputTokens:0, outputTokens:0, totalTokens:0},
-            cost: {inputCost:0, outputCost:0, totalCost:0},
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: 0
         };
     }
 
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     const prompt = `
@@ -365,25 +362,25 @@ export const filterSectionContext = async (
     `;
 
     try {
-        const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash', 
-            contents: prompt,
-            config: {
+        const response = await generateContent(
+            'gemini-2.5-flash',
+            prompt,
+            {
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.OBJECT,
                     properties: {
                         filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
                         filteredAuthTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        knowledgeInsights: { 
-                            type: Type.ARRAY, 
+                        knowledgeInsights: {
+                            type: Type.ARRAY,
                             items: { type: Type.STRING },
                             description: "Specific rules or facts extracted from Brand Knowledge Base for this section."
                         }
                     }
                 }
             }
-        });
+        );
 
         const data = JSON.parse(response.text || "{}");
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
@@ -402,8 +399,8 @@ export const filterSectionContext = async (
         console.warn("Context filtering failed, falling back to all data", e);
         return {
             data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
-            usage: {inputTokens:0, outputTokens:0, totalTokens:0},
-            cost: {inputCost:0, outputCost:0, totalCost:0},
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: Date.now() - startTs
         };
     }

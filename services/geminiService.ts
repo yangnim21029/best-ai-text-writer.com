@@ -1,8 +1,8 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { filterSectionContext } from './extractionService';
-import { marked } from 'marked';
+import { generateContent } from './ai'; // Import the proxy client
+import { Type } from "@google/genai";
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -57,7 +57,7 @@ const getSectionInjectionPlan = (
     // ==================================================================================
     // 3. INJECTION LOGIC (Force vs Natural)
     // ==================================================================================
-    
+
     // Logic: If we haven't mentioned the product enough (<= 2) and we are at the end, FORCE IT.
     if (isLastSections && currentInjectedCount <= 2) {
         forceInjection = true;
@@ -66,11 +66,11 @@ const getSectionInjectionPlan = (
 
     // Match specific pain points to this section title.
     const titleLower = sectionTitle.toLowerCase();
-    const relevantMappings = productMapping.filter(m => 
+    const relevantMappings = productMapping.filter(m =>
         m.relevanceKeywords.some(kw => titleLower.includes(kw.toLowerCase()))
     );
     const isSolutionSection = titleLower.includes('solution') || titleLower.includes('benefit') || titleLower.includes('guide') || titleLower.includes('how');
-    
+
     let finalMappings = relevantMappings;
     if (relevantMappings.length === 0 && (forceInjection || isSolutionSection)) {
         // Fallback: Pick top 2 generic mappings
@@ -93,27 +93,26 @@ const getSectionInjectionPlan = (
 
 // 3. Generate Single Section
 export const generateSectionContent = async (
-    config: ArticleConfig, 
-    sectionTitle: string, 
+    config: ArticleConfig,
+    sectionTitle: string,
     specificPlan: string[] | undefined,
     generalPlan: string[] | undefined,
     keywordPlans: KeywordActionPlan[],
     previousSections: string[] = [],
     futureSections: string[] = [],
     authorityAnalysis: AuthorityAnalysis | null = null,
-    keyInfoPoints: string[] = [], 
-    currentCoveredPointsHistory: string[] = [], // Changed from "usedInfoPoints" to "history" for clarity
-    currentInjectedCount: number = 0 // NEW: Track total injections so far
+    keyInfoPoints: string[] = [],
+    currentCoveredPointsHistory: string[] = [],
+    currentInjectedCount: number = 0
 ): Promise<ServiceResponse<SectionGenerationResult>> => {
-    
+
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const isLastSections = futureSections.length <= 1;
 
     // RAG: Filter context to reduce token usage
     const contextFilter = await filterSectionContext(
-        sectionTitle, 
-        keyInfoPoints, 
+        sectionTitle,
+        keyInfoPoints,
         authorityAnalysis?.relevantTerms || [],
         config.brandKnowledge,
         config.targetAudience
@@ -124,9 +123,8 @@ export const generateSectionContent = async (
     const kbInsights = contextFilter.data.knowledgeInsights;
 
     // --- FREQUENCY CAP LOGIC ---
-    // Rule: A key point should not be reused if it has already appeared 2 or more times in the article.
     const MAX_USAGE_LIMIT = 2;
-    
+
     const pointsAvailableForThisSection = relevantKeyPoints.filter(point => {
         const usageCount = currentCoveredPointsHistory.filter(p => p === point).length;
         return usageCount < MAX_USAGE_LIMIT;
@@ -134,7 +132,7 @@ export const generateSectionContent = async (
 
     // Inject Product/Commercial Strategy if brief exists
     const injectionPlan = getSectionInjectionPlan(
-        sectionTitle, 
+        sectionTitle,
         config.referenceAnalysis,
         config.productMapping,
         config.productBrief,
@@ -175,10 +173,10 @@ export const generateSectionContent = async (
     - Ensure smooth transitions from the previous section.
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-        config: {
+    const response = await generateContent(
+        'gemini-2.5-flash',
+        prompt,
+        {
             responseMimeType: 'application/json',
             responseSchema: {
                 type: Type.OBJECT,
@@ -189,39 +187,36 @@ export const generateSectionContent = async (
                 }
             }
         }
-    });
-    
+    );
+
     let data;
     try {
         let cleanText = response.text || "{}";
-        // Remove markdown formatting if present
         cleanText = cleanText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
         data = JSON.parse(cleanText);
     } catch (e) {
         console.warn("JSON Parse Failed for section content, falling back to raw text", e);
-        // Fallback: treat the whole text as content if it looks like content
         data = {
             content: response.text || "",
             usedPoints: [],
             injectedCount: 0
         };
     }
-    
+
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
-    
-    // Sum up costs from RAG + Generation
+
     const totalCost = {
         inputCost: metrics.cost.inputCost + contextFilter.cost.inputCost,
         outputCost: metrics.cost.outputCost + contextFilter.cost.outputCost,
         totalCost: metrics.cost.totalCost + contextFilter.cost.totalCost
     };
-    
+
     const totalUsage = {
         inputTokens: metrics.usage.inputTokens + contextFilter.usage.inputTokens,
         outputTokens: metrics.usage.outputTokens + contextFilter.usage.outputTokens,
         totalTokens: metrics.usage.totalTokens + contextFilter.usage.totalTokens
     };
-    
+
     const duration = Date.now() - startTs;
 
     return {
@@ -239,7 +234,6 @@ export const generateSectionContent = async (
 // AI Rewriter / Formatter (Small Tool)
 export const generateSnippet = async (prompt: string, targetAudience: TargetAudience): Promise<ServiceResponse<string>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     const fullPrompt = `
@@ -247,22 +241,18 @@ export const generateSnippet = async (prompt: string, targetAudience: TargetAudi
     ${prompt}
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: fullPrompt,
-    });
+    const response = await generateContent('gemini-2.5-flash', fullPrompt);
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
     return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
 };
 
 // REBRAND CONTENT (Global Entity Swap)
 export const rebrandContent = async (
-    currentContent: string, 
-    productBrief: ProductBrief, 
+    currentContent: string,
+    productBrief: ProductBrief,
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<string>> => {
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     const prompt = `
@@ -286,10 +276,7 @@ export const rebrandContent = async (
     ${currentContent}
     `;
 
-    const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: prompt,
-    });
+    const response = await generateContent('gemini-2.5-flash', prompt);
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
     return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
@@ -298,37 +285,34 @@ export const rebrandContent = async (
 
 // 🆕 SMART INJECT POINT (Refine with Paragraph Compact Indexing)
 export const smartInjectPoint = async (
-    fullHtmlContent: string, 
-    pointToInject: string, 
+    fullHtmlContent: string,
+    pointToInject: string,
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<{ originalSnippet: string, newSnippet: string }>> => {
-    
+
     const startTs = Date.now();
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     // 1. PARSE & INDEX (Paragraph Compact Indexing)
-    // We use DOMParser to break the HTML into blocks to avoid sending huge context to LLM.
     const parser = new DOMParser();
     const doc = parser.parseFromString(fullHtmlContent, 'text/html');
-    
-    // Get text blocks (p, li)
+
     const blocks: { id: number, text: string, html: string }[] = [];
     const nodes = doc.querySelectorAll('p, li');
-    
+
     nodes.forEach((node, index) => {
         const text = node.textContent?.trim() || "";
-        if (text.length > 20) { // Only index substantial blocks
+        if (text.length > 20) {
             blocks.push({
                 id: index,
-                text: text.substring(0, 80) + "...", // Compact representation
+                text: text.substring(0, 80) + "...",
                 html: node.outerHTML
             });
         }
     });
 
     if (blocks.length === 0) {
-         return { data: { originalSnippet: "", newSnippet: "" }, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+        return { data: { originalSnippet: "", newSnippet: "" }, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
     }
 
     // 2. FIND BEST BLOCK (Prompt 1)
@@ -342,23 +326,18 @@ export const smartInjectPoint = async (
     Return ONLY the ID (e.g. "5").
     `;
 
-    const findRes = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: findPrompt,
-    });
-    
+    const findRes = await generateContent('gemini-2.5-flash', findPrompt);
+
     const bestIdStr = findRes.text?.trim().match(/\d+/)?.[0];
     const bestId = bestIdStr ? parseInt(bestIdStr) : -1;
-    
+
     const targetBlock = blocks.find(b => b.id === bestId);
 
     if (!targetBlock) {
-         // Fallback if AI fails to pick a valid ID
-         return { data: { originalSnippet: "", newSnippet: "" }, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+        return { data: { originalSnippet: "", newSnippet: "" }, usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
     }
 
     // 3. REWRITE BLOCK (Prompt 2)
-    // Now we only send the Target Block's full HTML to be rewritten.
     const rewritePrompt = `
     TASK: Rewrite the following HTML Block to naturally include this Key Point.
     
@@ -374,12 +353,8 @@ export const smartInjectPoint = async (
     4. Return ONLY the new HTML string.
     `;
 
-    const rewriteRes = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: rewritePrompt,
-    });
+    const rewriteRes = await generateContent('gemini-2.5-flash', rewritePrompt);
 
-    // Calculate total cost (Find + Rewrite)
     const cost1 = calculateCost(findRes.usageMetadata, 'FLASH');
     const cost2 = calculateCost(rewriteRes.usageMetadata, 'FLASH');
 
@@ -395,10 +370,9 @@ export const smartInjectPoint = async (
     };
 
     return {
-        // Return the original HTML to search/replace, and the new HTML
         data: {
-            originalSnippet: targetBlock.html, 
-            newSnippet: rewriteRes.text?.trim() || targetBlock.html 
+            originalSnippet: targetBlock.html,
+            newSnippet: rewriteRes.text?.trim() || targetBlock.html
         },
         usage: totalUsage,
         cost: totalCost,
