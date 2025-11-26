@@ -323,7 +323,7 @@ export const planImagesForArticle = async (
     2. **Context & Culture:** Ensure the image description is culturally relevant.
        ${languageInstruction}
     3. **Insertion Anchor:** Select a unique text phrase (6-12 chars) from the content.
-    4. **Unified Style:** In the 'generatedPrompt', you MUST Explicitly describe how the "Global Visual Style" applies to this specific subject. (e.g. "An infographic about X, using the [Global Style] color palette...")
+    4. **Unified Style:** In the 'generatedPrompt', you MUST Explicitly describe how the "Global Visual Style" applies to this specific subject. Do NOT frame as an infographic; focus on photography, product, or lifestyle visuals.
 
     ARTICLE CONTENT:
     ${articleContent.substring(0, 20000)}
@@ -347,7 +347,7 @@ export const planImagesForArticle = async (
                                 type: Type.OBJECT,
                                 properties: {
                                     generatedPrompt: { type: Type.STRING, description: "Detailed prompt including subject + visual style + mood." },
-                                    category: { type: Type.STRING, enum: ["INFOGRAPHIC", "BRANDED_LIFESTYLE", "PRODUCT_INFOGRAPHIC", "ECOMMERCE_WHITE_BG"] },
+                                    category: { type: Type.STRING, enum: ["BRANDED_LIFESTYLE", "PRODUCT_DETAIL", "ECOMMERCE_WHITE_BG"] },
                                     insertAfter: { type: Type.STRING },
                                     rationale: { type: Type.STRING }
                                 }

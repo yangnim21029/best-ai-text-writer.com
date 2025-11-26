@@ -248,6 +248,10 @@ const cleanArtifacts = (text: string): string => {
     
     // HK style "All Chinese" navs
     cleaned = cleaned.replace(/^All\s+[\u4e00-\u9fa5]+.*$/gm, '');
+
+    // User-requested noise lines between content
+    cleaned = cleaned.replace(/^\s*-{3,}\s*$/gm, ''); // ----- separators
+    cleaned = cleaned.replace(/^\s*\u25b2?\s*Cosmopolitan\.com\.hk\s*$/gim, ''); // Cosmopolitan.com.hk with optional ▲
     
     // Final Whitespace Cleanup
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
