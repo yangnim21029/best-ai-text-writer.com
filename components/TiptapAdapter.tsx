@@ -99,7 +99,7 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
             editorProps: {
                 attributes: {
                     class: cn(
-                        'editor-content prose prose-lg max-w-none focus:outline-none min-h-full',
+                        'editor-content prose prose-lg max-w-none focus:outline-none min-h-full pt-0',
                         contentClassName,
                     ),
                     style: contentStyle as any,

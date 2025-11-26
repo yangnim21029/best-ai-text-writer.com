@@ -313,7 +313,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             <div className="flex-1 flex flex-row min-h-0 overflow-hidden relative">
                 <div className="flex-1 flex flex-col min-h-0 relative group">
                     <div className="flex-1 min-h-0 overflow-y-auto">
-                        <div className="p-6">
+                        <div className="px-6 pb-6 py-1">
                             <TiptapAdapter
                                 initialHtml={html}
                                 onChange={(nextHtml, plain) => handleInput(nextHtml, plain)}
@@ -326,8 +326,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                 containerRef={editorContainerRef}
                                 className="min-h-[420px]"
                                 placeholder=""
-                                contentClassName="prose-lg max-w-none px-0 py-6"
-                                contentStyle={useMemo(() => ({ fontSize: `${effectiveScale * 100}%`, lineHeight: '1.6' }), [effectiveScale])}
+                                contentClassName="prose-lg max-w-none px-0 pb-6 [&>*:first-child]:mt-0" contentStyle={useMemo(() => ({ fontSize: `${effectiveScale * 100}%`, lineHeight: '1.6' }), [effectiveScale])}
                             />
                         </div>
                     </div>
