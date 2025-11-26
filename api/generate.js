@@ -1,6 +1,53 @@
 
 import { GoogleGenAI } from "@google/genai";
 
+/**
+ * Parse Google credentials JSON string with error handling
+ */
+function parseGoogleCredentialsJson(jsonString) {
+    if (!jsonString) return null;
+
+    try {
+        let cleanedJson = jsonString;
+
+        // Try original parse
+        try {
+            return JSON.parse(cleanedJson);
+        } catch {
+            // Remove outer quotes and retry
+            if (
+                (cleanedJson.startsWith('"') && cleanedJson.endsWith('"')) ||
+                (cleanedJson.startsWith("'") && cleanedJson.endsWith("'"))
+            ) {
+                cleanedJson = cleanedJson.slice(1, -1);
+
+                // Fix common escape issues
+                cleanedJson = cleanedJson
+                    .replace(/\\"/g, '"')
+                    .replace(/\\'/g, "'")
+                    .replace(/\\\\/g, '\\');
+            }
+
+            // Handle actual newlines in private_key
+            cleanedJson = cleanedJson.replace(
+                /"private_key":"([^"]*?)"/g,
+                (_match, privateKeyContent) => {
+                    const fixedPrivateKey = privateKeyContent
+                        .replace(/\n/g, '\\n')
+                        .replace(/\r/g, '\\r')
+                        .replace(/\t/g, '\\t');
+                    return `"private_key":"${fixedPrivateKey}"`;
+                }
+            );
+
+            return JSON.parse(cleanedJson);
+        }
+    } catch (error) {
+        console.error('Failed to parse Google credentials JSON:', error);
+        return null;
+    }
+}
+
 export default async function handler(req, res) {
     // CORS headers
     res.setHeader('Access-Control-Allow-Credentials', true);
@@ -23,40 +70,50 @@ export default async function handler(req, res) {
     try {
         const { model, contents, config } = req.body;
 
-        // Read credentials from environment variables
-        const projectId = process.env.VERTEX_PROJECT_ID;
-        const clientEmail = process.env.VERTEX_CLIENT_EMAIL;
-        const privateKey = process.env.VERTEX_PRIVATE_KEY;
+        // Parse credentials from GOOGLE_VERTEX_API_CONFIG_JSON
+        const credentialsJson = process.env.GOOGLE_VERTEX_API_CONFIG_JSON;
 
-        if (!projectId || !clientEmail || !privateKey) {
+        if (!credentialsJson) {
             return res.status(500).json({
-                error: 'Missing Vertex AI credentials in environment variables'
+                error: 'Missing GOOGLE_VERTEX_API_CONFIG_JSON environment variable'
+            });
+        }
+
+        const credentials = parseGoogleCredentialsJson(credentialsJson);
+
+        if (!credentials) {
+            return res.status(500).json({
+                error: 'Failed to parse GOOGLE_VERTEX_API_CONFIG_JSON'
+            });
+        }
+
+        // Validate required fields
+        if (!credentials.project_id || !credentials.client_email || !credentials.private_key) {
+            return res.status(500).json({
+                error: 'Invalid credentials: missing required fields (project_id, client_email, private_key)'
             });
         }
 
         // Initialize Vertex AI Client
         const ai = new GoogleGenAI({
             vertexAI: true,
-            project: projectId,
-            location: 'us-central1',
+            project: credentials.project_id,
+            location: process.env.GOOGLE_VERTEX_LOCATION || 'us-central1',
             googleAuth: {
                 credentials: {
-                    client_email: clientEmail,
-                    private_key: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines
+                    client_email: credentials.client_email,
+                    private_key: credentials.private_key,
                 }
             }
         });
 
-        // Use the new SDK method signature
+        // Generate content
         const result = await ai.models.generateContent({
             model: model || 'gemini-2.5-flash',
             contents: contents,
             config: config
         });
 
-        // The new SDK returns the response directly or in a property?
-        // Usually result.text is a getter or property.
-        // Let's try to access text safely.
         const text = result.text ? result.text() : "";
         const usageMetadata = result.usageMetadata;
         const candidates = result.candidates;
