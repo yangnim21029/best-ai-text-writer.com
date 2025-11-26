@@ -1,6 +1,5 @@
 
 import { GoogleGenAI } from "@google/genai";
-import credentials from '../vertex_key.json' assert { type: 'json' };
 
 export default async function handler(req, res) {
     // CORS headers
@@ -24,15 +23,26 @@ export default async function handler(req, res) {
     try {
         const { model, contents, config } = req.body;
 
+        // Read credentials from environment variables
+        const projectId = process.env.VERTEX_PROJECT_ID;
+        const clientEmail = process.env.VERTEX_CLIENT_EMAIL;
+        const privateKey = process.env.VERTEX_PRIVATE_KEY;
+
+        if (!projectId || !clientEmail || !privateKey) {
+            return res.status(500).json({
+                error: 'Missing Vertex AI credentials in environment variables'
+            });
+        }
+
         // Initialize Vertex AI Client
         const ai = new GoogleGenAI({
             vertexAI: true,
-            project: credentials.project_id,
+            project: projectId,
             location: 'us-central1',
             googleAuth: {
                 credentials: {
-                    client_email: credentials.client_email,
-                    private_key: credentials.private_key,
+                    client_email: clientEmail,
+                    private_key: privateKey.replace(/\\n/g, '\n'), // Handle escaped newlines
                 }
             }
         });
