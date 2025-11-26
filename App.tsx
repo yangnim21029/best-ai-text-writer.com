@@ -1,10 +1,11 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Header } from './components/Header';
 import { InputForm } from './components/InputForm';
 import { Preview } from './components/Preview';
 import { SeoSidebar } from './components/SeoSidebar';
 import { Changelog } from './components/Changelog';
+import { PasswordGate } from './components/PasswordGate';
 import { useAppStore } from './store/useAppStore';
 import { useProfileStore } from './store/useProfileStore';
 import { useGeneration } from './hooks/useGeneration';
@@ -12,9 +13,11 @@ import { parseProductContext } from './services/productService';
 import { SavedProfile } from './types';
 
 const App: React.FC = () => {
+    const passwordHash = useMemo(() => (import.meta.env.VITE_APP_GUARD_HASH as string) || '', []);
     // Global State
     const store = useAppStore();
     const profileStore = useProfileStore();
+    const [isUnlocked, setIsUnlocked] = useState(false);
 
     // Logic Hooks
     const { generate, stop } = useGeneration();
@@ -79,6 +82,26 @@ const App: React.FC = () => {
             store.setActiveProductBrief(res.data);
         }
     };
+
+    useEffect(() => {
+        if (sessionStorage.getItem('app_access_granted') === '1') {
+            setIsUnlocked(true);
+        }
+    }, []);
+
+    const handleUnlock = () => {
+        sessionStorage.setItem('app_access_granted', '1');
+        setIsUnlocked(true);
+    };
+
+    if (!isUnlocked) {
+        return (
+            <PasswordGate
+                passwordHash={passwordHash}
+                onUnlock={handleUnlock}
+            />
+        );
+    }
 
     return (
         <Layout>
