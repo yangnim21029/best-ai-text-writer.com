@@ -26,12 +26,20 @@ export const generateContent = async (
             })
         });
 
+        const contentType = response.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
+
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'Failed to generate content');
+            if (isJson) {
+                const errorData = await response.json();
+                throw new Error(errorData.error || 'Failed to generate content');
+            } else {
+                const text = await response.text();
+                throw new Error(text || 'Failed to generate content (non-JSON response)');
+            }
         }
 
-        const data = await response.json();
+        const data = isJson ? await response.json() : { text: await response.text() };
         return data;
 
     } catch (error) {
