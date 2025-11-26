@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { marked } from 'marked';
 import { TargetAudience, CostBreakdown, TokenUsage } from '../types';
-import { generateSnippet, smartInjectPoint } from '../services/geminiService';
+import { generateSnippet, smartInjectPoint } from '../services/contentGenerationService';
 
 interface UseAIEditorParams {
     editorRef: React.RefObject<HTMLDivElement>;

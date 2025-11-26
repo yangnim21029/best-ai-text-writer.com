@@ -1,26 +1,43 @@
 import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { useAppStore } from '../store/useAppStore';
 import { ArticleConfig } from '../types';
-import { generateSectionContent } from '../services/geminiService';
+import { generateSectionContent, generateSectionHeading } from '../services/contentGenerationService';
 import { analyzeText } from '../services/nlpService';
-import { extractKeywordActionPlans, analyzeReferenceStructure, analyzeAuthorityTerms } from '../services/extractionService';
+import { extractKeywordActionPlans } from '../services/keywordAnalysisService';
+import { analyzeReferenceStructure } from '../services/referenceAnalysisService';
+import { analyzeAuthorityTerms } from '../services/authorityService';
 import { generateProblemProductMapping, parseProductContext } from '../services/productService';
 import { analyzeImageWithAI, analyzeVisualStyle } from '../services/imageService';
 import { buildTurboPlaceholder, mergeTurboSections } from '../services/turboRenderer';
+import { useGenerationStore } from '../store/useGenerationStore';
+import { useAnalysisStore } from '../store/useAnalysisStore';
+import { useMetricsStore } from '../store/useMetricsStore';
+import { resetGenerationState } from '../store/resetGenerationState';
 
-const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof useAppStore.getState>) => {
+const isStopped = () => useGenerationStore.getState().isStopped;
+const turboHeaderBanner = `
+    <div class="mb-6 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2 text-xs font-mono text-slate-500">
+        <span class="font-bold text-slate-700">📑 Active Blueprint:</span> <span class="text-blue-600">Turbo Mode</span>
+    </div>
+`;
+
+const runGeneration = async (config: ArticleConfig) => {
+        const generationStore = useGenerationStore.getState();
+        const analysisStore = useAnalysisStore.getState();
+        const metricsStore = useMetricsStore.getState();
+
         // Reset State
-        store.resetGeneration();
-        store.setStatus('analyzing');
-        store.setScrapedImages(config.scrapedImages || []);
-        store.setTargetAudience(config.targetAudience);
+        resetGenerationState();
+        generationStore.setStatus('analyzing');
+        analysisStore.setScrapedImages(config.scrapedImages || []);
+        analysisStore.setTargetAudience(config.targetAudience);
+        analysisStore.setArticleTitle(config.title || '');
 
         // Inject global Brand Knowledge from store if not provided (or merge?)
         // In App.tsx it was passed from state. Here we can read it.
         const fullConfig = {
             ...config,
-            brandKnowledge: store.brandKnowledge
+            brandKnowledge: analysisStore.brandKnowledge
         };
 
         try {
@@ -32,76 +49,77 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                 let generatedMapping: any[] = [];
 
                 if (!parsedProductBrief && config.productRawText && config.productRawText.length > 5) {
-                    if (useAppStore.getState().isStopped) return { mapping: [] };
-                    store.setGenerationStep('parsing_product');
+                    if (isStopped()) return { mapping: [] };
+                    generationStore.setGenerationStep('parsing_product');
                     const parseRes = await parseProductContext(config.productRawText);
                     console.log(`[Timer] Product Context Parse: ${parseRes.duration}ms`);
                     parsedProductBrief = parseRes.data;
-                    store.addCost(parseRes.cost.totalCost, parseRes.usage.totalTokens);
+                    metricsStore.addCost(parseRes.cost.totalCost, parseRes.usage.totalTokens);
                 }
 
                 if (parsedProductBrief && parsedProductBrief.productName) {
-                    if (useAppStore.getState().isStopped) return { brief: parsedProductBrief, mapping: [] };
-                    store.setGenerationStep('mapping_product');
+                    if (isStopped()) return { brief: parsedProductBrief, mapping: [] };
+                    generationStore.setGenerationStep('mapping_product');
                     const mapRes = await generateProblemProductMapping(parsedProductBrief, fullConfig.targetAudience);
                     console.log(`[Timer] Product Mapping: ${mapRes.duration}ms`);
                     generatedMapping = mapRes.data;
-                    store.setProductMapping(generatedMapping);
-                    store.addCost(mapRes.cost.totalCost, mapRes.usage.totalTokens);
+                    analysisStore.setProductMapping(generatedMapping);
+                    metricsStore.addCost(mapRes.cost.totalCost, mapRes.usage.totalTokens);
                 }
 
-                store.setActiveProductBrief(parsedProductBrief);
+                analysisStore.setActiveProductBrief(parsedProductBrief);
                 return { brief: parsedProductBrief, mapping: generatedMapping };
             };
 
             // Task 2: NLP & Keyword Planning
             const keywordTask = async () => {
-                if (useAppStore.getState().isStopped) return;
-                store.setGenerationStep('nlp_analysis');
+                if (isStopped()) return;
+                generationStore.setGenerationStep('nlp_analysis');
                 const keywords = await analyzeText(fullConfig.referenceContent);
 
-                if (keywords.length > 0 && !useAppStore.getState().isStopped) {
-                    store.setGenerationStep('planning_keywords');
+                if (keywords.length > 0 && !isStopped()) {
+                    generationStore.setGenerationStep('planning_keywords');
                     try {
                         const planRes = await extractKeywordActionPlans(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
                         console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
-                        store.setKeywordPlans(planRes.data);
-                        store.addCost(planRes.cost.totalCost, planRes.usage.totalTokens);
+                        analysisStore.setKeywordPlans(planRes.data);
+                        metricsStore.addCost(planRes.cost.totalCost, planRes.usage.totalTokens);
                     } catch (e) {
                         console.warn("Action Plan extraction failed", e);
                     }
                 }
             };
 
-            // Task 3: Structure & Authority
+            // Task 3: Structure & Authority (run concurrently)
             const structureTask = async () => {
-                if (useAppStore.getState().isStopped) return;
-                store.setGenerationStep('extracting_structure');
-                const structPromise = analyzeReferenceStructure(fullConfig.referenceContent, fullConfig.targetAudience);
-                const authPromise = analyzeAuthorityTerms(
-                    fullConfig.authorityTerms || '',
-                    fullConfig.title,
-                    fullConfig.websiteType || 'General Professional Website',
-                    fullConfig.targetAudience
-                );
+                if (isStopped()) return;
+                generationStore.setGenerationStep('extracting_structure');
+                const [structRes, authRes] = await Promise.all([
+                    analyzeReferenceStructure(fullConfig.referenceContent, fullConfig.targetAudience),
+                    analyzeAuthorityTerms(
+                        fullConfig.authorityTerms || '',
+                        fullConfig.title,
+                        fullConfig.websiteType || 'General Professional Website',
+                        fullConfig.targetAudience
+                    )
+                ]);
 
-                const [structRes, authRes] = await Promise.all([structPromise, authPromise]);
                 console.log(`[Timer] Structure Analysis: ${structRes.duration}ms`);
                 console.log(`[Timer] Authority Analysis: ${authRes.duration}ms`);
 
-                store.addCost(structRes.cost.totalCost, structRes.usage.totalTokens);
-                store.addCost(authRes.cost.totalCost, authRes.usage.totalTokens);
+                metricsStore.addCost(structRes.cost.totalCost, structRes.usage.totalTokens);
+                metricsStore.addCost(authRes.cost.totalCost, authRes.usage.totalTokens);
 
-                store.setRefAnalysis(structRes.data);
-                store.setAuthAnalysis(authRes.data);
+                analysisStore.setRefAnalysis(structRes.data);
+                analysisStore.setAuthAnalysis(authRes.data);
 
                 return { structRes, authRes };
             };
 
             // Task 4: Image Analysis & Visual Style
             const visualTask = async () => {
-                if (useAppStore.getState().isStopped) return;
-                store.setGenerationStep('analyzing_visuals');
+                if (isStopped()) return;
+                generationStore.setGenerationStep('analyzing_visuals');
 
                 const initialImages = config.scrapedImages || [];
                 const imagesToAnalyze = initialImages.slice(0, 5);
@@ -109,43 +127,53 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
 
                 if (imagesToAnalyze.length > 0) {
                     for (let i = 0; i < imagesToAnalyze.length; i++) {
-                        if (useAppStore.getState().isStopped) break;
+                        if (isStopped()) break;
                         const img = imagesToAnalyze[i];
                         if (img.url) {
                             try {
                                 const res = await analyzeImageWithAI(img.url);
                                 analyzedImages[i] = { ...analyzedImages[i], aiDescription: res.data };
-                                store.addCost(res.cost.totalCost, res.usage.totalTokens);
+                                metricsStore.addCost(res.cost.totalCost, res.usage.totalTokens);
                             } catch (e) {
                                 console.warn(`Failed to analyze image ${img.url}`, e);
                             }
                         }
                     }
-                    store.setScrapedImages(analyzedImages);
+                    analysisStore.setScrapedImages(analyzedImages);
                 }
 
                 try {
                     const styleRes = await analyzeVisualStyle(analyzedImages, fullConfig.websiteType || "Modern Business");
-                    store.setVisualStyle(styleRes.data);
-                    store.addCost(styleRes.cost.totalCost, styleRes.usage.totalTokens);
+                    analysisStore.setVisualStyle(styleRes.data);
+                    metricsStore.addCost(styleRes.cost.totalCost, styleRes.usage.totalTokens);
                 } catch (e) {
                     console.warn("Failed to extract visual style", e);
                 }
             };
 
             // --- EXECUTE PARALLEL ---
-            const [productResult, _, structureResult, __] = await Promise.all([
-                productTask(),
-                keywordTask(),
-                structureTask(),
-                visualTask()
+            const productPromise = productTask();
+            const keywordPromise = keywordTask();
+            const structurePromise = structureTask();
+            const visualPromise = visualTask();
+
+            const [productResult, structureResult] = await Promise.all([
+                productPromise,
+                structurePromise
             ]);
 
-            if (useAppStore.getState().isStopped) return;
+            if (config.turboMode) {
+                keywordPromise.catch(err => console.warn('Keyword task failed (turbo background)', err));
+                visualPromise.catch(err => console.warn('Visual task failed (turbo background)', err));
+            } else {
+                await Promise.all([keywordPromise, visualPromise]);
+            }
+
+            if (isStopped()) return;
 
             // --- PREPARE WRITING LOOP ---
-            const parsedProductBrief = productResult.brief;
-            const productMappingData = productResult.mapping;
+            const parsedProductBrief = productResult?.brief;
+            const productMappingData = productResult?.mapping || [];
             const refAnalysisData = structureResult?.structRes.data;
             const authAnalysisData = structureResult?.authRes.data;
 
@@ -169,10 +197,11 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                 ];
             }
 
-            store.setStatus('streaming');
-            store.setGenerationStep('writing_content');
-            // store.setShowInput(false); // Let UI decide
+            generationStore.setStatus('streaming');
+            generationStore.setGenerationStep('writing_content');
 
+            const sectionBodies: string[] = new Array(sectionsToGenerate.length).fill("");
+            const sectionHeadings: string[] = new Array(sectionsToGenerate.length).fill("");
             const sectionResults: string[] = new Array(sectionsToGenerate.length).fill("");
             const allKeyPoints = refAnalysisData?.keyInformationPoints || [];
             let currentCoveredPoints: string[] = [];
@@ -185,6 +214,13 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                 authorityAnalysis: authAnalysisData,
             };
 
+            const combineSections = () => sectionBodies.map((body, idx) => {
+                const heading = sectionHeadings[idx];
+                if (heading && body) return `<div><h3>${heading}</h3>\n${body}</div>`;
+                if (heading) return `<div><h3>${heading}</h3></div>`;
+                return body;
+            });
+
             // --- PARALLEL EXECUTION (TURBO MODE) ---
             if (config.turboMode) {
                 const outlineSourceLabel = isUsingCustomOutline
@@ -192,10 +228,30 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                     : `<span class="text-indigo-600">AI Narrative Structure (Outline)</span>`;
 
                 const initialDisplay = buildTurboPlaceholder(sectionsToGenerate, outlineSourceLabel);
-                store.setContent(initialDisplay);
+                generationStore.setContent(initialDisplay);
+
+                const headingPromises = sectionsToGenerate.map(async (section, i) => {
+                    if (isStopped()) return;
+                    try {
+                        const analysisPlan = refAnalysisData?.structure.find(s => s.title === section.title)?.narrativePlan;
+                        const headingRes = await generateSectionHeading(
+                            generatorConfig,
+                            section.title,
+                            analysisPlan,
+                            analysisStore.keywordPlans,
+                            allKeyPoints
+                        );
+                        sectionHeadings[i] = headingRes.data;
+                        metricsStore.addCost(headingRes.cost.totalCost, headingRes.usage.totalTokens);
+                        const combined = combineSections();
+                        generationStore.setContent(mergeTurboSections(sectionsToGenerate, combined));
+                    } catch (err) {
+                        console.warn(`Heading generation failed for ${section.title}`, err);
+                    }
+                });
 
                 const promises = sectionsToGenerate.map(async (section, i) => {
-                    if (useAppStore.getState().isStopped) return;
+                    if (isStopped()) return;
 
                     const allTitles = sectionsToGenerate.map(s => s.title);
                     const previousTitles = allTitles.slice(0, i);
@@ -212,7 +268,7 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                             section.title,
                             specificPlan,
                             refAnalysisData?.generalPlan,
-                            store.keywordPlans, // Read from store
+                            analysisStore.keywordPlans,
                             dummyPreviousContent,
                             futureTitles,
                             authAnalysisData,
@@ -221,15 +277,16 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                             0
                         );
 
-                        if (!useAppStore.getState().isStopped) {
-                            sectionResults[i] = res.data.content;
+                        if (!isStopped()) {
+                            sectionBodies[i] = res.data.content;
                             console.log(`[Timer - Turbo] Section '${section.title}': ${res.duration}ms`);
 
-                            store.setContent(mergeTurboSections(sectionsToGenerate, sectionResults));
-                            store.addCost(res.cost.totalCost, res.usage.totalTokens);
+                            const combined = combineSections();
+                            generationStore.setContent(mergeTurboSections(sectionsToGenerate, combined));
+                            metricsStore.addCost(res.cost.totalCost, res.usage.totalTokens);
 
                             if (res.data.usedPoints && res.data.usedPoints.length > 0) {
-                                store.setCoveredPoints(prev => {
+                                analysisStore.setCoveredPoints(prev => {
                                     const newUnique = res.data.usedPoints.filter(p => !prev.includes(p));
                                     return [...prev, ...newUnique];
                                 });
@@ -237,22 +294,22 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                         }
                     } catch (err) {
                         console.error(`Parallel gen error for ${section.title}`, err);
-                        sectionResults[i] = `\n\n> **Error generating section: ${section.title}**\n\n`;
-                        const sectionDisplays = sectionResults.map((c, idx) => c || `> ...Waiting: ${sectionsToGenerate[idx].title}`).join('\n\n');
-                        store.setContent(headerBanner + sectionDisplays);
+                        sectionBodies[i] = `\n\n> **Error generating section: ${section.title}**\n\n`;
+                        const sectionDisplays = combineSections().map((c, idx) => c || `> ...Waiting: ${sectionsToGenerate[idx].title}`).join('\n\n');
+                        generationStore.setContent(turboHeaderBanner + sectionDisplays);
                     }
                 });
 
-                await Promise.all(promises);
+                await Promise.all([...headingPromises, ...promises]);
 
-                if (!useAppStore.getState().isStopped) {
-                    store.setContent(sectionResults.join('\n\n'));
+                if (!isStopped()) {
+                    generationStore.setContent(combineSections().join('\n\n'));
                 }
 
             } else {
                 // --- SEQUENTIAL EXECUTION ---
                 for (let i = 0; i < sectionsToGenerate.length; i++) {
-                    if (useAppStore.getState().isStopped) break;
+                    if (isStopped()) break;
 
                     const section = sectionsToGenerate[i];
                     const allTitles = sectionsToGenerate.map(s => s.title);
@@ -269,7 +326,7 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                             section.title,
                             specificPlan,
                             refAnalysisData?.generalPlan,
-                            store.keywordPlans,
+                            analysisStore.keywordPlans,
                             previousTitles,
                             futureTitles,
                             authAnalysisData,
@@ -278,15 +335,15 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                             totalInjectedCount
                         );
                         console.log(`[Timer] Section '${section.title}': ${res.duration}ms`);
-                        store.addCost(res.cost.totalCost, res.usage.totalTokens);
+                        metricsStore.addCost(res.cost.totalCost, res.usage.totalTokens);
 
-                        if (!useAppStore.getState().isStopped) {
+                        if (!isStopped()) {
                             sectionResults[i] = res.data.content;
-                            store.setContent(sectionResults.filter(s => s).join('\n\n'));
+                            generationStore.setContent(sectionResults.filter(s => s).join('\n\n'));
 
                             if (res.data.usedPoints && res.data.usedPoints.length > 0) {
                                 currentCoveredPoints = [...currentCoveredPoints, ...res.data.usedPoints];
-                                store.setCoveredPoints(currentCoveredPoints);
+                                analysisStore.setCoveredPoints(currentCoveredPoints);
                             }
                             if (res.data.injectedCount) {
                                 totalInjectedCount += res.data.injectedCount;
@@ -295,31 +352,29 @@ const runGeneration = async (config: ArticleConfig, store: ReturnType<typeof use
                     } catch (err) {
                         console.error(`Failed to generate section: ${section.title}`, err);
                         sectionResults[i] = `\n\n> **Error generating section: ${section.title}**\n\n`;
-                        store.setContent(sectionResults.filter(s => s).join('\n\n'));
+                        generationStore.setContent(sectionResults.filter(s => s).join('\n\n'));
                     }
                 }
             }
 
-            if (!useAppStore.getState().isStopped) {
-                store.setGenerationStep('finalizing');
+            if (!isStopped()) {
+                generationStore.setGenerationStep('finalizing');
                 setTimeout(() => {
-                    store.setStatus('completed');
-                    store.setGenerationStep('idle');
+                    generationStore.setStatus('completed');
+                    generationStore.setGenerationStep('idle');
                 }, 1000);
             }
         } catch (err: any) {
             console.error(err);
-            store.setError(err.message || "An unexpected error occurred during generation.");
-            store.setStatus('error');
-            store.setGenerationStep('idle');
+            generationStore.setError(err.message || "An unexpected error occurred during generation.");
+            generationStore.setStatus('error');
+            generationStore.setGenerationStep('idle');
         }
 };
 
 export const useGeneration = () => {
-    const store = useAppStore();
-
     const mutation = useMutation({
-        mutationFn: (config: ArticleConfig) => runGeneration(config, useAppStore.getState()),
+        mutationFn: (config: ArticleConfig) => runGeneration(config),
     });
 
     const generate = useCallback(async (config: ArticleConfig) => {
@@ -327,8 +382,8 @@ export const useGeneration = () => {
     }, [mutation]);
 
     const stop = useCallback(() => {
-        store.stopGeneration();
-    }, [store]);
+        useGenerationStore.getState().stopGeneration();
+    }, []);
 
     return { generate, stop, status: mutation.status };
 };
