@@ -160,7 +160,7 @@ export const Preview: React.FC<PreviewProps> = ({
   }
 
   const StreamingModal = () => (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-md p-4 animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/12 backdrop-blur-[2px] p-4 animate-in fade-in duration-200">
       <div className="w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[85vh] animate-in zoom-in-95 duration-300 ring-1 ring-black/5">
         {/* Header */}
         <div className="px-6 py-4 border-b border-gray-50 flex items-center justify-between bg-white relative z-10">
@@ -321,8 +321,8 @@ export const Preview: React.FC<PreviewProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 overflow-hidden bg-white relative w-full h-full">
-        <div className={`w-full h-full transition-opacity duration-500 ${showModal ? 'opacity-50 pointer-events-none grayscale-[0.5]' : 'opacity-100'}`}>
+      <div className="flex-1 overflow-hidden bg-white relative w-full h-full min-h-0">
+        <div className="w-full h-full min-h-0 transition-opacity duration-300">
             {viewMode === 'visual' ? (
                 <RichTextEditor 
                     initialHtml={editorHtml} 

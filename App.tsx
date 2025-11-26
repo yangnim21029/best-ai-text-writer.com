@@ -646,10 +646,10 @@ const App: React.FC = () => {
       {/* Changelog Modal */}
       <Changelog isOpen={showChangelog} onClose={() => setShowChangelog(false)} />
       
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden h-[calc(100vh-64px)] bg-gray-100 p-4 gap-4">
+      <main className="flex-1 flex flex-col lg:flex-row overflow-auto min-h-[calc(100vh-64px)] bg-gray-100 p-4 gap-4">
         
         {showInput && (
-            <section className="w-full lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col overflow-hidden z-20 transition-all duration-300">
+            <section className="w-full lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col overflow-auto z-20 transition-all duration-300">
             <InputForm 
                 onGenerate={handleGenerate} 
                 isGenerating={status === 'analyzing' || status === 'streaming'}
@@ -666,7 +666,7 @@ const App: React.FC = () => {
             </section>
         )}
         
-        <section className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col min-h-0 relative overflow-hidden">
+        <section className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col min-h-0 relative overflow-auto">
           <Preview 
             content={content} 
             status={status} 
@@ -692,7 +692,7 @@ const App: React.FC = () => {
         </section>
 
         {showSidebar && (
-            <section className="hidden xl:flex w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex-col overflow-hidden z-10 transition-all duration-300">
+            <section className="hidden xl:flex w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex-col overflow-auto z-10 transition-all duration-300">
             <SeoSidebar 
                 keywordPlans={keywordPlans}
                 referenceAnalysis={refAnalysis}

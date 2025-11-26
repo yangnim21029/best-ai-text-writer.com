@@ -614,19 +614,19 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 flex overflow-hidden relative w-full h-full">
+      <div className="flex-1 flex overflow-hidden relative w-full h-full min-h-0">
           <div className="flex-1 overflow-hidden bg-white relative group min-h-0 flex flex-col">
             <div
               ref={editorRef}
               contentEditable
-              className="editor-content prose prose-lg max-w-none p-8 md:p-12 focus:outline-none flex-1 overflow-y-auto custom-scrollbar pb-32"
+              className="editor-content prose prose-lg max-w-none p-8 md:p-12 focus:outline-none flex-1 overflow-y-auto custom-scrollbar pb-20 min-h-0"
               onInput={handleInput}
               spellCheck={false}
               onMouseUp={saveSelection}
               onKeyUp={saveSelection}
             />
             
-            <div className="px-4 py-2 bg-gray-50 border-t border-gray-200 text-[10px] text-gray-500 font-mono flex items-center justify-end gap-4 select-none">
+            <div className="px-4 py-2 bg-gray-50/95 backdrop-blur border-t border-gray-200 text-[10px] text-gray-500 font-mono flex items-center justify-end gap-4 select-none sticky bottom-0 z-10">
                 <span>{wordCount} words</span>
                 <span>{charCount} chars</span>
             </div>
