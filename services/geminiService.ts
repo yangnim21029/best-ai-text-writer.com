@@ -1,8 +1,10 @@
 import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { filterSectionContext } from './extractionService';
-import { generateContent } from './ai'; // Import the proxy client
+import { generateContent } from './ai';
 import { Type } from "@google/genai";
+import { promptRegistry } from './promptRegistry';
+import { MODEL } from '../config/constants';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -142,39 +144,23 @@ export const generateSectionContent = async (
 
     const languageInstruction = getLanguageInstruction(config.targetAudience);
 
-    const prompt = `
-    You are an expert editor writing the section: "${sectionTitle}".
-    
-    ${languageInstruction}
-    
-    CONTEXT:
-    - Article Topic: "${config.title}"
-    - Previous Sections (Summary): ${previousSections.slice(-2).map(s => s.substring(0, 100) + "...").join(" | ")}
-    - Upcoming Sections: ${futureSections.join(", ")}
-    
-    STRATEGY & STYLE:
-    - Overall Voice: ${generalPlan?.join("; ") || "Professional, authoritative"}
-    - Section Strategy: ${specificPlan?.join("; ") || "Explain thoroughly"}
-    - Brand Knowledge Rules: ${kbInsights.length > 0 ? kbInsights.join("; ") : "None"}
-    
-    RESOURCES TO USE:
-    - Keywords to Weave: ${keywordPlans.map(k => k.word).join(", ")}
-    - Authority Terms: ${relevantAuthTerms.slice(0, 5).join(", ")}
-
-    **KEY FACTS TO INCLUDE (Pick 1-3 most relevant):**
-    ${pointsAvailableForThisSection.length > 0 ? pointsAvailableForThisSection.join("; ") : "(No new key points needed for this section, focus on narrative)"}
-    
-    ${injectionPlan}
-    
-    OUTPUT RULES:
-    - Return ONLY the content for this section in JSON format.
-    - Use proper Markdown for the content string (H3 for subsections, Lists where appropriate).
-    - Do NOT repeat the H2 Title "${sectionTitle}".
-    - Ensure smooth transitions from the previous section.
-    `;
+    const prompt = promptRegistry.build('sectionContent', {
+        sectionTitle,
+        languageInstruction,
+        previousSections,
+        futureSections,
+        generalPlan,
+        specificPlan,
+        kbInsights,
+        keywordPlans,
+        relevantAuthTerms,
+        points: pointsAvailableForThisSection,
+        injectionPlan,
+        articleTitle: config.title,
+    });
 
     const response = await generateContent(
-        'gemini-2.5-flash',
+        MODEL.FLASH,
         prompt,
         {
             responseMimeType: 'application/json',
@@ -236,12 +222,9 @@ export const generateSnippet = async (prompt: string, targetAudience: TargetAudi
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const fullPrompt = `
-    ${languageInstruction}
-    ${prompt}
-    `;
+    const fullPrompt = promptRegistry.build('snippet', { prompt, languageInstruction });
 
-    const response = await generateContent('gemini-2.5-flash', fullPrompt);
+    const response = await generateContent(MODEL.FLASH, fullPrompt);
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
     return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
 };
@@ -255,28 +238,9 @@ export const rebrandContent = async (
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const prompt = `
-    TASK: REBRAND this article content.
-    
-    BRAND IDENTITY:
-    - Name: "${productBrief.brandName}"
-    - Product: "${productBrief.productName}"
-    - USP: "${productBrief.usp}"
-    
-    INSTRUCTIONS:
-    1. Scan the text for generic terms like "the device", "the treatment", "many clinics", or any Competitor Names.
-    2. REWRITE those sentences to specifically feature **${productBrief.brandName}** or **${productBrief.productName}**.
-    3. Ensure the grammar flows naturally (Subject-Verb agreement).
-    4. Do NOT just find-replace. Rewrite the sentence to sound authoritative.
-    5. Maintain the original structure and formatting (Markdown).
-    
-    ${languageInstruction}
+    const prompt = promptRegistry.build('rebrandContent', { productBrief, languageInstruction, currentContent });
 
-    CONTENT TO REBRAND:
-    ${currentContent}
-    `;
-
-    const response = await generateContent('gemini-2.5-flash', prompt);
+    const response = await generateContent(MODEL.FLASH, prompt);
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
     return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
@@ -316,17 +280,9 @@ export const smartInjectPoint = async (
     }
 
     // 2. FIND BEST BLOCK (Prompt 1)
-    const findPrompt = `
-    I need to insert this Key Point: "${pointToInject}"
-    
-    Here is a "Compact Index" of the article paragraphs:
-    ${blocks.map(b => `[ID: ${b.id}] ${b.text}`).join('\n')}
-    
-    TASK: Identify the SINGLE Best Block ID to insert/merge this point into. 
-    Return ONLY the ID (e.g. "5").
-    `;
+    const findPrompt = promptRegistry.build('smartFindBlock', { pointToInject, blocks });
 
-    const findRes = await generateContent('gemini-2.5-flash', findPrompt);
+    const findRes = await generateContent(MODEL.FLASH, findPrompt);
 
     const bestIdStr = findRes.text?.trim().match(/\d+/)?.[0];
     const bestId = bestIdStr ? parseInt(bestIdStr) : -1;
@@ -338,22 +294,9 @@ export const smartInjectPoint = async (
     }
 
     // 3. REWRITE BLOCK (Prompt 2)
-    const rewritePrompt = `
-    TASK: Rewrite the following HTML Block to naturally include this Key Point.
-    
-    KEY POINT: "${pointToInject}"
-    
-    TARGET HTML BLOCK:
-    ${targetBlock.html}
-    
-    RULES:
-    1. Keep the original meaning and HTML tag structure (<p> or <li>).
-    2. Weave the point in naturally. Do not just append it at the end unless it fits.
-    3. ${languageInstruction}
-    4. Return ONLY the new HTML string.
-    `;
+    const rewritePrompt = promptRegistry.build('smartRewriteBlock', { pointToInject, targetHtml: targetBlock.html, languageInstruction });
 
-    const rewriteRes = await generateContent('gemini-2.5-flash', rewritePrompt);
+    const rewriteRes = await generateContent(MODEL.FLASH, rewritePrompt);
 
     const cost1 = calculateCost(findRes.usageMetadata, 'FLASH');
     const cost2 = calculateCost(rewriteRes.usageMetadata, 'FLASH');

@@ -3,6 +3,8 @@ import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience, Refere
 import { calculateCost, getLanguageInstruction, extractRawSnippets } from './promptService';
 import { generateContent } from './ai';
 import { Type } from "@google/genai";
+import { promptRegistry } from './promptRegistry';
+import { MODEL } from '../config/constants';
 
 // 1. Analyze Context & Generate Action Plan
 export const extractKeywordActionPlans = async (referenceContent: string, keywords: KeywordData[], targetAudience: TargetAudience): Promise<ServiceResponse<KeywordActionPlan[]>> => {
@@ -20,30 +22,16 @@ export const extractKeywordActionPlans = async (referenceContent: string, keywor
     }
 
     const languageInstruction = getLanguageInstruction(targetAudience);
-
-    const prompt = `
-    I have a list of High-Frequency Keywords and their "Context Snippets" from a Reference Text.
-    
-    TASK:
-    For each keyword, analyze its context snippets to understand the specific **Sentence Structure** and **Syntactic placement** used by the author.
-    Generate a "Usage Action Plan" (Max 3 points) for a ghostwriter.
-    
-    ${languageInstruction}
-
-    The Action Plan must be specific about the **Sentence Context** (NOT the paragraph type):
-    1. **Syntactic Placement**: Analyze where in the *sentence* this word appears. Does it usually start the sentence? Is it used in a dependent clause? Is it part of a list? Is it used as a transition?
-    2. **Collocations**: What specific words, prepositions, or adjectives immediately precede or follow it in the snippets?
-    3. **Tone/Function**: Is it used to qualify a previous statement, introduce a technical detail, or provide a concrete example?
-
-    INPUT DATA:
-    ${JSON.stringify(analysisPayload.slice(0, 20), null, 2)}
-    `;
+    const prompt = promptRegistry.build('keywordActionPlan', {
+        languageInstruction,
+        analysisPayloadString: JSON.stringify(analysisPayload.slice(0, 20), null, 2),
+    });
 
     try {
-        const response = await generateContent(
-            'gemini-2.5-flash',
-            prompt,
-            {
+    const response = await generateContent(
+        MODEL.FLASH,
+        prompt,
+        {
                 responseMimeType: 'application/json',
                 responseSchema: {
                     type: Type.OBJECT,
@@ -131,7 +119,7 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',
@@ -224,7 +212,7 @@ export const analyzeAuthorityTerms = async (authorityInput: string, topic: strin
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',
@@ -278,7 +266,7 @@ export const extractWebsiteTypeAndTerm = async (content: string): Promise<Servic
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',
@@ -363,7 +351,7 @@ export const filterSectionContext = async (
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',

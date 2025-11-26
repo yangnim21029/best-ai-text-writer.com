@@ -3,6 +3,8 @@ import { ServiceResponse, ScrapedImage, TargetAudience, ImageAssetPlan } from '.
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { generateContent } from './ai';
 import { Type } from "@google/genai";
+import { promptRegistry } from './promptRegistry';
+import { MODEL } from '../config/constants';
 
 const VISUAL_STYLE_GUIDE = `
     **STRICT VISUAL CATEGORIES (Select ONE):**
@@ -32,29 +34,10 @@ export const analyzeVisualStyle = async (
         .map(img => img.aiDescription)
         .join("\n---\n");
 
-    const prompt = `
-    I need to define a consistent "Visual Identity" (Master Style Prompt) for an article.
-    
-    WEBSITE CONTEXT: "${websiteType}"
-    
-    SOURCE IMAGE DESCRIPTIONS (from the brand's website):
-    ${analyzedSamples.length > 0 ? analyzedSamples : "No source images available. Infer style strictly from Website Context."}
-
-    TASK:
-    Synthesize a **single, cohesive Visual Style Description** that I can append to every image prompt to ensure consistency.
-    
-    Include:
-    1. **Color Palette:** (e.g., "Medical Blue #0055FF and Clean White", or "Warm Earth Tones")
-    2. **Lighting/Mood:** (e.g., "Soft bright studio lighting", "Moody natural light", "Flat vector lighting")
-    3. **Art Medium:** (e.g., "High-resolution Photography", "Minimalist 2D Vector Art", "3D Product Render")
-    
-    OUTPUT FORMAT:
-    Return ONLY the style description string (max 30 words).
-    Example: "Photorealistic style with soft daylight, using a clinical white and teal palette, high-end commercial aesthetic."
-    `;
+    const prompt = promptRegistry.build('visualStyle', { languageInstruction: getLanguageInstruction('zh-TW'), analyzedSamples, websiteType });
 
     try {
-        const response = await generateContent('gemini-2.5-flash', prompt);
+    const response = await generateContent(MODEL.FLASH, prompt);
 
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
         return {
@@ -81,26 +64,14 @@ export const generateImagePromptFromContext = async (
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const prompt = `
-    Based on the following text snippet, generate a specific image prompt.
-    
-    CONTENT SNIPPET: "...${contextText}..."
-    
-    GLOBAL VISUAL STYLE (Must Apply): "${visualStyle}"
-    
-    ${VISUAL_STYLE_GUIDE}
-    
-    ${languageInstruction}
+    const prompt = promptRegistry.build('imagePromptFromContext', {
+        contextText,
+        languageInstruction,
+        visualStyle,
+        guide: VISUAL_STYLE_GUIDE,
+    });
 
-    TASK: 
-    1. Analyze the snippet to decide which Category (1-4) fits best.
-    2. Write a concise prompt describing the subject.
-    3. **CRITICAL:** Append the GLOBAL VISUAL STYLE to the prompt.
-    
-    Output Format: Just the prompt text.
-    `;
-
-    const response = await generateContent('gemini-2.5-flash', prompt);
+    const response = await generateContent(MODEL.FLASH, prompt);
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
 
@@ -117,7 +88,7 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
     try {
         // Updated to use Gemini 3 Pro Image Preview (Nano Banana Pro) for higher quality
         const response = await generateContent(
-            'gemini-3-pro-image-preview',
+            MODEL.IMAGE_PREVIEW,
             { parts: [{ text: prompt }] },
             {
                 imageConfig: {
@@ -265,7 +236,7 @@ export const analyzeImageWithAI = async (imageUrl: string): Promise<ServiceRespo
 
         // 2. Send to Gemini (Multimodal)
         const result = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             [
                 { text: "Describe this image in detail for SEO purposes. Focus on the main subject, mood, and any visible text." },
                 { inlineData: { mimeType: mimeType, data: base64 } }
@@ -334,7 +305,7 @@ export const planImagesForArticle = async (
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',

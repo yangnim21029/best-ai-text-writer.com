@@ -15,7 +15,7 @@ export const analyzeText = async (text: string): Promise<KeywordData[]> => {
   if (!text || text.trim().length === 0) return [];
 
   // External NLP API Endpoint
-  const TARGET_URL = 'https://nlp.seo-kim.com/api/v1/tokenize';
+  const TARGET_URL = 'https://nlp.award-seo.com/api/v1/tokenize';
   // CORS Proxy to bypass browser restrictions
   const PROXY_URL = 'https://corsproxy.io/?';
 

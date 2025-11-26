@@ -3,6 +3,8 @@ import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } 
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { generateContent } from './ai';
 import { Type } from "@google/genai";
+import { promptRegistry } from './promptRegistry';
+import { MODEL } from '../config/constants';
 
 export const generateProductBrief = async (
     productName: string,
@@ -18,34 +20,11 @@ export const generateProductBrief = async (
     // or we can pass a "Context" string if the user provided one.
     // Assuming we rely on the AI's internal knowledge or the URL structure for now.
 
-    const prompt = `
-    I need to create a "Product Brief" for a marketing article.
-    
-    PRODUCT NAME: "${productName}"
-    URL: "${productUrl}"
-    
-    ${languageInstruction}
-    
-    TASK:
-    1. Infer the Brand Name and USP from the Product Name/URL.
-    2. Write a short "Product Description" (2 sentences).
-    3. Identify the "Primary Pain Point" this product solves.
-    4. Create a "Call to Action (CTA)" link text.
-    
-    OUTPUT FORMAT (JSON):
-    {
-        "brandName": "Brand Name",
-        "productName": "Full Product Name",
-        "productDescription": "...",
-        "usp": "...",
-        "primaryPainPoint": "...",
-        "ctaLink": "${productUrl}" 
-    }
-    `;
+    const prompt = promptRegistry.build('productBrief', { productName, productUrl, languageInstruction });
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',
@@ -96,30 +75,11 @@ export const mapProblemsToProduct = async (
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const prompt = `
-    I have a Product and an Article Topic.
-    
-    PRODUCT: ${productBrief.productName} (${productBrief.usp})
-    TOPIC: ${articleTopic}
-    
-    ${languageInstruction}
-    
-    TASK:
-    Identify 3-5 "Problem-Solution Mappings".
-    For each mapping:
-    1. **Pain Point**: A specific problem the reader has related to the Topic.
-    2. **Product Feature**: The specific feature of the product that solves it.
-    3. **Relevance Keywords**: List of keywords (from the topic) where this mapping is most relevant.
-    
-    OUTPUT JSON:
-    [
-        { "painPoint": "...", "productFeature": "...", "relevanceKeywords": ["...", "..."] }
-    ]
-    `;
+    const prompt = promptRegistry.build('productMapping', { productBrief, articleTopic, languageInstruction });
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',
@@ -164,30 +124,10 @@ export const summarizeBrandContent = async (
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const prompt = `
-    I have a list of URLs from a Brand's website (Product pages, About Us, Contact).
-    
-    TASK:
-    Extract and summarize the key Service/Product information into a concise, structured format.
-    
-    ${languageInstruction}
-    
-    INCLUDE:
-    1. Store/Brand Name
-    2. Main Services/Products offered
-    3. Contact Info (Address, Phone, Email if found)
-    4. Unique Selling Points (USP)
-    5. Any specific product models, technologies, or certifications
-    
-    OUTPUT FORMAT:
-    Return a single paragraph or structured list (max 200 words).
-    
-    URLs:
-    ${urls.join('\n')}
-    `;
+    const prompt = promptRegistry.build('brandSummary', { urls, languageInstruction });
 
     try {
-        const response = await generateContent('gemini-2.5-flash', prompt);
+        const response = await generateContent(MODEL.FLASH, prompt);
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
 
         return {
@@ -213,18 +153,11 @@ export const parseProductContext = async (
 ): Promise<ServiceResponse<ProductBrief>> => {
     const startTs = Date.now();
 
-    const prompt = `
-    Extract product/service information from the following text:
-    
-    "${rawText}"
-    
-    TASK:
-    Extract structured information in JSON format:
-    `;
+    const prompt = promptRegistry.build('productContextFromText', { rawText });
 
     try {
         const response = await generateContent(
-            'gemini-2.5-flash',
+            MODEL.FLASH,
             prompt,
             {
                 responseMimeType: 'application/json',

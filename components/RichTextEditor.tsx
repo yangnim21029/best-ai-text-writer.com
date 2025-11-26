@@ -7,9 +7,11 @@ import {
   GalleryHorizontalEnd, Loader2, Plus, RefreshCw, Map, PlayCircle, Wand2, Eraser, FileCode, ExternalLink, Palette, MousePointerClick, Gem, Eye, Download
 } from 'lucide-react';
 import { marked } from 'marked';
-import { generateSnippet, smartInjectPoint, rebrandContent } from '../services/geminiService';
-import { generateImagePromptFromContext, generateImage, planImagesForArticle } from '../services/imageService';
+import { generateSnippet, rebrandContent } from '../services/geminiService';
 import { TargetAudience, CostBreakdown, TokenUsage, ScrapedImage, ImageAssetPlan, ProductBrief } from '../types';
+import { useAIEditor } from '../hooks/useAIEditor';
+import { useImageEditor } from '../hooks/useImageEditor';
+import { useMetaGenerator } from '../hooks/useMetaGenerator';
 
 // Reusable Checklist Item Component (Extracted for Performance)
 const ChecklistItem: React.FC<{ 
@@ -80,10 +82,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [showAiModal, setShowAiModal] = useState(false);
   const [savedRange, setSavedRange] = useState<Range | null>(null);
 
-  const [showImageModal, setShowImageModal] = useState(false);
-  const [imagePrompt, setImagePrompt] = useState('');
-  const [isImageLoading, setIsImageLoading] = useState(false);
-  const [isDownloadingImages, setIsDownloadingImages] = useState(false);
 
   const [showKeyPoints, setShowKeyPoints] = useState(false);
   const [showVisualAssets, setShowVisualAssets] = useState(false);
@@ -96,14 +94,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [charCount, setCharCount] = useState(0);
   const [wordCount, setWordCount] = useState(0);
   
-  // Auto-Plan State
-  const [imagePlans, setImagePlans] = useState<ImageAssetPlan[]>([]);
-  const [isPlanning, setIsPlanning] = useState(false);
-  const [isBatchProcessing, setIsBatchProcessing] = useState(false);
-  const [metaTitle, setMetaTitle] = useState('');
-  const [metaDescription, setMetaDescription] = useState('');
-  const [urlSlug, setUrlSlug] = useState('');
-  const [isMetaLoading, setIsMetaLoading] = useState(false);
   const [showMetaPanel, setShowMetaPanel] = useState(false);
 
   useEffect(() => {
@@ -193,195 +183,74 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   };
 
-  const handleOpenImageModal = async () => {
-      saveSelection();
-      setShowImageModal(true);
-      setIsImageLoading(true);
-      setImagePrompt("Analyzing context...");
+  const { handleAiSubmit, handleRefinePoint } = useAIEditor({
+    editorRef,
+    aiPrompt,
+    selectedContext,
+    isFormatMode,
+    targetAudience,
+    onAddCost,
+    onTogglePoint,
+    setIsAiLoading,
+    setRefiningPoint,
+    restoreSelection,
+    handleInput,
+    closeAiModal,
+  });
 
-      let contextText = "";
-      if (editorRef.current) {
-          const fullText = editorRef.current.innerText;
-          const selection = window.getSelection();
-          if (selection && selection.rangeCount > 0) {
-              const range = selection.getRangeAt(0);
-              const preCaretRange = range.cloneRange();
-              preCaretRange.selectNodeContents(editorRef.current);
-              preCaretRange.setEnd(range.startContainer, range.startOffset);
-              const startOffset = preCaretRange.toString().length;
-              const start = Math.max(0, startOffset - 100);
-              const end = Math.min(fullText.length, startOffset + 100);
-              contextText = fullText.substring(start, end);
-          } else {
-              contextText = fullText.substring(0, 200);
-          }
-      }
+  const {
+    showImageModal,
+    setShowImageModal,
+    imagePrompt,
+    setImagePrompt,
+    isImageLoading,
+    isDownloadingImages,
+    imagePlans,
+    isPlanning,
+    isBatchProcessing,
+    openImageModal,
+    generateImageFromPrompt,
+    downloadImages,
+    autoPlanImages,
+    updatePlanPrompt,
+    injectImageIntoEditor,
+    generateSinglePlan,
+    handleBatchProcess,
+  } = useImageEditor({
+    editorRef,
+    targetAudience: targetAudience as TargetAudience,
+    visualStyle,
+    scrapedImages,
+    onAddCost,
+    handleInput,
+    saveSelection,
+    restoreSelection,
+  });
 
-      try {
-          const res = await generateImagePromptFromContext(contextText, targetAudience as TargetAudience, visualStyle);
-          setImagePrompt(res.data);
-          if (onAddCost) onAddCost(res.cost, res.usage);
-      } catch (e) {
-          setImagePrompt("Create a realistic image relevant to this article.");
-      } finally {
-          setIsImageLoading(false);
-      }
-  };
+  const {
+    metaTitle,
+    metaDescription,
+    urlSlug,
+    setMetaTitle,
+    setMetaDescription,
+    setUrlSlug,
+    isMetaLoading,
+    generateMeta,
+  } = useMetaGenerator({
+    editorRef,
+    targetAudience: targetAudience as TargetAudience,
+    context: {
+      keyPoints,
+      brandExclusivePoints,
+      productBrief,
+      visualStyle,
+    },
+    onAddCost,
+  });
 
-  const handleGenerateImage = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!imagePrompt) return;
-      
-      setIsImageLoading(true);
-      try {
-          const res = await generateImage(imagePrompt);
-          if (res.data) {
-              restoreSelection();
-              const imgHtml = `<img src="${res.data}" alt="${imagePrompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0;" /><br/>`;
-              document.execCommand('insertHTML', false, imgHtml);
-              if (editorRef.current) handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-              if (onAddCost) onAddCost(res.cost, res.usage);
-              setShowImageModal(false);
-          } else {
-              alert("Image generation returned no data.");
-          }
-      } catch (e) {
-          console.error("Image generation error", e);
-          alert("Failed to generate image.");
-      } finally {
-          setIsImageLoading(false);
-      }
-  };
+  // Image logic handled by useImageEditor
 
-  const handleDownloadImages = async () => {
-    if (!editorRef.current) return;
-    const images = editorRef.current.querySelectorAll('img');
-    if (images.length === 0) {
-        alert("No images found in the editor to download.");
-        return;
-    }
-
-    if (!confirm(`Found ${images.length} images in the article. Download them now?`)) return;
-
-    setIsDownloadingImages(true);
-
-    const downloadLink = document.createElement('a');
-    downloadLink.style.display = 'none';
-    document.body.appendChild(downloadLink);
-
-    try {
-        for (let i = 0; i < images.length; i++) {
-            const img = images[i] as HTMLImageElement;
-            const src = img.src;
-            const ext = src.includes('image/jpeg') ? 'jpg' : 'png';
-            const filename = `article-image-${Date.now()}-${i + 1}.${ext}`;
-
-            if (src.startsWith('data:')) {
-                // Base64 Image (AI Generated)
-                downloadLink.href = src;
-                downloadLink.download = filename;
-                downloadLink.click();
-            } else {
-                // Remote URL (Scraped)
-                try {
-                    const response = await fetch(src);
-                    const blob = await response.blob();
-                    const url = URL.createObjectURL(blob);
-                    downloadLink.href = url;
-                    downloadLink.download = filename;
-                    downloadLink.click();
-                    URL.revokeObjectURL(url);
-                } catch (e) {
-                    console.warn(`Failed to download ${src}, opening in new tab instead.`);
-                    window.open(src, '_blank');
-                }
-            }
-            // Small delay to prevent browser throttling downloads
-            await new Promise(r => setTimeout(r, 200));
-        }
-    } catch (e) {
-        console.error("Download failed", e);
-        alert("Some images could not be downloaded.");
-    } finally {
-        document.body.removeChild(downloadLink);
-        setIsDownloadingImages(false);
-    }
-  };
-
-  const handleAiSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiPrompt.trim()) return;
-
-    setIsAiLoading(true);
-    try {
-        let promptToSend = aiPrompt;
-        if (isFormatMode && selectedContext) {
-            promptToSend = `
-            TARGET CONTENT: """${selectedContext}"""
-            FORMATTING INSTRUCTION: ${aiPrompt}
-            TASK: Reformat the TARGET CONTENT exactly according to the instruction. Return ONLY the formatted result in Markdown/HTML.
-            `;
-        } else if (selectedContext && selectedContext.trim().length > 0) {
-             promptToSend = `TARGET TEXT TO MODIFY: """${selectedContext}"""\n\nINSTRUCTION: ${aiPrompt}\n\nTASK: Rewrite or replace the target text based on the instruction. Return ONLY the result in Markdown/HTML.`;
-        }
-
-        const res = await generateSnippet(promptToSend, targetAudience as TargetAudience);
-        const htmlSnippet = marked.parse(res.data, { async: false }) as string;
-        restoreSelection();
-        document.execCommand('insertHTML', false, htmlSnippet);
-        if (editorRef.current) handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-        if (onAddCost) onAddCost(res.cost, res.usage);
-        closeAiModal();
-    } catch (error) {
-        console.error("AI Edit failed", error);
-        alert("Failed to generate content. Please try again.");
-    } finally {
-        setIsAiLoading(false);
-    }
-  };
-
-  // --- UPDATED: Smart Refine Logic (Block Level) ---
-  const handleRefinePoint = async (point: string) => {
-      if (!editorRef.current) return;
-      setRefiningPoint(point);
-      
-      try {
-          const fullHtml = editorRef.current.innerHTML;
-          
-          // New Service Logic returns HTML Snippets (Old and New)
-          const res = await smartInjectPoint(fullHtml, point, targetAudience as TargetAudience);
-          
-          if (res.data && res.data.originalSnippet && res.data.newSnippet) {
-              const { originalSnippet, newSnippet } = res.data;
-              
-              // Precise Replacement Logic
-              if (editorRef.current.innerHTML.includes(originalSnippet)) {
-                  editorRef.current.innerHTML = editorRef.current.innerHTML.replace(originalSnippet, newSnippet);
-              } else {
-                  // Fallback if precise match fails (due to browser normalization of HTML)
-                  // Append as a suggestion block
-                  const suggestionHtml = `
-                    <div style="border-left: 4px solid #8b5cf6; padding-left: 12px; margin: 16px 0; background: #f5f3ff; padding: 12px; border-radius: 4px;">
-                        <p style="font-size: 10px; color: #8b5cf6; font-weight: bold; margin: 0 0 4px 0;">✨ REFINED WITH: ${point}</p>
-                        ${newSnippet}
-                    </div>
-                   `;
-                   editorRef.current.innerHTML += suggestionHtml;
-              }
-              
-              onTogglePoint?.(point);
-              if (onAddCost) onAddCost(res.cost, res.usage);
-          } else {
-              alert("AI couldn't identify a suitable paragraph to refine.");
-          }
-      } catch (e) {
-          console.error("Refine failed", e);
-          alert("Refinement failed.");
-      } finally {
-          setRefiningPoint(null);
-          if (editorRef.current) handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-      }
-  };
+  // AI editor logic is provided by useAIEditor hook
 
   // --- NEW: Rebrand Logic ---
   const handleRebrand = async () => {
@@ -411,112 +280,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       } finally {
           setIsRebranding(false);
       }
-  };
-
-  const handleAutoPlan = async () => {
-      if (isPlanning || !editorRef.current) return;
-      setIsPlanning(true);
-      try {
-          const content = editorRef.current.innerText;
-          const res = await planImagesForArticle(content, scrapedImages, targetAudience as TargetAudience, visualStyle);
-          setImagePlans(res.data);
-          if (onAddCost) onAddCost(res.cost, res.usage);
-      } catch (e) {
-          console.error("Auto-plan failed", e);
-          alert("Failed to plan images.");
-      } finally {
-          setIsPlanning(false);
-      }
-  };
-
-  // --- FIXED: Block-Level Image Injection ---
-  const injectImageIntoEditor = (plan: ImageAssetPlan, method: 'auto' | 'cursor' = 'auto') => {
-      if (!editorRef.current || !plan.url) return;
-      
-      const imgHtml = `<img src="${plan.url}" alt="${plan.generatedPrompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 24px 0; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" />`;
-
-      if (method === 'cursor') {
-          restoreSelection(); 
-          document.execCommand('insertHTML', false, `${imgHtml}<br/>`);
-          handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-          return;
-      }
-
-      const anchorText = plan.insertAfter.trim();
-      const currentHtml = editorRef.current.innerHTML;
-      if (currentHtml.includes(plan.url)) return;
-
-      // Attempt to find the PARAGRAPH containing the anchor text
-      // Regex looks for <p ...> ... anchor ... </p>
-      // We escape the anchor text for regex safety
-      const escapedAnchor = anchorText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      
-      // Match: <p (anything except >) > (anything) anchor (anything) </p>
-      const paragraphRegex = new RegExp(`(<p[^>]*>)(?:(?!</p>).)*?${escapedAnchor}(?:(?!</p>).)*?</p>`, 'i');
-      
-      const match = currentHtml.match(paragraphRegex);
-
-      if (match) {
-          // Replace the entire paragraph match with: Paragraph + Image
-          const matchedParagraph = match[0];
-          const replacement = `${matchedParagraph}\n${imgHtml}`;
-          editorRef.current.innerHTML = currentHtml.replace(matchedParagraph, replacement);
-          handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-          return;
-      }
-
-      // Fallback 1: If paragraph regex fails (e.g. plain text or complex nesting), simple anchor append
-      if (currentHtml.includes(anchorText)) {
-          const newHtml = currentHtml.replace(anchorText, `${anchorText}<br/>${imgHtml}`);
-          editorRef.current.innerHTML = newHtml;
-          handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-          return;
-      }
-      
-      // Fallback 2: Search for substring chunks
-      const chunks = anchorText.split(/[，,。.\n\t\s、：:]+/).filter(c => c.length >= 4); 
-      chunks.sort((a, b) => b.length - a.length);
-      for (const chunk of chunks) {
-          if (currentHtml.includes(chunk)) {
-               const newHtml = currentHtml.replace(chunk, `${chunk}<br/>${imgHtml}`);
-               editorRef.current.innerHTML = newHtml;
-               handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-               return;
-          }
-      }
-
-      alert(`Could not find anchor: "...${anchorText.substring(0, 15)}...". \n\nPlease place your cursor in the text and click the "Cursor" button to insert manually.`);
-  };
-
-  const updatePlanPrompt = (id: string, newPrompt: string) => {
-      setImagePlans(prev => prev.map(p => p.id === id ? { ...p, generatedPrompt: newPrompt } : p));
-  };
-
-  const generateSinglePlan = async (plan: ImageAssetPlan): Promise<void> => {
-      if (plan.status === 'generating') return;
-      setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'generating' } : p));
-      try {
-          const imgRes = await generateImage(plan.generatedPrompt);
-          if (imgRes.data) {
-              const updatedPlan = { ...plan, status: 'done' as const, url: imgRes.data || undefined };
-              setImagePlans(prev => prev.map(p => p.id === plan.id ? updatedPlan : p));
-              if (onAddCost) onAddCost(imgRes.cost, imgRes.usage);
-          } else {
-              setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'error' } : p));
-          }
-      } catch (e) {
-          console.error("Single generation failed", e);
-          setImagePlans(prev => prev.map(p => p.id === plan.id ? { ...p, status: 'error' } : p));
-      }
-  };
-
-  const handleBatchProcess = async () => {
-      if (isBatchProcessing) return;
-      setIsBatchProcessing(true);
-      const plansToProcess = imagePlans.filter(p => p.status !== 'done');
-      const promises = plansToProcess.map(plan => generateSinglePlan(plan));
-      await Promise.all(promises);
-      setIsBatchProcessing(false);
   };
 
   const ToolbarButton = ({ 
@@ -563,10 +326,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         </div>
 
         <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
-            <ToolbarButton icon={ImageIcon} onClick={handleOpenImageModal} label="Insert AI Image" />
+            <ToolbarButton icon={ImageIcon} onClick={openImageModal} label="Insert AI Image" />
             <ToolbarButton 
               icon={isDownloadingImages ? Loader2 : Download} 
-              onClick={handleDownloadImages} 
+              onClick={downloadImages} 
               label="Download all images in editor" 
             />
         </div>
@@ -641,55 +404,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 <div className="flex items-center gap-2">
                     <button
                         type="button"
-                        onClick={async () => {
-                            setIsMetaLoading(true);
-                            try {
-                                const articleText = (editorRef.current?.innerText || '').slice(0, 4000);
-                                const contextLines: string[] = [];
-                                if (keyPoints.length > 0) contextLines.push(`Key Points: ${keyPoints.slice(0, 6).join('; ')}`);
-                                if (brandExclusivePoints.length > 0) contextLines.push(`Brand USPs: ${brandExclusivePoints.slice(0, 4).join('; ')}`);
-                                if (productBrief?.brandName || productBrief?.productName) {
-                                    contextLines.push(`Brand: ${productBrief.brandName || ''} Product: ${productBrief.productName || ''} USP: ${productBrief.usp || ''}`);
-                                }
-                                if (visualStyle) contextLines.push(`Visual Style: ${visualStyle}`);
-
-                                const metaPrompt = `
-                                You are an SEO assistant. Generate meta info for this article.
-                                - Meta Title: max 60 chars, engaging, includes a primary keyword if present.
-                                - Meta Description: max 160 chars, persuasive, includes 1-2 key points.
-                                - URL Slug: kebab-case, lowercase ASCII, short, no special characters.
-
-                                Target Audience: ${targetAudience}
-                                Context:
-                                ${contextLines.join('\n') || 'No extra context'}
-
-                                ARTICLE PREVIEW (trimmed):
-                                """${articleText}"""
-
-                                Return JSON: {"title":"...","description":"...","slug":"..."} ONLY.
-                                `;
-
-                                const res = await generateSnippet(metaPrompt, targetAudience as TargetAudience);
-                                let parsed: any = null;
-                                try {
-                                    const cleaned = (res.data || '').replace(/```json|```/g, '');
-                                    parsed = JSON.parse(cleaned);
-                                } catch (err) {
-                                    console.warn('Meta JSON parse failed, raw text used', err);
-                                }
-                                if (parsed) {
-                                    setMetaTitle(parsed.title || '');
-                                    setMetaDescription(parsed.description || '');
-                                    setUrlSlug(parsed.slug || '');
-                                }
-                                if (onAddCost) onAddCost(res.cost, res.usage);
-                            } catch (err) {
-                                console.error('Meta generation failed', err);
-                                alert('Failed to generate meta info. Please try again.');
-                            } finally {
-                                setIsMetaLoading(false);
-                            }
-                        }}
+                        onClick={generateMeta}
                         className="flex items-center gap-1 px-3 py-1.5 text-xs font-semibold text-purple-700 bg-white border border-purple-200 rounded-md hover:bg-purple-50 transition-colors disabled:opacity-60"
                         disabled={isMetaLoading}
                     >
@@ -829,7 +544,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         </button>
                     </div>
                     
-                    <form onSubmit={handleGenerateImage} className="space-y-3">
+                    <form onSubmit={(e) => { e.preventDefault(); generateImageFromPrompt(imagePrompt); }} className="space-y-3">
                         <div>
                             <label className="text-[10px] font-bold text-gray-500 uppercase">Image Prompt</label>
                             <textarea
@@ -918,7 +633,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                           Visual Assets
                       </h4>
                       <button 
-                          onClick={handleAutoPlan}
+                          onClick={autoPlanImages}
                           disabled={isPlanning}
                           className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
                       >

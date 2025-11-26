@@ -9,12 +9,17 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^1.30.0",
+    "@hookform/resolvers": "^5.2.2",
+    "ai": "^5.0.102",
+    "lucide-react": "^0.554.0",
+    "marked": "15.0.7",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "lucide-react": "^0.554.0",
+    "react-hook-form": "^7.66.1",
     "react-markdown": "^10.1.0",
-    "@google/genai": "^1.30.0",
-    "marked": "15.0.7"
+    "zod": "^4.1.13",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

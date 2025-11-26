@@ -1,17 +1,5 @@
 import { TargetAudience, TokenUsage, CostBreakdown } from '../types';
-
-// --- Pricing Configuration ---
-export const PRICING = {
-    FLASH: {
-        input: 0.30 / 1000000,
-        output: 0.30 / 1000000
-    },
-    // Token-based pricing for Image Generation as per user update
-    IMAGE_GEN: {
-        input: 0.30 / 1000000,
-        output: 30.00 / 1000000
-    }
-};
+import { PRICING } from '../config/constants';
 
 // Helper: Calculate Cost
 export const calculateCost = (usage: any, modelType: keyof typeof PRICING): { usage: TokenUsage, cost: CostBreakdown } => {
