@@ -1,4 +1,3 @@
-
 import { GoogleGenAI } from "@google/genai";
 
 /**
@@ -55,41 +54,6 @@ function parseGoogleCredentialsJson(jsonString) {
         console.error('Failed to parse Google credentials JSON:', error);
         return null;
     }
-}
-
-/**
- * Ensure \n and \r sequences inside the private key are properly expanded
- * when they come from a .env file.
- */
-function normalizePrivateKey(privateKey) {
-    if (!privateKey) return privateKey;
-    return privateKey
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r');
-}
-
-/**
- * Pull credentials from a JSON blob or individual .env variables
- */
-function loadVertexCredentials() {
-    const jsonFromEnv = parseGoogleCredentialsJson(process.env.GOOGLE_VERTEX_API_CONFIG_JSON);
-    if (jsonFromEnv?.project_id && jsonFromEnv?.client_email && jsonFromEnv?.private_key) {
-        return jsonFromEnv;
-    }
-
-    const projectId = process.env.GOOGLE_VERTEX_PROJECT_ID;
-    const clientEmail = process.env.GOOGLE_VERTEX_CLIENT_EMAIL;
-    const privateKey = process.env.GOOGLE_VERTEX_PRIVATE_KEY;
-
-    if (projectId && clientEmail && privateKey) {
-        return {
-            project_id: projectId,
-            client_email: clientEmail,
-            private_key: normalizePrivateKey(privateKey)
-        };
-    }
-
-    return null;
 }
 
 /**
@@ -240,7 +204,7 @@ export default async function handler(req, res) {
         });
 
     } catch (error) {
-        console.error('Vertex AI Error:', error);
+        console.error('Vertex/Gemini Error:', error);
         return res.status(500).json({
             error: error.message || 'Internal Server Error',
             details: error.toString()
