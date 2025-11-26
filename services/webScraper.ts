@@ -141,32 +141,49 @@ const cleanJinaBySeparator = (rawText: string): { title: string, content: string
 
 /**
  * FIXED: Optimized Cleaning Logic
- * Corrects issues with leftover image markdown and broken links.
+ * Corrects issues with leftover image markdown, broken links, and specific UI junk.
  */
 const cleanArtifacts = (text: string): string => {
     let cleaned = text;
 
     // ============================================================
-    // 1. Image Cleanup (優先處理)
+    // 1. Specific Junk Phrase Removal (Requested User Rules)
+    // ============================================================
+    
+    const junkPhrases = [
+        /^Ad Placement\s*:.*$/gim,        // Remove "Ad Placement : xxxx" lines
+        /^(Login|登入|Sign In).*$/gim,    // Remove lines starting with Login/登入
+        /^ADVERTISEMENT$/gim,             // Remove strict "ADVERTISEMENT" lines
+        /^CONTINUE READING BELOW$/gim,    // Remove "CONTINUE READING BELOW"
+        /^Share on:.*$/gim,               // Remove "Share on: ..." lines
+        /^recommended$/gim,               // Remove standalone "recommended" lines
+        /^Related Articles:?$/gim,        // Common noise
+        /^Read More:?$/gim,                // Common noise
+        /^SCROLL TO CONTINUE\s*:.*$/gim,
+        /^[ \t]*\S{1,2}[ \t]*$/gm         // Remove lines with < 3 chars (e.g. "US", "Go", "|", "。")
+    ];
+
+    junkPhrases.forEach(regex => {
+        cleaned = cleaned.replace(regex, '');
+    });
+
+    // ============================================================
+    // 2. Image Cleanup (Prioritized)
     // ============================================================
 
-    // 修正：使用標準 Markdown 語法移除圖片 `![Alt](Url)`
-    // 原本的 Regex 漏掉了 `[`，導致 `![Image 11:...]` 沒被抓到
+    // Fix: Remove standard markdown images `![Alt](Url)`
     cleaned = cleaned.replace(/!\[.*?\]\(.*?\)/g, '');
 
-    // 針對 Jina 可能產生的非標準 Image 標記進行清理
-    // 移除開頭是 "!Image 數字:" 的整行 (即使沒有連結)
+    // Jina non-standard image artifacts cleanup
     cleaned = cleaned.replace(/^!Image\s+\d+:.*$/gm, '');
-    // 移除文字中間的 "!Image [數字]"
     cleaned = cleaned.replace(/!Image\s*\[.*?\]/gi, '');
     
-    // 移除殘留的孤兒 "](url)" (這是你截圖中出現的錯誤)
-    // 發生原因通常是 Regex 沒配對好，導致前半段不見但後半段留著
+    // Remove orphaned closing link syntax often left behind
     cleaned = cleaned.replace(/^\]\(.*?\)/gm, '');
 
 
     // ============================================================
-    // 2. Link Density Filter (連結密度過濾)
+    // 3. Link Density Filter
     // ============================================================
 
     const linkRegex = /\[(.*?)\]\(.*?\)/g;
@@ -207,21 +224,20 @@ const cleanArtifacts = (text: string): string => {
     }
 
     // ============================================================
-    // 3. General Link Cleaning (一般連結清理)
+    // 4. General Link Cleaning
     // ============================================================
 
-    // 刪除空連結 `[](...)` 或 `[ ](...)`
+    // Remove empty links
     cleaned = cleaned.replace(/\[\s*\]\(.*?\)/g, '');
 
-    // 刪除因此產生的空 list item (例如 "* ")
+    // Remove resulting empty list items
     cleaned = cleaned.replace(/^\s*([-*]|\d+\.)\s*$/gm, '');
 
-    // Flatten Links: 將 `[Text](Url)` 轉為 `Text`
-    // 使用更精確的 Regex: `[^\]]+` 確保不會吃到多餘的括號
+    // Flatten Links: Convert `[Text](Url)` to `Text`
     cleaned = cleaned.replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1');
 
     // ============================================================
-    // 4. Noise & Metadata Cleanup
+    // 5. Noise & Metadata Cleanup
     // ============================================================
 
     // Google Analytics / Ads artifacts

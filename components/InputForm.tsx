@@ -1,7 +1,8 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { ArticleConfig, TargetAudience, TokenUsage, CostBreakdown, GenerationStep, SavedProfile, ScrapedImage, ProductBrief } from '../types';
-import { FileText, Briefcase, Save, ChevronDown, ChevronRight, Trash2, Link2, Download, Loader2, Sparkles, Globe, Settings2, LayoutTemplate, ImageIcon, ToggleLeft, ToggleRight, BookOpen, ShoppingBag, ArrowUpRight, Edit2, Plus, RotateCw, AlertTriangle, Eye, ExternalLink } from 'lucide-react';
+import { FileText, Briefcase, Save, ChevronDown, ChevronRight, Trash2, Link2, Download, Loader2, Sparkles, Globe, Settings2, LayoutTemplate, ImageIcon, ToggleLeft, ToggleRight, BookOpen, ShoppingBag, ArrowUpRight, Edit2, Plus, RotateCw, AlertTriangle, Eye, ExternalLink, Zap } from 'lucide-react';
 import { fetchUrlContent } from '../services/webScraper';
 import { extractWebsiteTypeAndTerm } from '../services/extractionService';
 import { summarizeBrandContent } from '../services/productService';
@@ -55,6 +56,7 @@ export const InputForm: React.FC<InputFormProps> = ({
   const [targetAudience, setTargetAudience] = useState<TargetAudience>(initialState.targetAudience || 'zh-TW');
   const [scrapedImages, setScrapedImages] = useState<ScrapedImage[]>(initialState.scrapedImages || []);
   const [useRag, setUseRag] = useState<boolean>(initialState.useRag ?? false);
+  const [turboMode, setTurboMode] = useState<boolean>(initialState.turboMode ?? true); // Default to TRUE
   
   // NEW: Single Field Product Context
   const [productRawText, setProductRawText] = useState<string>(initialState.productRawText || '');
@@ -93,7 +95,7 @@ export const InputForm: React.FC<InputFormProps> = ({
   }, [activeProfile]);
 
   useEffect(() => {
-    const data = { title, referenceContent, sampleOutline, authorityTerms, websiteType, targetAudience, scrapedImages, useRag, productRawText };
+    const data = { title, referenceContent, sampleOutline, authorityTerms, websiteType, targetAudience, scrapedImages, useRag, turboMode, productRawText };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     
     // Update stats (Hybrid Word Count)
@@ -103,7 +105,7 @@ export const InputForm: React.FC<InputFormProps> = ({
     const englishWords = nonCjkText.trim().split(/\s+/).filter(w => w.length > 0);
     setRefWordCount(cjkCount + englishWords.length);
 
-  }, [title, referenceContent, sampleOutline, authorityTerms, websiteType, targetAudience, scrapedImages, useRag, productRawText]);
+  }, [title, referenceContent, sampleOutline, authorityTerms, websiteType, targetAudience, scrapedImages, useRag, turboMode, productRawText]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -119,6 +121,7 @@ export const InputForm: React.FC<InputFormProps> = ({
         targetAudience,
         scrapedImages,
         useRag,
+        turboMode,
         productRawText // Pass raw text, App.tsx will handle parsing
     });
   };
@@ -134,6 +137,7 @@ export const InputForm: React.FC<InputFormProps> = ({
         setUrlInput('');
         setScrapedImages([]);
         setUseRag(false);
+        setTurboMode(true);
         setProductRawText('');
     }
   };
@@ -824,44 +828,79 @@ export const InputForm: React.FC<InputFormProps> = ({
                         <button 
                             type="button" 
                             onClick={() => setShowOutline(!showOutline)}
-                            className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 hover:text-gray-600 transition-colors w-full py-2"
+                            className="flex items-center gap-2 text-[10px] font-bold uppercase text-gray-400 hover:text-gray-600 transition-colors w-full py-2 justify-between"
                         >
-                            <ChevronRight className={`w-3 h-3 transition-transform duration-200 ${showOutline ? 'rotate-90' : ''}`} />
-                            Sample Outline (Optional)
+                            <span className="flex items-center gap-2">
+                                <ChevronRight className={`w-3 h-3 transition-transform duration-200 ${showOutline ? 'rotate-90' : ''}`} />
+                                Sample Outline (Optional)
+                            </span>
+                            {sampleOutline.length > 0 && <span className="text-[9px] bg-blue-100 text-blue-600 px-1.5 rounded">Active</span>}
                         </button>
                         {showOutline && (
-                            <textarea
-                                value={sampleOutline}
-                                onChange={(e) => setSampleOutline(e.target.value)}
-                                placeholder="One heading per line..."
-                                className="w-full h-24 mt-1 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-700 focus:border-gray-400 outline-none resize-none custom-scrollbar animate-in slide-in-from-top-2 duration-200"
-                            />
+                            <div className="mt-1 animate-in slide-in-from-top-2 duration-200">
+                                <textarea
+                                    value={sampleOutline}
+                                    onChange={(e) => setSampleOutline(e.target.value)}
+                                    placeholder="One heading per line..."
+                                    className="w-full h-24 px-3 py-2 bg-gray-50 rounded-lg border border-gray-200 text-xs text-gray-700 focus:border-gray-400 outline-none resize-none custom-scrollbar"
+                                />
+                                <p className="text-[9px] text-gray-400 mt-1 italic">
+                                    * If provided, this will <span className="font-bold text-gray-500">override</span> the AI-generated narrative structure.
+                                </p>
+                            </div>
                         )}
                     </div>
                 </div>
             </div>
             
             {/* SECTION 4: ADVANCED SETTINGS */}
-             <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-3 flex items-center justify-between">
-                <div className="flex flex-col">
-                    <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
-                        <Sparkles className="w-3 h-3 text-purple-500" />
-                        Smart Context Filtering (RAG)
-                    </span>
-                    <span className="text-[9px] text-gray-400">
-                        Agentic Retrieval: AI reads your Knowledge Base & filters data per section.
-                    </span>
+             <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-3 flex flex-col gap-3">
+                
+                {/* RAG Toggle */}
+                <div className="flex items-center justify-between">
+                    <div className="flex flex-col">
+                        <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                            <Sparkles className="w-3 h-3 text-purple-500" />
+                            Smart Context Filtering (RAG)
+                        </span>
+                        <span className="text-[9px] text-gray-400">
+                            Agentic Retrieval: AI reads your Knowledge Base & filters data per section.
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setUseRag(!useRag)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${useRag ? 'bg-indigo-600' : 'bg-gray-200'}`}
+                    >
+                        <span
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${useRag ? 'translate-x-4.5' : 'translate-x-1'}`}
+                            style={{ transform: useRag ? 'translateX(18px)' : 'translateX(2px)' }}
+                        />
+                    </button>
                 </div>
-                <button
-                    type="button"
-                    onClick={() => setUseRag(!useRag)}
-                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${useRag ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                >
-                    <span
-                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${useRag ? 'translate-x-4.5' : 'translate-x-1'}`}
-                        style={{ transform: useRag ? 'translateX(18px)' : 'translateX(2px)' }}
-                    />
-                </button>
+
+                {/* Turbo Mode Toggle */}
+                <div className="flex items-center justify-between border-t border-gray-50 pt-2">
+                    <div className="flex flex-col">
+                        <span className="text-xs font-bold text-gray-700 flex items-center gap-1.5">
+                            <Zap className="w-3 h-3 text-amber-500 fill-amber-500" />
+                            Turbo Mode (Parallel Generation)
+                        </span>
+                        <span className="text-[9px] text-gray-400">
+                            Writes all sections simultaneously. Faster, but flow may vary.
+                        </span>
+                    </div>
+                    <button
+                        type="button"
+                        onClick={() => setTurboMode(!turboMode)}
+                        className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 ${turboMode ? 'bg-amber-500' : 'bg-gray-200'}`}
+                    >
+                        <span
+                            className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${turboMode ? 'translate-x-4.5' : 'translate-x-1'}`}
+                            style={{ transform: turboMode ? 'translateX(18px)' : 'translateX(2px)' }}
+                        />
+                    </button>
+                </div>
             </div>
         </div>
 

@@ -1,6 +1,7 @@
 
+
 import React, { useState } from 'react';
-import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, FileText, X, ShoppingBag, ArrowRight } from 'lucide-react';
+import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, FileText, X, ShoppingBag, ArrowRight, Gem } from 'lucide-react';
 import { KeywordActionPlan, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief } from '../types';
 
 interface SeoSidebarProps {
@@ -217,16 +218,25 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
              )}
     
              {/* Card 3: Information Density */}
-             {referenceAnalysis && referenceAnalysis.keyInformationPoints && referenceAnalysis.keyInformationPoints.length > 0 && (
+             {(referenceAnalysis?.keyInformationPoints?.length > 0 || referenceAnalysis?.brandExclusivePoints?.length > 0) && (
                 <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                     <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-orange-50/80 to-white flex items-center gap-2">
                         <Database className="w-3.5 h-3.5 text-orange-600" />
-                        <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Key Facts</h4>
+                        <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
                     </div>
                     <div className="p-1">
                         <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar p-1">
-                            {referenceAnalysis.keyInformationPoints.map((point, idx) => (
-                                <div key={idx} className="flex items-start gap-2.5 p-2 rounded hover:bg-orange-50 transition-colors">
+                            {/* Brand Exclusive Points */}
+                            {referenceAnalysis?.brandExclusivePoints?.map((point, idx) => (
+                                <div key={`brand-${idx}`} className="flex items-start gap-2.5 p-2 rounded hover:bg-purple-50 transition-colors">
+                                    <Gem className="w-3 h-3 text-purple-500 mt-0.5 flex-shrink-0" />
+                                    <span className="text-[10px] text-gray-800 font-medium leading-relaxed">{point}</span>
+                                </div>
+                            ))}
+                            
+                            {/* General Points */}
+                            {referenceAnalysis?.keyInformationPoints?.map((point, idx) => (
+                                <div key={`gen-${idx}`} className="flex items-start gap-2.5 p-2 rounded hover:bg-orange-50 transition-colors">
                                     <div className="w-1 h-1 mt-1.5 rounded-full bg-orange-300 flex-shrink-0"></div>
                                     <span className="text-[10px] text-gray-600 leading-relaxed">{point}</span>
                                 </div>
@@ -241,7 +251,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                  <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                     <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-blue-50/80 to-white flex items-center gap-2">
                         <Layers className="w-3.5 h-3.5 text-blue-600" />
-                        <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Narrative Arc</h4>
+                        <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Narrative Structure (Outline)</h4>
                     </div>
                     <div className="relative py-2">
                         {/* Timeline Line */}

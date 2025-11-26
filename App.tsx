@@ -1,4 +1,3 @@
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { Layout } from './components/Layout';
 import { Header } from './components/Header';
@@ -241,11 +240,16 @@ const App: React.FC = () => {
     setGenerationStep('idle');
   }, []);
 
-  const handleLoadProfile = (profile: SavedProfile) => {
+  const handleLoadProfile = async (profile: SavedProfile) => {
       setActiveProfile(profile);
       setTargetAudience(profile.targetAudience);
-      // Correctly set Brand Knowledge or clear it if not in profile
       setBrandKnowledge(profile.brandKnowledge || '');
+      
+      // Parse product brief from profile immediately to enable Rebrand button even without generating
+      if (profile.productRawText) {
+          const res = await parseProductContext(profile.productRawText);
+          setActiveProductBrief(res.data);
+      }
   };
 
   const handleGenerate = useCallback(async (config: ArticleConfig) => {
@@ -292,6 +296,7 @@ const App: React.FC = () => {
               if (shouldStopRef.current) return { mapping: [] };
               setGenerationStep('parsing_product');
               const parseRes = await parseProductContext(config.productRawText);
+              console.log(`[Timer] Product Context Parse: ${parseRes.duration}ms`);
               parsedProductBrief = parseRes.data;
               addCost(parseRes.cost, parseRes.usage);
           }
@@ -300,6 +305,7 @@ const App: React.FC = () => {
                if (shouldStopRef.current) return { brief: parsedProductBrief, mapping: [] };
                setGenerationStep('mapping_product');
                const mapRes = await generateProblemProductMapping(parsedProductBrief, fullConfig.targetAudience);
+               console.log(`[Timer] Product Mapping: ${mapRes.duration}ms`);
                generatedMapping = mapRes.data;
                setProductMapping(generatedMapping);
                addCost(mapRes.cost, mapRes.usage);
@@ -319,6 +325,7 @@ const App: React.FC = () => {
               setGenerationStep('planning_keywords');
               try {
                  const planRes = await extractKeywordActionPlans(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
+                 console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
                  setKeywordPlans(planRes.data);
                  addCost(planRes.cost, planRes.usage);
               } catch (e) {
@@ -340,6 +347,9 @@ const App: React.FC = () => {
           );
 
           const [structRes, authRes] = await Promise.all([structPromise, authPromise]);
+          console.log(`[Timer] Structure Analysis: ${structRes.duration}ms`);
+          console.log(`[Timer] Authority Analysis: ${authRes.duration}ms`);
+
           addCost(structRes.cost, structRes.usage);
           addCost(authRes.cost, authRes.usage);
           
@@ -365,6 +375,7 @@ const App: React.FC = () => {
                   if (img.url) {
                       try {
                           const res = await analyzeImageWithAI(img.url);
+                          console.log(`[Timer] Image Analysis (${i}): ${res.duration}ms`);
                           analyzedImages[i] = { ...analyzedImages[i], aiDescription: res.data };
                           addCost(res.cost, res.usage);
                       } catch (e) {
@@ -378,6 +389,7 @@ const App: React.FC = () => {
           // 2. Extract GLOBAL VISUAL IDENTITY (The "Brand Asset" Look)
           try {
              const styleRes = await analyzeVisualStyle(analyzedImages, fullConfig.websiteType || "Modern Business");
+             console.log(`[Timer] Visual Style Extraction: ${styleRes.duration}ms`);
              setVisualStyle(styleRes.data);
              addCost(styleRes.cost, styleRes.usage);
              console.log("Extracted Visual Style:", styleRes.data);
@@ -405,11 +417,15 @@ const App: React.FC = () => {
       const authAnalysisData = structureResult?.authRes.data;
 
       let sectionsToGenerate: { title: string; specificPlan?: string[] }[] = [];
+      let isUsingCustomOutline = false;
+
       if (fullConfig.sampleOutline && fullConfig.sampleOutline.trim().length > 0) {
         const lines = fullConfig.sampleOutline.split('\n').map(line => line.trim()).filter(line => line.length > 0);
         sectionsToGenerate = lines.map(title => ({ title }));
+        isUsingCustomOutline = true;
       } else if (refAnalysisData?.structure && refAnalysisData.structure.length > 0) {
         sectionsToGenerate = refAnalysisData.structure;
+        isUsingCustomOutline = false;
       } else {
         sectionsToGenerate = [
             { title: "Introduction" },
@@ -418,6 +434,7 @@ const App: React.FC = () => {
             { title: "Applications" },
             { title: "Conclusion" }
         ];
+        isUsingCustomOutline = false;
       }
 
       setStatus('streaming');
@@ -426,6 +443,8 @@ const App: React.FC = () => {
 
       const sectionResults: string[] = new Array(sectionsToGenerate.length).fill("");
       const allKeyPoints = refAnalysisData?.keyInformationPoints || [];
+      
+      // Used to track points accumulated over sections
       let currentCoveredPoints: string[] = [];
       let totalInjectedCount = 0;
       
@@ -436,15 +455,39 @@ const App: React.FC = () => {
           authorityAnalysis: authAnalysisData,
       };
 
-      for (let i = 0; i < sectionsToGenerate.length; i++) {
-          if (shouldStopRef.current) break;
+      // --- PARALLEL EXECUTION (TURBO MODE) ---
+      if (config.turboMode) {
+          // Initialize placeholder content immediately so user sees the Structure
+          const outlineSourceLabel = isUsingCustomOutline 
+              ? `<span class="text-blue-600">User Custom Outline</span>` 
+              : `<span class="text-indigo-600">AI Narrative Structure (Outline)</span>`;
 
-          const section = sectionsToGenerate[i];
-          const allTitles = sectionsToGenerate.map(s => s.title);
-          const previousTitles = allTitles.slice(0, i);
-          const futureTitles = allTitles.slice(i + 1);
+          const headerBanner = `
+            <div class="mb-6 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2 text-xs font-mono text-slate-500">
+                <span class="font-bold text-slate-700">📑 Active Blueprint:</span> ${outlineSourceLabel}
+            </div>
+          `;
 
-          try {
+          const initialDisplay = headerBanner + sectionsToGenerate.map(s => 
+              `<div class="p-4 my-4 bg-blue-50/50 rounded-lg border border-blue-100 flex items-center gap-3 animate-pulse">
+                 <div class="w-4 h-4 rounded-full bg-blue-400"></div>
+                 <div class="flex flex-col">
+                    <span class="text-xs font-bold text-blue-700 uppercase tracking-wider">STRUCTURE LOCKED</span>
+                    <span class="text-sm font-medium text-blue-900">⏳ Writing Section: ${s.title}...</span>
+                 </div>
+               </div>`
+          ).join('\n\n');
+          setContent(initialDisplay);
+
+          const promises = sectionsToGenerate.map(async (section, i) => {
+              if (shouldStopRef.current) return;
+
+              const allTitles = sectionsToGenerate.map(s => s.title);
+              // In Turbo Mode, we cannot know the *actual* previous content. 
+              // We pass the Outline Plan as context instead.
+              const previousTitles = allTitles.slice(0, i);
+              const futureTitles = allTitles.slice(i + 1);
+              
               const analysisPlan = refAnalysisData?.structure.find(s => s.title === section.title)?.narrativePlan;
               const specificPlan = section.specificPlan || analysisPlan;
               
@@ -453,39 +496,122 @@ const App: React.FC = () => {
                   productMapping: productMappingData
               };
 
-              const res = await generateSectionContent(
-                  loopConfig, 
-                  section.title, 
-                  specificPlan, 
-                  refAnalysisData?.generalPlan, 
-                  keywordPlans, 
-                  previousTitles,
-                  futureTitles, 
-                  authAnalysisData,
-                  allKeyPoints,
-                  currentCoveredPoints,
-                  totalInjectedCount 
-              );
-              
-              addCost(res.cost, res.usage);
+              // Dummy previous content for Turbo Mode (The prompt handles this via "Structure Plan" context)
+              const dummyPreviousContent = i > 0 ? [`[Preceding Section: ${previousTitles[i-1]}]`] : [];
 
-              if (!shouldStopRef.current) {
-                sectionResults[i] = res.data.content;
-                setContent(sectionResults.filter(s => s).join('\n\n'));
-                
-                if (res.data.usedPoints && res.data.usedPoints.length > 0) {
-                    currentCoveredPoints = [...currentCoveredPoints, ...res.data.usedPoints];
-                    setCoveredPoints(currentCoveredPoints);
-                }
-                
-                if (res.data.injectedCount) {
-                    totalInjectedCount += res.data.injectedCount;
-                }
+              try {
+                  const res = await generateSectionContent(
+                      loopConfig, 
+                      section.title, 
+                      specificPlan, 
+                      refAnalysisData?.generalPlan, 
+                      keywordPlans, 
+                      dummyPreviousContent,
+                      futureTitles, 
+                      authAnalysisData,
+                      allKeyPoints,
+                      [], // Cannot track covered points in parallel accurately
+                      0 // Cannot track injection count in parallel accurately
+                  );
+
+                  if (!shouldStopRef.current) {
+                      sectionResults[i] = res.data.content;
+                      console.log(`[Timer - Turbo] Section '${section.title}': ${res.duration}ms`);
+                      
+                      // Update main content: Show completed sections content, leave placeholders for others
+                      const sectionDisplays = sectionResults.map((c, idx) => {
+                          if (c) return c;
+                          return `<div class="p-4 my-4 bg-blue-50/50 rounded-lg border border-blue-100 flex items-center gap-3 animate-pulse">
+                                     <div class="w-4 h-4 rounded-full bg-blue-400"></div>
+                                     <div class="flex flex-col">
+                                        <span class="text-xs font-bold text-blue-700 uppercase tracking-wider">STRUCTURE LOCKED</span>
+                                        <span class="text-sm font-medium text-blue-900">⏳ Writing Section: ${sectionsToGenerate[idx].title}...</span>
+                                     </div>
+                                  </div>`;
+                      }).join('\n\n');
+                      
+                      setContent(headerBanner + sectionDisplays);
+                      addCost(res.cost, res.usage);
+
+                      // FIX: Update Checklist in Turbo Mode
+                      if (res.data.usedPoints && res.data.usedPoints.length > 0) {
+                          setCoveredPoints(prev => {
+                              // Filter out duplicates just in case
+                              const newUnique = res.data.usedPoints.filter(p => !prev.includes(p));
+                              return [...prev, ...newUnique];
+                          });
+                      }
+                  }
+              } catch (err) {
+                  console.error(`Parallel gen error for ${section.title}`, err);
+                  sectionResults[i] = `\n\n> **Error generating section: ${section.title}**\n\n`;
+                  
+                  // Force update on error too
+                  const sectionDisplays = sectionResults.map((c, idx) => c || `> ...Waiting: ${sectionsToGenerate[idx].title}`).join('\n\n');
+                  setContent(headerBanner + sectionDisplays);
               }
-          } catch (err) {
-              console.error(`Failed to generate section: ${section.title}`, err);
-              sectionResults[i] = `\n\n> **Error generating section: ${section.title}**\n\n`;
-              setContent(sectionResults.filter(s => s).join('\n\n'));
+          });
+
+          await Promise.all(promises);
+          
+          // Remove banner on complete
+          if (!shouldStopRef.current) {
+               setContent(sectionResults.join('\n\n'));
+          }
+
+      } else {
+          // --- SEQUENTIAL EXECUTION (STANDARD MODE) ---
+          for (let i = 0; i < sectionsToGenerate.length; i++) {
+              if (shouldStopRef.current) break;
+
+              const section = sectionsToGenerate[i];
+              const allTitles = sectionsToGenerate.map(s => s.title);
+              const previousTitles = allTitles.slice(0, i);
+              const futureTitles = allTitles.slice(i + 1);
+
+              try {
+                  const analysisPlan = refAnalysisData?.structure.find(s => s.title === section.title)?.narrativePlan;
+                  const specificPlan = section.specificPlan || analysisPlan;
+                  
+                  const loopConfig = {
+                      ...generatorConfig,
+                      productMapping: productMappingData
+                  };
+
+                  const res = await generateSectionContent(
+                      loopConfig, 
+                      section.title, 
+                      specificPlan, 
+                      refAnalysisData?.generalPlan, 
+                      keywordPlans, 
+                      previousTitles, // Pass real previous content titles/context
+                      futureTitles, 
+                      authAnalysisData,
+                      allKeyPoints,
+                      currentCoveredPoints,
+                      totalInjectedCount 
+                  );
+                  console.log(`[Timer] Section '${section.title}': ${res.duration}ms`);
+                  addCost(res.cost, res.usage);
+
+                  if (!shouldStopRef.current) {
+                    sectionResults[i] = res.data.content;
+                    setContent(sectionResults.filter(s => s).join('\n\n'));
+                    
+                    if (res.data.usedPoints && res.data.usedPoints.length > 0) {
+                        currentCoveredPoints = [...currentCoveredPoints, ...res.data.usedPoints];
+                        setCoveredPoints(currentCoveredPoints);
+                    }
+                    
+                    if (res.data.injectedCount) {
+                        totalInjectedCount += res.data.injectedCount;
+                    }
+                  }
+              } catch (err) {
+                  console.error(`Failed to generate section: ${section.title}`, err);
+                  sectionResults[i] = `\n\n> **Error generating section: ${section.title}**\n\n`;
+                  setContent(sectionResults.filter(s => s).join('\n\n'));
+              }
           }
       }
       
@@ -561,6 +687,7 @@ const App: React.FC = () => {
             savedProfiles={savedProfiles}
             onLoadProfile={handleLoadProfile}
             onRequestUrlMode={() => setInputType('url')}
+            productBrief={activeProductBrief} // Pass product info for Rebrand
           />
         </section>
 

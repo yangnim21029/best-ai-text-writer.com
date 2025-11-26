@@ -20,10 +20,11 @@ export interface ReferenceAnalysis {
   structure: SectionAnalysis[]; // Detailed structure with plans
   generalPlan: string[];        // Global style rules
   conversionPlan: string[];     // NEW: How the author presents value/benefits
-  keyInformationPoints: string[]; // NEW: High density facts/concepts to track
+  keyInformationPoints: string[]; // General High density facts/concepts
+  brandExclusivePoints: string[]; // NEW: Unique Selling Points / Brand specific claims
   replacementRules?: string[];   // Deprecated: Old generic rules
-  competitorBrands?: string[];   // NEW: Specific brand names to nuke (e.g., "EVRbeauty")
-  competitorProducts?: string[]; // NEW: Specific product names to swap (e.g., "GentleLase")
+  competitorBrands?: string[];   // Specific brand names to nuke
+  competitorProducts?: string[]; // Specific product names to swap
 }
 
 export interface AuthorityAnalysis {
@@ -35,7 +36,7 @@ export type TargetAudience = 'zh-TW' | 'zh-HK' | 'zh-MY';
 
 // NEW: Product / CTA Configuration
 export interface ProductBrief {
-  brandName: string;   // NEW: The Entity (e.g., "TopGlow")
+  brandName: string;   // The Entity (e.g., "TopGlow")
   productName: string; // The Full Item (e.g., "TopGlow 755nm Ultra Pulse")
   usp: string;
   ctaLink: string;
@@ -88,7 +89,8 @@ export interface ArticleConfig {
   brandKnowledge?: string; 
   targetAudience: TargetAudience; 
   scrapedImages?: ScrapedImage[]; 
-  useRag?: boolean;        
+  useRag?: boolean;
+  turboMode?: boolean; // NEW: Enable parallel generation
   
   productBrief?: ProductBrief; // Structured data (Passed to generator)
   productRawText?: string;     // Raw input (Passed from UI)
@@ -125,6 +127,7 @@ export interface ServiceResponse<T> {
   data: T;
   usage: TokenUsage;
   cost: CostBreakdown;
+  duration?: number; // NEW: Execution time in ms
 }
 
 export interface ContentScore {

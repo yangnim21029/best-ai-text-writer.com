@@ -1,4 +1,3 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
@@ -6,6 +5,7 @@ import { fetchUrlContent } from './webScraper';
 
 // NEW: Multi-URL Content Summarizer for Human-Readable Context
 export const summarizeBrandContent = async (urls: string[], targetAudience: TargetAudience): Promise<ServiceResponse<string>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
@@ -29,7 +29,7 @@ export const summarizeBrandContent = async (urls: string[], targetAudience: Targ
     aggregatedContent = contents.join("\n\n");
 
     if (aggregatedContent.length < 50) {
-        return { data: "Failed to scrape content from provided URLs.", usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: "Failed to scrape content from provided URLs.", usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
     }
 
     // 2. Specialized Prompt with "Few-Shot" Example
@@ -80,7 +80,8 @@ export const summarizeBrandContent = async (urls: string[], targetAudience: Targ
 
         return {
             data: response.text || "Could not summarize content.",
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
 
     } catch (e) {
@@ -88,13 +89,15 @@ export const summarizeBrandContent = async (urls: string[], targetAudience: Targ
         return { 
             data: "Error during summarization.", 
             usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0} 
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: Date.now() - startTs
         };
     }
 };
 
 // Pre-processing Service to parse raw product text
 export const parseProductContext = async (rawText: string): Promise<ServiceResponse<ProductBrief>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const prompt = `
@@ -149,7 +152,8 @@ export const parseProductContext = async (rawText: string): Promise<ServiceRespo
                 ctaLink: data.ctaLink || "",
                 targetPainPoints: data.targetPainPoints || ""
             },
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
 
     } catch (e) {
@@ -158,7 +162,8 @@ export const parseProductContext = async (rawText: string): Promise<ServiceRespo
         return { 
             data: { brandName: "Our Brand", productName: "Our Service", usp: "", ctaLink: "", targetPainPoints: "" }, 
             usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0} 
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: Date.now() - startTs
         };
     }
 };
@@ -168,8 +173,9 @@ export const generateProblemProductMapping = async (
     product: ProductBrief, 
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<ProblemProductMapping[]>> => {
+    const startTs = Date.now();
     if (!product.productName) {
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: 0 };
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -222,11 +228,12 @@ export const generateProblemProductMapping = async (
 
         return {
             data: data.mappings || [],
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
 
     } catch (e) {
         console.error("Product Mapping failed", e);
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
     }
 };

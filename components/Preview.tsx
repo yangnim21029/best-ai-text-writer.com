@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { marked } from 'marked';
 import { Copy, Check, AlertCircle, Code, Eye, Square, Terminal, FileDown, Sparkles, Loader2, BrainCircuit } from 'lucide-react';
-import { GenerationStatus, TargetAudience, CostBreakdown, TokenUsage, SavedProfile, ScrapedImage, GenerationStep } from '../types';
+import { GenerationStatus, TargetAudience, CostBreakdown, TokenUsage, SavedProfile, ScrapedImage, GenerationStep, ProductBrief } from '../types';
 import { RichTextEditor } from './RichTextEditor';
 
 interface PreviewProps {
@@ -13,6 +13,7 @@ interface PreviewProps {
   generationStep?: GenerationStep; // Added prop
   onStop: () => void;
   keyInformationPoints?: string[];
+  brandExclusivePoints?: string[]; // NEW
   coveredPoints?: string[];
   targetAudience?: TargetAudience;
   scrapedImages?: ScrapedImage[];
@@ -22,6 +23,7 @@ interface PreviewProps {
   savedProfiles?: SavedProfile[];
   onLoadProfile?: (profile: SavedProfile) => void;
   onRequestUrlMode?: () => void;
+  productBrief?: ProductBrief; // NEW
 }
 
 type ViewMode = 'visual' | 'code';
@@ -33,6 +35,7 @@ export const Preview: React.FC<PreviewProps> = ({
     generationStep,
     onStop,
     keyInformationPoints = [],
+    brandExclusivePoints = [], // NEW
     coveredPoints = [],
     targetAudience = 'zh-TW',
     scrapedImages = [],
@@ -41,7 +44,8 @@ export const Preview: React.FC<PreviewProps> = ({
     onAddCost,
     savedProfiles = [],
     onLoadProfile,
-    onRequestUrlMode
+    onRequestUrlMode,
+    productBrief // NEW
 }) => {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('visual');
@@ -324,12 +328,14 @@ export const Preview: React.FC<PreviewProps> = ({
                     initialHtml={editorHtml} 
                     onChange={setEditorHtml} 
                     keyPoints={keyInformationPoints}
+                    brandExclusivePoints={brandExclusivePoints} // NEW
                     checkedPoints={coveredPoints}
                     scrapedImages={scrapedImages}
                     visualStyle={visualStyle} // Pass the analyzed style
                     onTogglePoint={onTogglePoint}
                     targetAudience={targetAudience}
                     onAddCost={onAddCost}
+                    productBrief={productBrief} // Pass product info
                 />
             ) : (
                 <div className="h-full w-full bg-gray-900 flex flex-col">

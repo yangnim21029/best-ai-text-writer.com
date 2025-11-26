@@ -1,21 +1,21 @@
-
 import { GoogleGenAI, Type } from "@google/genai";
 import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience, ReferenceAnalysis, AuthorityAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction, extractRawSnippets } from './promptService';
 
 // 1. Analyze Context & Generate Action Plan
 export const extractKeywordActionPlans = async (referenceContent: string, keywords: KeywordData[], targetAudience: TargetAudience): Promise<ServiceResponse<KeywordActionPlan[]>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     // 1. Pre-process: Identify snippets locally
-    const topTokens = keywords.slice(15); // Increased from 15 to get slightly more data if available
+    const topTokens = keywords.slice(15); 
     const analysisPayload = topTokens.map(k => ({
         word: k.token,
         snippets: extractRawSnippets(referenceContent, k.token)
     })).filter(item => item.snippets.length > 0);
 
     if (analysisPayload.length === 0) {
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
     }
 
     const languageInstruction = getLanguageInstruction(targetAudience);
@@ -89,17 +89,19 @@ export const extractKeywordActionPlans = async (referenceContent: string, keywor
 
         return {
             data: finalPlans,
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
 
     } catch (e) {
         console.error("Action Plan extraction failed", e);
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
     }
 };
 
 // Extract Structure and General Strategy (Includes Replacement Rules)
 export const analyzeReferenceStructure = async (referenceContent: string, targetAudience: TargetAudience): Promise<ServiceResponse<ReferenceAnalysis>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
@@ -112,7 +114,12 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
     TASK 2: For EACH section, write a specific "Narrative Action Plan". How did the author write *this specific part*? (e.g., "Started with a rhetorical question," "Used a bullet list for benefits").
     TASK 3: Create a "General Action Plan" (3 key points) on how to mimic this author's overall voice.
     TASK 4: Create a "Conversion & Value Strategy" (3 key points). How does this author present the *Value* or *Benefits*?
-    TASK 5: Extract "Key Information Points". List all the unique facts, arguments, statistics, or high-density concepts found in the text.
+    
+    TASK 5: **INFORMATION EXTRACTION & CLASSIFICATION (CRITICAL)**
+    Extract all unique facts and concepts, but CLASSIFY them into two lists:
+    A. **Key Information Points (General)**: Industry facts, scientific principles, general educational info. (e.g., "Laser wavelength affects depth", "Vitamin C is an antioxidant").
+    B. **Brand Exclusive Points (USP)**: Specific claims about the specific company/brand/product mentioned in the text. (e.g., "TopGlow uses Gen 4 machines", "Our treatment takes only 10 mins", "We have FDA approval for X").
+
     TASK 6: **COMPETITOR RECONNAISSANCE**.
            Identify specific **Brand Names** (e.g., "EVRbeauty", "Tesla") and **Product Models** (e.g., "GentleLase", "Model S") mentioned in the text that are NOT general terms.
            - competitorBrands: The name of the company.
@@ -143,10 +150,11 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
                         },
                         generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
                         conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "General industry facts and knowledge" },
+                        brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING }, description: "Brand specific USPs, pricing, or unique features" },
                         replacementRules: { type: Type.ARRAY, items: { type: Type.STRING } }, // Legacy
-                        competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } }, // NEW
-                        competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } } // NEW
+                        competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } }, 
+                        competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } } 
                     }
                 }
             }
@@ -155,7 +163,6 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
         const data = JSON.parse(response.text || "{}");
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
         
-        // Combine new fields into legacy replacementRules for backward compatibility if needed, or just use new fields
         const combinedRules = [
             ...(data.competitorBrands || []),
             ...(data.competitorProducts || [])
@@ -167,26 +174,30 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
                 generalPlan: data.generalPlan || [],
                 conversionPlan: data.conversionPlan || [],
                 keyInformationPoints: data.keyInformationPoints || [],
+                brandExclusivePoints: data.brandExclusivePoints || [], // NEW
                 replacementRules: combinedRules,
                 competitorBrands: data.competitorBrands || [],
                 competitorProducts: data.competitorProducts || []
             },
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
     } catch (e) {
         console.error("Structure analysis failed", e);
         return { 
-            data: { structure: [], generalPlan: [], conversionPlan: [], keyInformationPoints: [], competitorBrands: [], competitorProducts: [] }, 
+            data: { structure: [], generalPlan: [], conversionPlan: [], keyInformationPoints: [], brandExclusivePoints: [], competitorBrands: [], competitorProducts: [] }, 
             usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0} 
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: Date.now() - startTs
         };
     }
 };
 
 // Analyze Authority Terms with Website Context
 export const analyzeAuthorityTerms = async (authorityInput: string, topic: string, websiteType: string, targetAudience: TargetAudience): Promise<ServiceResponse<AuthorityAnalysis | null>> => {
+    const startTs = Date.now();
     if (!authorityInput || !authorityInput.trim()) {
-        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: 0 };
     }
 
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
@@ -236,17 +247,18 @@ export const analyzeAuthorityTerms = async (authorityInput: string, topic: strin
                 relevantTerms: data.relevantTerms || [],
                 combinations: data.combinations || []
             },
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
 
     } catch (e) {
         console.error("Authority analysis failed", e);
-        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: null, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
     }
 };
 
-// Renamed from extractBrandInfo
 export const extractWebsiteTypeAndTerm = async (content: string): Promise<ServiceResponse<{ websiteType: string, authorityTerms: string }>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const prompt = `
@@ -290,14 +302,16 @@ export const extractWebsiteTypeAndTerm = async (content: string): Promise<Servic
                 websiteType: data.websiteType || "",
                 authorityTerms: (data.authorityTerms || []).join(', ')
             },
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
     } catch (e) {
         console.error("Brand info extraction failed", e);
         return { 
             data: { websiteType: "", authorityTerms: "" }, 
             usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0} 
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: Date.now() - startTs
         };
     }
 };
@@ -311,6 +325,7 @@ export const filterSectionContext = async (
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<{ filteredPoints: string[], filteredAuthTerms: string[], knowledgeInsights: string[] }>> => {
     
+    const startTs = Date.now();
     const hasKnowledge = brandKnowledgeBase && brandKnowledgeBase.trim().length > 10;
     
     // Optimization: If data is small and no KB, skip
@@ -318,7 +333,8 @@ export const filterSectionContext = async (
         return {
             data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
             usage: {inputTokens:0, outputTokens:0, totalTokens:0},
-            cost: {inputCost:0, outputCost:0, totalCost:0}
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: 0
         };
     }
 
@@ -378,7 +394,8 @@ export const filterSectionContext = async (
                 filteredAuthTerms: data.filteredAuthTerms || [],
                 knowledgeInsights: data.knowledgeInsights || []
             },
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
 
     } catch (e) {
@@ -386,7 +403,8 @@ export const filterSectionContext = async (
         return {
             data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
             usage: {inputTokens:0, outputTokens:0, totalTokens:0},
-            cost: {inputCost:0, outputCost:0, totalCost:0}
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: Date.now() - startTs
         };
     }
 };

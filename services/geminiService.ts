@@ -1,8 +1,8 @@
-
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, Type } from "@google/genai";
 import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { filterSectionContext } from './extractionService';
+import { marked } from 'marked';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -43,7 +43,7 @@ const getSectionInjectionPlan = (
     }
 
     // ==================================================================================
-    // 2. DENSITY CONTROL (NATURAL VARIATION)
+    // 2. DENSITY CONTROL (AVOID KEYWORD STUFFING)
     // ==================================================================================
     injectionPlan += `
     **📉 DENSITY CONTROL (AVOID KEYWORD STUFFING):**
@@ -102,214 +102,306 @@ export const generateSectionContent = async (
     futureSections: string[] = [],
     authorityAnalysis: AuthorityAnalysis | null = null,
     keyInfoPoints: string[] = [], 
-    usedInfoPoints: string[] = [],
+    currentCoveredPointsHistory: string[] = [], // Changed from "usedInfoPoints" to "history" for clarity
     currentInjectedCount: number = 0 // NEW: Track total injections so far
 ): Promise<ServiceResponse<SectionGenerationResult>> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  
-  // 1. SMART CONTEXT FILTERING (Stronger RAG)
-  let activeKeyPoints = keyInfoPoints;
-  let activeAuthTerms = authorityAnalysis?.relevantTerms || [];
-  let activeKnowledgeInsights: string[] = []; // Insights from KB
-  
-  let usageAccumulator: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-  let costAccumulator: CostBreakdown = { inputCost: 0, outputCost: 0, totalCost: 0 };
-
-  const shouldRunRag = config.useRag !== false;
-
-  if (shouldRunRag) {
-      // Pass the new brandKnowledge to the filter function
-      const filterRes = await filterSectionContext(
-          sectionTitle, 
-          keyInfoPoints.filter(p => !usedInfoPoints.includes(p)), 
-          activeAuthTerms, 
-          config.brandKnowledge, // Pass the KB text
-          config.targetAudience
-      );
-      
-      activeKeyPoints = filterRes.data.filteredPoints;
-      activeAuthTerms = filterRes.data.filteredAuthTerms;
-      activeKnowledgeInsights = filterRes.data.knowledgeInsights;
-      
-      usageAccumulator.inputTokens += filterRes.usage.inputTokens;
-      usageAccumulator.outputTokens += filterRes.usage.outputTokens;
-      usageAccumulator.totalTokens += filterRes.usage.totalTokens;
-      costAccumulator.inputCost += filterRes.cost.inputCost;
-      costAccumulator.outputCost += filterRes.cost.outputCost;
-      costAccumulator.totalCost += filterRes.cost.totalCost;
-  } else {
-       activeKeyPoints = keyInfoPoints.filter(p => !usedInfoPoints.includes(p));
-  }
-
-  // 2. Build the Prompt
-  const languageInstruction = getLanguageInstruction(config.targetAudience);
-
-  let styleInstructions = "";
-  
-  // Inject Knowledge Insights (High Priority)
-  if (activeKnowledgeInsights.length > 0) {
-      styleInstructions += `### 🛡️ STRICT BRAND GUIDELINES FOR THIS SECTION\n${activeKnowledgeInsights.map(p => `-[IMPORTANT] ${p}`).join('\n')}\n\n`;
-  } else if (config.brandKnowledge && !shouldRunRag) {
-      styleInstructions += `### BRAND CONTEXT\nRefer to global brand knowledge provided.\n\n`;
-  }
-
-  if (generalPlan && generalPlan.length > 0) {
-      styleInstructions += `### GLOBAL WRITING STYLE\n${generalPlan.map(p => `- ${p}`).join('\n')}\n\n`;
-  }
-  if (config.referenceAnalysis?.conversionPlan?.length) {
-      styleInstructions += `### CONVERSION & VALUE PRESENTATION\n${config.referenceAnalysis.conversionPlan.map(p => `- ${p}`).join('\n')}\n\n`;
-  }
-  if (specificPlan?.length) {
-      styleInstructions += `### SPECIFIC NARRATIVE PLAN FOR THIS SECTION ("${sectionTitle}")\n${specificPlan.map(p => `- ${p}`).join('\n')}\n\n`;
-  }
-  
-  // Use the FILTERED Authority Terms
-  if (activeAuthTerms.length > 0) {
-      styleInstructions += `### AUTHORITY & BRAND ATTRIBUTES (Selected for this section)\nTarget Terms: ${activeAuthTerms.join(', ')}\nExecution Strategy:\n${authorityAnalysis?.combinations.map(c => `- ${c}`).join('\n') || ''}\n`;
-  } else if (config.authorityTerms) {
-       styleInstructions += `### AUTHORITY TERMS\n${config.authorityTerms}\n`;
-  }
-
-  // NEW: INJECT PRODUCT STRATEGY (Level 1 & 2 Logic + Density Check)
-  const isLastSections = futureSections.length <= 1; // Are we near the end?
-  if (config.productBrief) {
-      const injectionInstructions = getSectionInjectionPlan(
-          sectionTitle,
-          config.referenceAnalysis, // Pass full analysis for competitor targeting
-          config.productMapping, // Global Level 1 Mapping
-          config.productBrief,
-          currentInjectedCount,
-          isLastSections
-      );
-      if (injectionInstructions) {
-          styleInstructions += `\n${injectionInstructions}\n`;
-      }
-  }
-
-  let infoDensityInstruction = "";
-  if (activeKeyPoints.length > 0) {
-      infoDensityInstruction = `
-      ### INFORMATION DENSITY & FACT USAGE
-      **RELEVANT FACTS FOR THIS SECTION:**
-      ${activeKeyPoints.map(p => `- ${p}`).join('\n')}
-      
-      **INSTRUCTION:** Weave these specific facts into the narrative naturally. 
-      Output used points in metadata: $$USED_POINTS$$: Point A || Point B
-      `;
-  } else {
-      infoDensityInstruction = `(No specific key facts assigned to this section, focus on flow and narrative)`;
-  }
-
-  const systemInstruction = `
-    You are a professional ghostwriter.
-    use more comma, less full stop.
     
-    ### WRITING TASK
-    Write section: **"${sectionTitle}"**
+    const startTs = Date.now();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const isLastSections = futureSections.length <= 1;
+
+    // RAG: Filter context to reduce token usage
+    const contextFilter = await filterSectionContext(
+        sectionTitle, 
+        keyInfoPoints, 
+        authorityAnalysis?.relevantTerms || [],
+        config.brandKnowledge,
+        config.targetAudience
+    );
+
+    const relevantKeyPoints = contextFilter.data.filteredPoints;
+    const relevantAuthTerms = contextFilter.data.filteredAuthTerms;
+    const kbInsights = contextFilter.data.knowledgeInsights;
+
+    // --- FREQUENCY CAP LOGIC ---
+    // Rule: A key point should not be reused if it has already appeared 2 or more times in the article.
+    const MAX_USAGE_LIMIT = 2;
     
-    **PREVIOUS SECTIONS:** ${previousSections.join(', ')}
-    **FUTURE SECTIONS:** ${futureSections.join(', ')}
+    const pointsAvailableForThisSection = relevantKeyPoints.filter(point => {
+        const usageCount = currentCoveredPointsHistory.filter(p => p === point).length;
+        return usageCount < MAX_USAGE_LIMIT;
+    });
+
+    // Inject Product/Commercial Strategy if brief exists
+    const injectionPlan = getSectionInjectionPlan(
+        sectionTitle, 
+        config.referenceAnalysis,
+        config.productMapping,
+        config.productBrief,
+        currentInjectedCount,
+        isLastSections
+    );
+
+    const languageInstruction = getLanguageInstruction(config.targetAudience);
+
+    const prompt = `
+    You are an expert editor writing the section: "${sectionTitle}".
     
     ${languageInstruction}
-    ${infoDensityInstruction}
     
-    ### 6-POINT CHAIN OF THOUGHT
-    1. Entities: Describe physically.
-    2. Pronouns: REMOVE them.
-    3. Synonyms: Avoid repetition.
-    4. Concreteness: Replace adjectives with physical descriptions.
-    5. Literalness: No metaphors.
-    6. Professionalism: Use industry terminology.
+    CONTEXT:
+    - Article Topic: "${config.title}"
+    - Previous Sections (Summary): ${previousSections.slice(-2).map(s => s.substring(0, 100) + "...").join(" | ")}
+    - Upcoming Sections: ${futureSections.join(", ")}
+    
+    STRATEGY & STYLE:
+    - Overall Voice: ${generalPlan?.join("; ") || "Professional, authoritative"}
+    - Section Strategy: ${specificPlan?.join("; ") || "Explain thoroughly"}
+    - Brand Knowledge Rules: ${kbInsights.length > 0 ? kbInsights.join("; ") : "None"}
+    
+    RESOURCES TO USE:
+    - Keywords to Weave: ${keywordPlans.map(k => k.word).join(", ")}
+    - Authority Terms: ${relevantAuthTerms.slice(0, 5).join(", ")}
 
-    ${styleInstructions}
+    **KEY FACTS TO INCLUDE (Pick 1-3 most relevant):**
+    ${pointsAvailableForThisSection.length > 0 ? pointsAvailableForThisSection.join("; ") : "(No new key points needed for this section, focus on narrative)"}
+    
+    ${injectionPlan}
+    
+    OUTPUT RULES:
+    - Return ONLY the content for this section in JSON format.
+    - Use proper Markdown for the content string (H3 for subsections, Lists where appropriate).
+    - Do NOT repeat the H2 Title "${sectionTitle}".
+    - Ensure smooth transitions from the previous section.
+    `;
 
-    ### FORMATTING & METADATA
-    - Output Markdown.
-    - Start with H2: ## ${sectionTitle}
-    - NO AI Phrases.
-    - **POST-PROCESSING CHECK:** At the very end, verify if you mentioned the brand "${config.productBrief?.brandName || 'brand'}".
-    - Output this metadata line at the end: $$INJECTED_COUNT$$: [number of times brand/product was mentioned]
-  `;
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    content: { type: Type.STRING },
+                    usedPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    injectedCount: { type: Type.INTEGER, description: "How many times did you mention the Product Name?" }
+                }
+            }
+        }
+    });
+    
+    let data;
+    try {
+        let cleanText = response.text || "{}";
+        // Remove markdown formatting if present
+        cleanText = cleanText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
+        data = JSON.parse(cleanText);
+    } catch (e) {
+        console.warn("JSON Parse Failed for section content, falling back to raw text", e);
+        // Fallback: treat the whole text as content if it looks like content
+        data = {
+            content: response.text || "",
+            usedPoints: [],
+            injectedCount: 0
+        };
+    }
+    
+    const metrics = calculateCost(response.usageMetadata, 'FLASH');
+    
+    // Sum up costs from RAG + Generation
+    const totalCost = {
+        inputCost: metrics.cost.inputCost + contextFilter.cost.inputCost,
+        outputCost: metrics.cost.outputCost + contextFilter.cost.outputCost,
+        totalCost: metrics.cost.totalCost + contextFilter.cost.totalCost
+    };
+    
+    const totalUsage = {
+        inputTokens: metrics.usage.inputTokens + contextFilter.usage.inputTokens,
+        outputTokens: metrics.usage.outputTokens + contextFilter.usage.outputTokens,
+        totalTokens: metrics.usage.totalTokens + contextFilter.usage.totalTokens
+    };
+    
+    const duration = Date.now() - startTs;
 
-  try {
-      const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash', 
-        contents: `Write the content for section: ${sectionTitle}`,
-        config: { systemInstruction },
-      });
-
-      let fullText = response.text || "";
-      let contentText = fullText;
-      let newlyUsedPoints: string[] = [];
-      let injectedCount = 0;
-
-      // Extract Metadata: Used Points
-      const markerIndex = fullText.indexOf('$$USED_POINTS$$:');
-      if (markerIndex !== -1) {
-          const metadata = fullText.substring(markerIndex).split('\n')[0].replace('$$USED_POINTS$$:', '').trim();
-          newlyUsedPoints = metadata.split('||').map(s => s.trim()).filter(s => s.length > 0);
-          
-          // Remove from content text
-          const lines = fullText.split('\n');
-          contentText = lines.filter(l => !l.includes('$$USED_POINTS$$:')).join('\n');
-      }
-
-      // Extract Metadata: Injected Count
-      const countMatch = fullText.match(/\$\$INJECTED_COUNT\$\$: (\d+)/);
-      if (countMatch) {
-          injectedCount = parseInt(countMatch[1], 10);
-      } else {
-          // Fallback manual count if LLM fails to output metadata
-          if (config.productBrief?.brandName) {
-             const regex = new RegExp(config.productBrief.brandName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi');
-             const matches = contentText.match(regex);
-             injectedCount = matches ? matches.length : 0;
-          }
-      }
-      
-      // FIX: Explicitly remove the injected count metadata line from the content
-      contentText = contentText.replace(/\$\$INJECTED_COUNT\$\$: \d+/g, '').trim();
-
-      contentText = contentText.replace(/。/g, '。\n\n');
-      
-      const metrics = calculateCost(response.usageMetadata, 'FLASH');
-      
-      usageAccumulator.inputTokens += metrics.usage.inputTokens;
-      usageAccumulator.outputTokens += metrics.usage.outputTokens;
-      usageAccumulator.totalTokens += metrics.usage.totalTokens;
-      costAccumulator.inputCost += metrics.cost.inputCost;
-      costAccumulator.outputCost += metrics.cost.outputCost;
-      costAccumulator.totalCost += metrics.cost.totalCost;
-
-      return {
-          data: { content: contentText, usedPoints: newlyUsedPoints, injectedCount },
-          usage: usageAccumulator,
-          cost: costAccumulator
-      };
-  } catch (e) {
-      console.error("Section generation error", e);
-      return { 
-          data: { content: "", usedPoints: [], injectedCount: 0 }, 
-          usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-          cost: {inputCost:0, outputCost:0, totalCost:0} 
-      };
-  }
+    return {
+        data: {
+            content: data.content || "",
+            usedPoints: data.usedPoints || [],
+            injectedCount: data.injectedCount || 0
+        },
+        usage: totalUsage,
+        cost: totalCost,
+        duration
+    };
 };
 
+// AI Rewriter / Formatter (Small Tool)
 export const generateSnippet = async (prompt: string, targetAudience: TargetAudience): Promise<ServiceResponse<string>> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-  const languageInstruction = getLanguageInstruction(targetAudience);
-  
-  const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: `User Request: "${prompt}". \n\n ${languageInstruction} \n\n Output ONLY the content in Markdown/HTML as requested.`,
-      config: { temperature: 0.7 }
-  });
+    const startTs = Date.now();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const languageInstruction = getLanguageInstruction(targetAudience);
 
-  const metrics = calculateCost(response.usageMetadata, 'FLASH');
+    const fullPrompt = `
+    ${languageInstruction}
+    ${prompt}
+    `;
 
-  return {
-      data: response.text || "",
-      ...metrics
-  };
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: fullPrompt,
+    });
+    const metrics = calculateCost(response.usageMetadata, 'FLASH');
+    return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
+};
+
+// REBRAND CONTENT (Global Entity Swap)
+export const rebrandContent = async (
+    currentContent: string, 
+    productBrief: ProductBrief, 
+    targetAudience: TargetAudience
+): Promise<ServiceResponse<string>> => {
+    const startTs = Date.now();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    const prompt = `
+    TASK: REBRAND this article content.
+    
+    BRAND IDENTITY:
+    - Name: "${productBrief.brandName}"
+    - Product: "${productBrief.productName}"
+    - USP: "${productBrief.usp}"
+    
+    INSTRUCTIONS:
+    1. Scan the text for generic terms like "the device", "the treatment", "many clinics", or any Competitor Names.
+    2. REWRITE those sentences to specifically feature **${productBrief.brandName}** or **${productBrief.productName}**.
+    3. Ensure the grammar flows naturally (Subject-Verb agreement).
+    4. Do NOT just find-replace. Rewrite the sentence to sound authoritative.
+    5. Maintain the original structure and formatting (Markdown).
+    
+    ${languageInstruction}
+
+    CONTENT TO REBRAND:
+    ${currentContent}
+    `;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+    });
+
+    const metrics = calculateCost(response.usageMetadata, 'FLASH');
+    return { data: response.text || "", ...metrics, duration: Date.now() - startTs };
+};
+
+
+// 🆕 SMART INJECT POINT (Refine with Paragraph Compact Indexing)
+export const smartInjectPoint = async (
+    fullHtmlContent: string, 
+    pointToInject: string, 
+    targetAudience: TargetAudience
+): Promise<ServiceResponse<{ originalSnippet: string, newSnippet: string }>> => {
+    
+    const startTs = Date.now();
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    // 1. PARSE & INDEX (Paragraph Compact Indexing)
+    // We use DOMParser to break the HTML into blocks to avoid sending huge context to LLM.
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(fullHtmlContent, 'text/html');
+    
+    // Get text blocks (p, li)
+    const blocks: { id: number, text: string, html: string }[] = [];
+    const nodes = doc.querySelectorAll('p, li');
+    
+    nodes.forEach((node, index) => {
+        const text = node.textContent?.trim() || "";
+        if (text.length > 20) { // Only index substantial blocks
+            blocks.push({
+                id: index,
+                text: text.substring(0, 80) + "...", // Compact representation
+                html: node.outerHTML
+            });
+        }
+    });
+
+    if (blocks.length === 0) {
+         return { data: { originalSnippet: "", newSnippet: "" }, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+    }
+
+    // 2. FIND BEST BLOCK (Prompt 1)
+    const findPrompt = `
+    I need to insert this Key Point: "${pointToInject}"
+    
+    Here is a "Compact Index" of the article paragraphs:
+    ${blocks.map(b => `[ID: ${b.id}] ${b.text}`).join('\n')}
+    
+    TASK: Identify the SINGLE Best Block ID to insert/merge this point into. 
+    Return ONLY the ID (e.g. "5").
+    `;
+
+    const findRes = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: findPrompt,
+    });
+    
+    const bestIdStr = findRes.text?.trim().match(/\d+/)?.[0];
+    const bestId = bestIdStr ? parseInt(bestIdStr) : -1;
+    
+    const targetBlock = blocks.find(b => b.id === bestId);
+
+    if (!targetBlock) {
+         // Fallback if AI fails to pick a valid ID
+         return { data: { originalSnippet: "", newSnippet: "" }, usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
+    }
+
+    // 3. REWRITE BLOCK (Prompt 2)
+    // Now we only send the Target Block's full HTML to be rewritten.
+    const rewritePrompt = `
+    TASK: Rewrite the following HTML Block to naturally include this Key Point.
+    
+    KEY POINT: "${pointToInject}"
+    
+    TARGET HTML BLOCK:
+    ${targetBlock.html}
+    
+    RULES:
+    1. Keep the original meaning and HTML tag structure (<p> or <li>).
+    2. Weave the point in naturally. Do not just append it at the end unless it fits.
+    3. ${languageInstruction}
+    4. Return ONLY the new HTML string.
+    `;
+
+    const rewriteRes = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: rewritePrompt,
+    });
+
+    // Calculate total cost (Find + Rewrite)
+    const cost1 = calculateCost(findRes.usageMetadata, 'FLASH');
+    const cost2 = calculateCost(rewriteRes.usageMetadata, 'FLASH');
+
+    const totalUsage = {
+        inputTokens: cost1.usage.inputTokens + cost2.usage.inputTokens,
+        outputTokens: cost1.usage.outputTokens + cost2.usage.outputTokens,
+        totalTokens: cost1.usage.totalTokens + cost2.usage.totalTokens,
+    };
+    const totalCost = {
+        inputCost: cost1.cost.inputCost + cost2.cost.inputCost,
+        outputCost: cost1.cost.outputCost + cost2.cost.outputCost,
+        totalCost: cost1.cost.totalCost + cost2.cost.totalCost,
+    };
+
+    return {
+        // Return the original HTML to search/replace, and the new HTML
+        data: {
+            originalSnippet: targetBlock.html, 
+            newSnippet: rewriteRes.text?.trim() || targetBlock.html 
+        },
+        usage: totalUsage,
+        cost: totalCost,
+        duration: Date.now() - startTs
+    };
 };

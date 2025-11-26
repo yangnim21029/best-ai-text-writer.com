@@ -1,6 +1,3 @@
-
-
-
 import { GoogleGenAI, Modality, Type } from "@google/genai";
 import { ServiceResponse, ScrapedImage, TargetAudience, ImageAssetPlan } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
@@ -25,6 +22,7 @@ export const analyzeVisualStyle = async (
     scrapedImages: ScrapedImage[], 
     websiteType: string
 ): Promise<ServiceResponse<string>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const analyzedSamples = scrapedImages
@@ -63,14 +61,16 @@ export const analyzeVisualStyle = async (
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
         return {
             data: response.text?.trim() || "Clean, modern professional photography with natural lighting.",
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
     } catch (e) {
         console.error("Visual Style Analysis failed", e);
         return { 
             data: "Clean, modern professional photography with natural lighting.",
             usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0} 
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: Date.now() - startTs
         };
     }
 };
@@ -80,6 +80,7 @@ export const generateImagePromptFromContext = async (
     targetAudience: TargetAudience,
     visualStyle: string = ""
 ): Promise<ServiceResponse<string>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
@@ -111,11 +112,13 @@ export const generateImagePromptFromContext = async (
 
     return {
         data: response.text?.trim() || "",
-        ...metrics
+        ...metrics,
+        duration: Date.now() - startTs
     };
 };
 
 export const generateImage = async (prompt: string): Promise<ServiceResponse<string | null>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
     try {
@@ -146,7 +149,8 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
 
         return {
             data: imageData,
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
     } catch (e) {
         console.error("Image generation failed", e);
@@ -200,6 +204,7 @@ const convertSvgToPng = (svgBlob: Blob): Promise<string> => {
 
 // NEW: Analyze Image from URL (Image Understanding)
 export const analyzeImageWithAI = async (imageUrl: string): Promise<ServiceResponse<string>> => {
+    const startTs = Date.now();
     const PROXY = "https://corsproxy.io/?";
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
@@ -228,7 +233,8 @@ export const analyzeImageWithAI = async (imageUrl: string): Promise<ServiceRespo
                  return {
                     data: "Skipped: SVG/Vector image not supported/convertible.",
                     usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-                    cost: {inputCost:0, outputCost:0, totalCost:0} 
+                    cost: {inputCost:0, outputCost:0, totalCost:0},
+                    duration: Date.now() - startTs
                  };
             }
         } else {
@@ -247,7 +253,8 @@ export const analyzeImageWithAI = async (imageUrl: string): Promise<ServiceRespo
         const metrics = calculateCost(result.usageMetadata, 'FLASH');
         return {
             data: result.text || "No description generated.",
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
         
     } catch (e) {
@@ -255,7 +262,8 @@ export const analyzeImageWithAI = async (imageUrl: string): Promise<ServiceRespo
         return { 
             data: "Analysis failed (Format or Network error)", 
             usage: {inputTokens:0, outputTokens:0, totalTokens:0}, 
-            cost: {inputCost:0, outputCost:0, totalCost:0} 
+            cost: {inputCost:0, outputCost:0, totalCost:0},
+            duration: Date.now() - startTs
         };
     }
 };
@@ -275,6 +283,7 @@ export const planImagesForArticle = async (
   targetAudience: TargetAudience,
   visualStyle: string = ""
 ): Promise<ServiceResponse<ImageAssetPlan[]>> => {
+    const startTs = Date.now();
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     const languageInstruction = getLanguageInstruction(targetAudience);
 
@@ -351,11 +360,12 @@ export const planImagesForArticle = async (
 
         return {
             data: finalPlans,
-            ...metrics
+            ...metrics,
+            duration: Date.now() - startTs
         };
 
     } catch (e) {
         console.error("Image Planning failed", e);
-        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0} };
+        return { data: [], usage: {inputTokens:0, outputTokens:0, totalTokens:0}, cost: {inputCost:0, outputCost:0, totalCost:0}, duration: Date.now() - startTs };
     }
 };
