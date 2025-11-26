@@ -12,6 +12,8 @@ interface HeaderProps {
   onToggleSidebar: () => void;
   onToggleChangelog: () => void; // New Prop
   contentScore: ContentScore;
+  displayScale: number;
+  onDisplayScaleChange: (scale: number) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({ 
@@ -22,8 +24,13 @@ export const Header: React.FC<HeaderProps> = ({
     onToggleInput,
     onToggleSidebar,
     onToggleChangelog,
-    contentScore
+    contentScore,
+    displayScale,
+    onDisplayScaleChange
 }) => {
+  const decreaseScale = () => onDisplayScaleChange(displayScale - 0.1);
+  const increaseScale = () => onDisplayScaleChange(displayScale + 0.1);
+
   return (
     // Refactoring UI: Use shadow instead of border-b for elevation, cleaner look
     <header className="bg-white h-16 flex items-center justify-between px-6 flex-shrink-0 z-30 shadow-sm relative">
@@ -63,6 +70,27 @@ export const Header: React.FC<HeaderProps> = ({
                 <PanelRightClose className={`w-4 h-4 transition-transform ${!showSidebar ? 'rotate-180' : ''}`} />
             </button>
         </div>
+
+        {/* Display font sizing */}
+        <div className="hidden md:flex items-center gap-1 bg-gray-50 p-1 rounded-lg border border-gray-100 ml-2">
+            <button
+                onClick={decreaseScale}
+                className="px-2 py-1 text-[10px] font-bold text-gray-500 hover:text-gray-700 hover:bg-white rounded"
+                title="縮小顯示字級"
+            >
+                A-
+            </button>
+            <div className="px-2 py-1 text-[10px] font-bold text-gray-500 bg-white rounded border border-gray-100">
+                {Math.round(displayScale * 100)}%
+            </div>
+            <button
+                onClick={increaseScale}
+                className="px-2 py-1 text-[10px] font-bold text-gray-500 hover:text-gray-700 hover:bg-white rounded"
+                title="放大顯示字級"
+            >
+                A+
+            </button>
+        </div>
       </div>
       
       {/* Variable Reward: Content Score Indicator */}
@@ -96,7 +124,7 @@ export const Header: React.FC<HeaderProps> = ({
                     <Coins className="w-3 h-3" /> Cost
                 </span>
                 <span className="text-lg font-mono font-bold text-emerald-600 leading-none">
-                    ${sessionCost.toFixed(4)}
+                    ${Number(sessionCost || 0).toFixed(4)}
                 </span>
             </div>
         </div>

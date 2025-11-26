@@ -5,6 +5,7 @@ import { marked } from 'marked';
 import { Copy, Check, AlertCircle, Code, Eye, Square, Terminal, FileDown, Sparkles, Loader2, BrainCircuit } from 'lucide-react';
 import { GenerationStatus, TargetAudience, CostBreakdown, TokenUsage, SavedProfile, ScrapedImage, GenerationStep, ProductBrief } from '../types';
 import { RichTextEditor } from './RichTextEditor';
+import { EditorProvider } from './editor/EditorContext';
 
 interface PreviewProps {
   content: string;
@@ -19,11 +20,16 @@ interface PreviewProps {
   scrapedImages?: ScrapedImage[];
   visualStyle?: string; // NEW
   onTogglePoint?: (point: string) => void;
+  onRemoveScrapedImage?: (image: ScrapedImage) => void;
   onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
   savedProfiles?: SavedProfile[];
   onLoadProfile?: (profile: SavedProfile) => void;
   onRequestUrlMode?: () => void;
   productBrief?: ProductBrief; // NEW
+  displayScale?: number;
+  articleTitle?: string;
+  onTitleChange?: (title: string) => void;
+  outlineSections?: string[];
 }
 
 type ViewMode = 'visual' | 'code';
@@ -41,11 +47,16 @@ export const Preview: React.FC<PreviewProps> = ({
     scrapedImages = [],
     visualStyle = '',
     onTogglePoint,
+    onRemoveScrapedImage,
     onAddCost,
     savedProfiles = [],
     onLoadProfile,
     onRequestUrlMode,
-    productBrief // NEW
+    productBrief, // NEW
+    displayScale = 1,
+    articleTitle = '',
+    onTitleChange,
+    outlineSections = [],
 }) => {
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('visual');
@@ -324,19 +335,15 @@ export const Preview: React.FC<PreviewProps> = ({
       <div className="flex-1 overflow-hidden bg-white relative w-full h-full min-h-0">
         <div className="w-full h-full min-h-0 transition-opacity duration-300">
             {viewMode === 'visual' ? (
-                <RichTextEditor 
-                    initialHtml={editorHtml} 
-                    onChange={setEditorHtml} 
-                    keyPoints={keyInformationPoints}
-                    brandExclusivePoints={brandExclusivePoints} // NEW
-                    checkedPoints={coveredPoints}
-                    scrapedImages={scrapedImages}
-                    visualStyle={visualStyle} // Pass the analyzed style
-                    onTogglePoint={onTogglePoint}
-                    targetAudience={targetAudience}
-                    onAddCost={onAddCost}
-                    productBrief={productBrief} // Pass product info
-                />
+                <EditorProvider>
+                    <RichTextEditor 
+                        initialHtml={editorHtml} 
+                        onChange={setEditorHtml} 
+                        displayScale={displayScale}
+                        articleTitle={articleTitle}
+                        onTitleChange={onTitleChange}
+                    />
+                </EditorProvider>
             ) : (
                 <div className="h-full w-full bg-gray-900 flex flex-col">
                     <div className="bg-gray-800 text-gray-400 px-4 py-2 text-xs font-mono flex items-center justify-between border-b border-gray-700">

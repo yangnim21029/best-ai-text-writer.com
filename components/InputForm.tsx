@@ -1,15 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { articleFormSchema, ArticleFormValues } from '../schemas/formSchema';
+import React, { useMemo } from 'react';
 import { ArticleConfig, CostBreakdown, GenerationStep, SavedProfile, ScrapedImage, TargetAudience, TokenUsage } from '../types';
 import { summarizeBrandContent } from '../services/productService';
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
-import { useUrlScraper } from '../hooks/useUrlScraper';
-import { useProfileManager } from '../hooks/useProfileManager';
 import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2 } from 'lucide-react';
+import { useArticleForm } from '../hooks/useArticleForm';
 
 interface InputFormProps {
     onGenerate: (config: ArticleConfig) => void;
@@ -44,97 +40,36 @@ export const InputForm: React.FC<InputFormProps> = ({
         register,
         handleSubmit,
         setValue,
-        watch,
-        reset,
-        formState: { errors }
-    } = useForm<ArticleFormValues>({
-        resolver: zodResolver(articleFormSchema),
-        defaultValues: {
-            title: '',
-            referenceContent: '',
-            sampleOutline: '',
-            authorityTerms: '',
-            websiteType: '',
-            targetAudience: 'zh-TW',
-            useRag: false,
-            turboMode: true,
-            productRawText: '',
-            urlInput: '',
-            productUrlList: ''
-        }
-    });
-
-    const watchedValues = watch();
-
-    const [productMode, setProductMode] = useState<'text' | 'url'>('text');
-    const [isSummarizingProduct, setIsSummarizingProduct] = useState(false);
-    const [refCharCount, setRefCharCount] = useState(0);
-    const [refWordCount, setRefWordCount] = useState(0);
-
-    const {
+        watchedValues,
+        errors,
+        productMode,
+        setProductMode,
+        isSummarizingProduct,
+        setIsSummarizingProduct,
+        refCharCount,
+        refWordCount,
         scrapedImages,
         setScrapedImages,
         isFetchingUrl,
-        fetchAndPopulate
-    } = useUrlScraper({
-        setValue,
-        onAddCost,
-        setInputType,
-    });
-
-    const {
+        fetchAndPopulate,
         createProfile,
         updateProfile,
         deleteProfile,
         applyProfileToForm,
         loadProductFromProfile,
-    } = useProfileManager({
+        usableImages,
+        handleClear,
+    } = useArticleForm({
+        brandKnowledge,
         savedProfiles,
         setSavedProfiles,
         activeProfile,
         onSetActiveProfile,
-        brandKnowledge,
-        setValue,
+        setInputType,
     });
 
-    // --- Persistence Effect ---
-    useEffect(() => {
-        if (typeof window !== 'undefined') {
-            const saved = localStorage.getItem(STORAGE_KEY);
-            if (saved) {
-                try {
-                    const parsed = JSON.parse(saved);
-                    Object.keys(parsed).forEach(key => {
-                        // @ts-ignore
-                        setValue(key, parsed[key]);
-                    });
-                    if (parsed.scrapedImages) setScrapedImages(parsed.scrapedImages);
-                } catch (e) {
-                    console.warn('Failed to restore persisted form', e);
-                }
-            }
-        }
-    }, [setValue, setScrapedImages]);
-
-    useEffect(() => {
-        const dataToSave = { ...watchedValues, scrapedImages };
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-
-        const content = watchedValues.referenceContent || '';
-        setRefCharCount(content.length);
-        const cjkCount = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
-        const nonCjkText = content.replace(/[\u4e00-\u9fa5]/g, ' ');
-        const englishWords = nonCjkText.trim().split(/\s+/).filter(w => w.length > 0);
-        setRefWordCount(cjkCount + englishWords.length);
-    }, [watchedValues, scrapedImages]);
-
-    useEffect(() => {
-        if (activeProfile) {
-            applyProfileToForm(activeProfile);
-        }
-    }, [activeProfile, applyProfileToForm]);
-
     const onSubmit = (data: ArticleFormValues) => {
+        const usableImages = scrapedImages.filter(img => !img.ignored);
         onGenerate({
             title: data.title,
             referenceContent: data.referenceContent,
@@ -146,17 +81,8 @@ export const InputForm: React.FC<InputFormProps> = ({
             turboMode: data.turboMode,
             productRawText: data.productRawText,
             brandKnowledge: undefined,
-            scrapedImages
+            scrapedImages: usableImages
         });
-    };
-
-    const handleClear = () => {
-        if (confirm('Clear all inputs?')) {
-            reset();
-            setScrapedImages([]);
-            setValue('targetAudience', 'zh-TW');
-            setValue('turboMode', true);
-        }
     };
 
     const handleFetchUrl = async () => {
@@ -183,6 +109,23 @@ export const InputForm: React.FC<InputFormProps> = ({
             setIsSummarizingProduct(false);
         }
     };
+
+    const handleToggleScrapedImage = (image: ScrapedImage) => {
+        const keyToMatch = image.id || image.url || image.altText;
+        setScrapedImages(prev =>
+            prev.map((img, idx) => {
+                const key = img.id || img.url || img.altText || `${idx}`;
+                if (key !== keyToMatch) return img;
+                return { ...img, ignored: !img.ignored };
+            })
+        );
+    };
+
+    const isReadyToGenerate = useMemo(() => {
+        const hasTitle = (watchedValues.title || '').trim().length > 0;
+        const hasRef = (watchedValues.referenceContent || '').trim().length > 0;
+        return hasTitle && hasRef && !isFetchingUrl && !isSummarizingProduct;
+    }, [watchedValues.title, watchedValues.referenceContent, isFetchingUrl, isSummarizingProduct]);
 
     return (
         <div className="flex flex-col h-full bg-slate-50/80 overflow-hidden font-sans">
@@ -247,6 +190,7 @@ export const InputForm: React.FC<InputFormProps> = ({
                         refWordCount={refWordCount}
                         refCharCount={refCharCount}
                         scrapedImages={scrapedImages}
+                        onToggleScrapedImage={handleToggleScrapedImage}
                         onFetchUrl={handleFetchUrl}
                         isFetchingUrl={isFetchingUrl}
                     />
@@ -301,8 +245,9 @@ export const InputForm: React.FC<InputFormProps> = ({
                 <div className="p-4 border-t border-gray-100 bg-white/80 backdrop-blur-sm z-10">
                     <button
                         type="submit"
-                        disabled={isGenerating}
+                        disabled={isGenerating || !isReadyToGenerate}
                         className={`w-full py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] ${isGenerating
+                                || !isReadyToGenerate
                                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                                 : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
                             }`}

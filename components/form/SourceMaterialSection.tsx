@@ -15,6 +15,7 @@ interface SourceMaterialSectionProps {
     scrapedImages: ScrapedImage[];
     onFetchUrl: () => Promise<void>;
     isFetchingUrl: boolean;
+    onToggleScrapedImage?: (image: ScrapedImage) => void;
 }
 
 export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
@@ -28,7 +29,13 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
     scrapedImages,
     onFetchUrl,
     isFetchingUrl,
+    onToggleScrapedImage,
 }) => {
+    const [showAllExtracted, setShowAllExtracted] = React.useState(false);
+    const MAX_PREVIEW_IMAGES = 24;
+    const visibleImages = showAllExtracted ? scrapedImages : scrapedImages.slice(0, MAX_PREVIEW_IMAGES);
+    const hiddenCount = scrapedImages.length - visibleImages.length;
+
     const handleFetch = async () => {
         await onFetchUrl();
     };
@@ -124,27 +131,62 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                                 <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
                                     <ImageIcon className="w-3 h-3" /> Extracted Visuals
                                 </h5>
-                                <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">
-                                    AI will analyze first 5 images during generation
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    {scrapedImages.length > MAX_PREVIEW_IMAGES && (
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowAllExtracted((prev) => !prev)}
+                                            className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
+                                        >
+                                            {showAllExtracted ? 'Collapse' : `Show All (${scrapedImages.length})`}
+                                        </button>
+                                    )}
+                                    <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">
+                                        AI will analyze first 5 images during generation
+                                    </span>
+                                </div>
                             </div>
 
                             <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto custom-scrollbar p-1">
-                                {scrapedImages.map((img, idx) => (
-                                    <div key={idx} className="relative group rounded-md overflow-hidden bg-white border border-gray-200 aspect-square shadow-sm">
-                                        {img.url ? (
-                                            <img
-                                                src={img.url}
-                                                alt={img.altText}
-                                                className="w-full h-full object-cover"
-                                            />
-                                        ) : (
-                                            <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                                <ImageIcon className="w-4 h-4" />
-                                            </div>
-                                        )}
-                                    </div>
-                                ))}
+                                {visibleImages.map((img, idx) => {
+                                    const key = img.id || img.url || `${idx}-${img.altText}`;
+                                    const isIgnored = Boolean(img.ignored);
+                                    const clickable = Boolean(onToggleScrapedImage);
+                                    return (
+                                        <div
+                                            key={key}
+                                            className={`relative group rounded-md overflow-hidden border aspect-square shadow-sm transition-all ${isIgnored ? 'border-gray-300' : 'border-gray-200 bg-white'} ${clickable ? 'cursor-pointer hover:border-blue-200' : ''}`}
+                                            onClick={() => onToggleScrapedImage?.(img)}
+                                            title={isIgnored ? 'Click to include again' : 'Click to ignore this image'}
+                                        >
+                                            {img.url ? (
+                                                <img
+                                                    src={img.url}
+                                                    loading="lazy"
+                                                    alt={img.altText}
+                                                    className={`w-full h-full object-cover transition ${isIgnored ? 'grayscale opacity-60' : ''}`}
+                                                />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
+                                                    <ImageIcon className="w-4 h-4" />
+                                                </div>
+                                            )}
+
+                                            {isIgnored && (
+                                                <div className="absolute inset-0 bg-black/30" />
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {hiddenCount > 0 && !showAllExtracted && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setShowAllExtracted(true)}
+                                        className="flex items-center justify-center text-[10px] font-semibold text-blue-600 bg-white border border-blue-100 rounded-md h-full min-h-[72px] hover:bg-blue-50 transition-colors col-span-4"
+                                    >
+                                        + {hiddenCount} more
+                                    </button>
+                                )}
                             </div>
                         </div>
                     )}

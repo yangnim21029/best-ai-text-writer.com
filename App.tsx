@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Layout } from './components/Layout';
 import { Header } from './components/Header';
 import { InputForm } from './components/InputForm';
@@ -6,18 +6,25 @@ import { Preview } from './components/Preview';
 import { SeoSidebar } from './components/SeoSidebar';
 import { Changelog } from './components/Changelog';
 import { PasswordGate } from './components/PasswordGate';
-import { useAppStore } from './store/useAppStore';
 import { useProfileStore } from './store/useProfileStore';
 import { useGeneration } from './hooks/useGeneration';
 import { parseProductContext } from './services/productService';
-import { SavedProfile } from './types';
+import { SavedProfile, ScrapedImage } from './types';
+import { useGenerationStore } from './store/useGenerationStore';
+import { useAnalysisStore } from './store/useAnalysisStore';
+import { useMetricsStore } from './store/useMetricsStore';
+import { useUiStore } from './store/useUiStore';
 
 const App: React.FC = () => {
     const passwordHash = useMemo(() => (import.meta.env.VITE_APP_GUARD_HASH as string) || '', []);
     // Global State
-    const store = useAppStore();
+    const generationStore = useGenerationStore();
+    const analysisStore = useAnalysisStore();
+    const metricsStore = useMetricsStore();
+    const uiStore = useUiStore();
     const profileStore = useProfileStore();
     const [isUnlocked, setIsUnlocked] = useState(false);
+    const restorePromptedRef = useRef(false);
 
     // Logic Hooks
     const { generate, stop } = useGeneration();
@@ -26,8 +33,16 @@ const App: React.FC = () => {
 
     // Content Score Calculation (Variable Reward)
     useEffect(() => {
-        if (!store.content || store.status === 'idle') {
-            store.setContentScore({ value: 0, label: 'Start Writing', color: 'text-gray-300' });
+        if (!generationStore.content || generationStore.status === 'idle') {
+            const baseScore = { value: 0, label: 'Start Writing', color: 'text-gray-300' };
+            const current = metricsStore.contentScore;
+            if (
+                current.value !== baseScore.value ||
+                current.label !== baseScore.label ||
+                current.color !== baseScore.color
+            ) {
+                metricsStore.setContentScore(baseScore);
+            }
             return;
         }
 
@@ -35,23 +50,23 @@ const App: React.FC = () => {
         let totalFactors = 0;
 
         // Factor 1: Keyword Usage (50 points)
-        if (store.keywordPlans.length > 0) {
-            const usedKeywords = store.keywordPlans.filter(k => store.content.toLowerCase().includes(k.word.toLowerCase()));
-            const keywordRatio = usedKeywords.length / store.keywordPlans.length;
+        if (analysisStore.keywordPlans.length > 0) {
+            const usedKeywords = analysisStore.keywordPlans.filter(k => generationStore.content.toLowerCase().includes(k.word.toLowerCase()));
+            const keywordRatio = usedKeywords.length / analysisStore.keywordPlans.length;
             score += keywordRatio * 50;
             totalFactors++;
         }
 
         // Factor 2: Key Points Coverage (50 points)
-        if (store.refAnalysis?.keyInformationPoints && store.refAnalysis.keyInformationPoints.length > 0) {
-            const pointRatio = store.coveredPoints.length / store.refAnalysis.keyInformationPoints.length;
+        if (analysisStore.refAnalysis?.keyInformationPoints && analysisStore.refAnalysis.keyInformationPoints.length > 0) {
+            const pointRatio = analysisStore.coveredPoints.length / analysisStore.refAnalysis.keyInformationPoints.length;
             score += pointRatio * 50;
             totalFactors++;
         } else {
             score += 50;
         }
 
-        if (store.keywordPlans.length === 0) score = score * 2;
+        if (analysisStore.keywordPlans.length === 0) score = score * 2;
 
         score = Math.min(100, Math.round(score));
 
@@ -65,21 +80,45 @@ const App: React.FC = () => {
             color = 'text-amber-500';
         }
 
-        store.setContentScore({ value: score, label, color });
+        const nextScore = { value: score, label, color };
+        const current = metricsStore.contentScore;
+        if (
+            current.value !== nextScore.value ||
+            current.label !== nextScore.label ||
+            current.color !== nextScore.color
+        ) {
+            metricsStore.setContentScore(nextScore);
+        }
 
-    }, [store.content, store.keywordPlans, store.coveredPoints, store.refAnalysis, store.status]);
+    }, [
+        generationStore.content,
+        analysisStore.keywordPlans,
+        analysisStore.coveredPoints,
+        analysisStore.refAnalysis,
+        generationStore.status,
+        metricsStore.contentScore
+    ]);
 
     // --- Handlers ---
 
+    useEffect(() => {
+        document.body.setAttribute('data-display-scale', uiStore.displayScale.toString());
+    }, [uiStore.displayScale]);
+
+    const handleDisplayScaleChange = (scale: number) => {
+        const clamped = Math.min(1.25, Math.max(0.9, Number(scale.toFixed(2))));
+        uiStore.setDisplayScale(clamped);
+    };
+
     const handleLoadProfile = async (profile: SavedProfile) => {
         profileStore.setActiveProfile(profile);
-        store.setTargetAudience(profile.targetAudience);
-        store.setBrandKnowledge(profile.brandKnowledge || '');
+        analysisStore.setTargetAudience(profile.targetAudience);
+        analysisStore.setBrandKnowledge(profile.brandKnowledge || '');
 
         // Parse product brief from profile immediately
         if (profile.productRawText) {
             const res = await parseProductContext(profile.productRawText);
-            store.setActiveProductBrief(res.data);
+            analysisStore.setActiveProductBrief(res.data);
         }
     };
 
@@ -94,6 +133,39 @@ const App: React.FC = () => {
         setIsUnlocked(true);
     };
 
+    // Prompt to restore persisted analysis/content; allow clearing on reload
+    useEffect(() => {
+        if (restorePromptedRef.current) return;
+        if (typeof window === 'undefined') return;
+        const persistedKeys = [
+            'pro_content_writer_analysis',
+            'pro_content_writer_generation',
+            'pro_content_writer_inputs_simple_v4'
+        ];
+        const hasPersisted = persistedKeys.some(k => localStorage.getItem(k));
+
+        if (!hasPersisted) return;
+        restorePromptedRef.current = true;
+        const shouldRestore = window.confirm('偵測到上次的資料，是否恢復? 選擇「取消」將清空並重新開始。');
+        if (!shouldRestore) {
+            persistedKeys.forEach(k => localStorage.removeItem(k));
+            analysisStore.reset();
+            generationStore.resetGeneration();
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const handleRemoveScrapedImage = (image: ScrapedImage) => {
+        const keyToMatch = image.id || image.url || image.altText;
+        if (!keyToMatch) return;
+        const updated = analysisStore.scrapedImages.map((img, idx) => {
+            const key = img.id || img.url || img.altText || `${idx}`;
+            if (key !== keyToMatch) return img;
+            return { ...img, ignored: !img.ignored };
+        });
+        analysisStore.setScrapedImages(updated);
+    };
+
     if (!isUnlocked) {
         return (
             <PasswordGate
@@ -106,74 +178,82 @@ const App: React.FC = () => {
     return (
         <Layout>
             <Header
-                sessionCost={store.sessionCost}
-                sessionTokens={store.sessionTokens}
-                showInput={store.showInput}
-                showSidebar={store.showSidebar}
-                onToggleInput={store.toggleInput}
-                onToggleSidebar={store.toggleSidebar}
-                onToggleChangelog={() => store.setShowChangelog(true)}
-                contentScore={store.contentScore}
+                sessionCost={metricsStore.sessionCost}
+                sessionTokens={metricsStore.sessionTokens}
+                showInput={uiStore.showInput}
+                showSidebar={uiStore.showSidebar}
+                onToggleInput={uiStore.toggleInput}
+                onToggleSidebar={uiStore.toggleSidebar}
+                onToggleChangelog={() => uiStore.setShowChangelog(true)}
+                contentScore={metricsStore.contentScore}
+                displayScale={uiStore.displayScale}
+                onDisplayScaleChange={handleDisplayScaleChange}
             />
 
-            <Changelog isOpen={store.showChangelog} onClose={() => store.setShowChangelog(false)} />
+            <Changelog isOpen={uiStore.showChangelog} onClose={() => uiStore.setShowChangelog(false)} />
 
-            <main className="flex-1 flex flex-col lg:flex-row overflow-auto min-h-[calc(100vh-64px)] bg-gray-100 p-4 gap-4">
+            <main className="flex-1 flex flex-col lg:flex-row overflow-hidden h-[calc(100vh-64px)] min-h-0 bg-gray-100 p-4 gap-4">
 
-                {store.showInput && (
+                {uiStore.showInput && (
                     <section className="w-full lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col overflow-auto z-20 transition-all duration-300">
                         <InputForm
                             onGenerate={generate}
-                            isGenerating={store.status === 'analyzing' || store.status === 'streaming'}
-                            currentStep={store.generationStep}
-                            onAddCost={(cost, usage) => store.addCost(cost.totalCost, usage.totalTokens)}
+                            isGenerating={generationStore.status === 'analyzing' || generationStore.status === 'streaming'}
+                            currentStep={generationStore.generationStep}
+                            onAddCost={(cost, usage) => metricsStore.addCost(cost.totalCost, usage.totalTokens)}
                             savedProfiles={profileStore.savedProfiles}
                             setSavedProfiles={profileStore.setSavedProfiles}
                             activeProfile={profileStore.activeProfile}
                             onSetActiveProfile={profileStore.setActiveProfile}
-                            inputType={store.inputType}
-                            setInputType={store.setInputType}
-                            brandKnowledge={store.brandKnowledge}
+                            inputType={uiStore.inputType}
+                            setInputType={uiStore.setInputType}
+                            brandKnowledge={analysisStore.brandKnowledge}
                         />
                     </section>
                 )}
 
-                <section className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col min-h-0 relative overflow-auto">
+                <section className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col min-h-0 relative overflow-hidden">
                     <Preview
-                        content={store.content}
-                        status={store.status}
-                        error={store.error}
-                        generationStep={store.generationStep}
+                        content={generationStore.content}
+                        status={generationStore.status}
+                        error={generationStore.error}
+                        generationStep={generationStore.generationStep}
                         onStop={stop}
-                        keyInformationPoints={store.refAnalysis?.keyInformationPoints || []}
-                        coveredPoints={store.coveredPoints}
-                        targetAudience={store.targetAudience}
-                        scrapedImages={store.scrapedImages}
-                        visualStyle={store.visualStyle}
+                        keyInformationPoints={analysisStore.refAnalysis?.keyInformationPoints || []}
+                        coveredPoints={analysisStore.coveredPoints}
+                        targetAudience={analysisStore.targetAudience}
+                        scrapedImages={analysisStore.scrapedImages}
+                        visualStyle={analysisStore.visualStyle}
+                        onRemoveScrapedImage={handleRemoveScrapedImage}
                         onTogglePoint={(point) => {
-                            store.setCoveredPoints(prev =>
+                            analysisStore.setCoveredPoints(prev =>
                                 prev.includes(point) ? prev.filter(p => p !== point) : [...prev, point]
                             );
                         }}
-                        onAddCost={(cost, usage) => store.addCost(cost.totalCost, usage.totalTokens)}
+                        onAddCost={(cost, usage) => metricsStore.addCost(cost.totalCost, usage.totalTokens)}
                         savedProfiles={profileStore.savedProfiles}
                         onLoadProfile={handleLoadProfile}
-                        onRequestUrlMode={() => store.setInputType('url')}
-                        productBrief={store.activeProductBrief}
+                        onRequestUrlMode={() => uiStore.setInputType('url')}
+                        productBrief={analysisStore.activeProductBrief}
+                        displayScale={uiStore.displayScale}
+                        articleTitle={analysisStore.articleTitle}
+                        onTitleChange={analysisStore.setArticleTitle}
+                        outlineSections={analysisStore.refAnalysis?.structure?.map(s => s.title) || []}
                     />
                 </section>
 
-                {store.showSidebar && (
+                {uiStore.showSidebar && (
                     <section className="hidden xl:flex w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex-col overflow-auto z-10 transition-all duration-300">
                         <SeoSidebar
-                            keywordPlans={store.keywordPlans}
-                            referenceAnalysis={store.refAnalysis}
-                            authorityAnalysis={store.authAnalysis}
-                            productMapping={store.productMapping}
-                            productBrief={store.activeProductBrief}
-                            isLoading={store.status === 'analyzing'}
-                            brandKnowledge={store.brandKnowledge}
-                            setBrandKnowledge={store.setBrandKnowledge}
+                            keywordPlans={analysisStore.keywordPlans}
+                            referenceAnalysis={analysisStore.refAnalysis}
+                            authorityAnalysis={analysisStore.authAnalysis}
+                            productMapping={analysisStore.productMapping}
+                            productBrief={analysisStore.activeProductBrief}
+                            isLoading={generationStore.status === 'analyzing'}
+                            brandKnowledge={analysisStore.brandKnowledge}
+                            setBrandKnowledge={analysisStore.setBrandKnowledge}
+                            displayScale={uiStore.displayScale}
                         />
                     </section>
                 )}

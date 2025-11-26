@@ -13,6 +13,7 @@ interface SeoSidebarProps {
   isLoading: boolean;
   brandKnowledge: string;
   setBrandKnowledge: (kb: string) => void;
+  displayScale?: number;
 }
 
 type Tab = 'analysis' | 'knowledge';
@@ -25,7 +26,8 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     productBrief,
     isLoading,
     brandKnowledge,
-    setBrandKnowledge
+    setBrandKnowledge,
+    displayScale = 1
 }) => {
   const [activeTab, setActiveTab] = useState<Tab>('analysis');
 
@@ -205,7 +207,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                  <Zap className="w-3 h-3 text-amber-400" /> Integration Plan
                              </h5>
                              <ul className="space-y-1.5">
-                                 {authorityAnalysis.combinations.map((plan, idx) => (
+                                 {(authorityAnalysis.combinations || []).map((plan, idx) => (
                                      <li key={idx} className="text-[10px] text-gray-600 flex items-start gap-1.5 leading-snug">
                                          <span className="text-teal-400 mt-0.5">•</span>
                                          <span>{plan}</span>
@@ -366,7 +368,10 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-slate-50/80 w-full border-l border-gray-200 font-sans">
+    <div 
+      className="flex flex-col h-full bg-slate-50/80 w-full border-l border-gray-200 font-sans"
+      style={displayScale !== 1 ? { transform: `scale(${displayScale})`, transformOrigin: 'top left', width: `${100 / displayScale}%`, height: `${100 / displayScale}%` } : undefined}
+    >
       
       {/* Sidebar Header / Tabs */}
       <div className="flex items-center px-2 pt-2 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm flex-shrink-0 z-10">
