@@ -89,6 +89,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         replaceRange: (range: { from: number; to: number }, html: string) => void;
         highlightRange: (range: { from: number; to: number }) => void;
         clearHighlight: () => void;
+        focus: () => void;
     } | null>(null);
 
     useEffect(() => {
@@ -312,7 +313,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             <div className="rte-workspace flex-1 flex flex-row min-h-0 overflow-hidden relative">
                 <div className="rte-editor-column flex-1 flex flex-col min-h-0 relative group">
                     <div className="rte-scroll-area flex-1 min-h-0 overflow-y-auto">
-                        <div className="rte-content-wrapper px-6 pb-6 py-1">
+                        <div
+                            className="rte-content-wrapper px-6 pb-6 pt-8 min-h-full flex flex-col cursor-text"
+                            onClick={(e) => {
+                                if (tiptapApi) {
+                                    tiptapApi.focus();
+                                }
+                            }}
+                        >
                             <TiptapAdapter
                                 initialHtml={html}
                                 onChange={(nextHtml, plain) => handleInput(nextHtml, plain)}

@@ -39,6 +39,7 @@ interface TiptapAdapterProps {
         undo: () => void;
         redo: () => void;
         clearBold: () => void;
+        focus: () => void;
     }) => void;
     containerRef?: React.RefObject<HTMLDivElement>;
 }
@@ -175,6 +176,7 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                     stripMarkdownEmphasis();
                     return editor.chain().focus().unsetMark('bold').run();
                 },
+                focus: () => editor.chain().focus().run(),
             };
             onReadyRef.current(api);
         }

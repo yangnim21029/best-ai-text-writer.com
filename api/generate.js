@@ -1,60 +1,5 @@
+import { VertexAI } from '@google-cloud/vertexai';
 import { GoogleGenAI } from "@google/genai";
-
-/**
- * Parse Google credentials JSON string with error handling
- */
-function parseGoogleCredentialsJson(jsonString) {
-    if (!jsonString) return null;
-
-    try {
-        let cleanedJson = jsonString;
-
-        // Try original parse
-        try {
-            const parsed = JSON.parse(cleanedJson);
-            if (parsed?.private_key) {
-                parsed.private_key = normalizePrivateKey(parsed.private_key);
-            }
-            return parsed;
-        } catch {
-            // Remove outer quotes and retry
-            if (
-                (cleanedJson.startsWith('"') && cleanedJson.endsWith('"')) ||
-                (cleanedJson.startsWith("'") && cleanedJson.endsWith("'"))
-            ) {
-                cleanedJson = cleanedJson.slice(1, -1);
-
-                // Fix common escape issues
-                cleanedJson = cleanedJson
-                    .replace(/\\"/g, '"')
-                    .replace(/\\'/g, "'")
-                    .replace(/\\\\/g, '\\');
-            }
-
-            // Handle actual newlines in private_key
-            cleanedJson = cleanedJson.replace(
-                /"private_key":"([^"]*?)"/g,
-                (_match, privateKeyContent) => {
-                    const fixedPrivateKey = privateKeyContent
-                        .replace(/\n/g, '\\n')
-                        .replace(/\r/g, '\\r')
-                        .replace(/\t/g, '\\t');
-                    return `"private_key":"${fixedPrivateKey}"`;
-                }
-            );
-
-            const parsed = JSON.parse(cleanedJson);
-
-            if (parsed?.private_key) {
-                parsed.private_key = normalizePrivateKey(parsed.private_key);
-            }
-            return parsed;
-        }
-    } catch (error) {
-        console.error('Failed to parse Google credentials JSON:', error);
-        return null;
-    }
-}
 
 /**
  * Ensure \n and \r sequences inside the private key are properly expanded
@@ -67,60 +12,34 @@ function normalizePrivateKey(privateKey) {
         .replace(/\\r/g, '\r');
 }
 
-/**
- * Pull credentials from a JSON blob or individual .env variables
- */
-function loadVertexCredentials() {
-    const jsonFromEnv = parseGoogleCredentialsJson(process.env.GOOGLE_VERTEX_API_CONFIG_JSON);
-    if (jsonFromEnv?.project_id && jsonFromEnv?.client_email && jsonFromEnv?.private_key) {
-        return jsonFromEnv;
-    }
-
-    const projectId = process.env.GOOGLE_VERTEX_PROJECT_ID;
-    const clientEmail = process.env.GOOGLE_VERTEX_CLIENT_EMAIL;
-    const privateKey = process.env.GOOGLE_VERTEX_PRIVATE_KEY;
-
-    if (projectId && clientEmail && privateKey) {
-        return {
-            project_id: projectId,
-            client_email: clientEmail,
-            private_key: normalizePrivateKey(privateKey)
-        };
-    }
-
-    return null;
-}
-
 function loadGeminiApiKey() {
     return process.env.GOOGLE_GEMINI_API || process.env.GEMINI_API_KEY || null;
 }
 
-function extractTextFromCandidate(candidate) {
-    if (!candidate) return '';
-    const parts = candidate.content?.parts;
-    if (Array.isArray(parts)) {
-        return parts
-            .map(part => part?.text || '')
-            .filter(Boolean)
-            .join(' ');
-    }
-    return '';
-}
-
 function extractText(result) {
     if (!result) return '';
+
+    // Handle Vertex AI response structure
+    if (result.response) {
+        if (Array.isArray(result.response.candidates) && result.response.candidates.length > 0) {
+            const candidate = result.response.candidates[0];
+            if (candidate.content && Array.isArray(candidate.content.parts)) {
+                return candidate.content.parts.map(p => p.text).join('');
+            }
+        }
+    }
+
+    // Handle Google GenAI response structure
     if (typeof result.text === 'function') return result.text();
     if (typeof result.text === 'string') return result.text;
 
-    if (result.response) {
-        if (typeof result.response.text === 'function') return result.response.text();
-        if (typeof result.response.text === 'string') return result.response.text;
-        const textFromResponseCandidates = extractTextFromCandidate(result.response.candidates?.[0]);
-        if (textFromResponseCandidates) return textFromResponseCandidates;
+    const candidates = result.candidates || (result.response && result.response.candidates);
+    if (candidates && candidates[0]) {
+        const parts = candidates[0].content?.parts;
+        if (Array.isArray(parts)) {
+            return parts.map(part => part?.text || '').join('');
+        }
     }
-
-    const textFromCandidates = extractTextFromCandidate(result.candidates?.[0]);
-    if (textFromCandidates) return textFromCandidates;
 
     return '';
 }
@@ -147,55 +66,63 @@ export default async function handler(req, res) {
     try {
         const { model, contents, config } = req.body;
 
-        // 如果提供了 Gemini API key，優先使用 Gemini；否則使用 Vertex 憑證
-        const geminiApiKey = loadGeminiApiKey();
-        const credentials = loadVertexCredentials();
+        // Check for Vertex credentials first (User preference)
+        const projectId = process.env.GOOGLE_PROJECT_ID;
+        const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1';
+        const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+        const privateKey = normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY);
 
-        let ai;
-        if (geminiApiKey) {
-            ai = new GoogleGenAI({
-                apiKey: geminiApiKey
-            });
-        } else if (credentials) {
-            // Validate required fields
-            if (!credentials.project_id && !credentials.projectId) {
-                return res.status(500).json({
-                    error: 'Invalid credentials: missing required project id'
-                });
-            }
-            if (!credentials.client_email || !credentials.private_key) {
-                return res.status(500).json({
-                    error: 'Invalid credentials: missing client_email or private_key'
-                });
-            }
+        let result;
+        let usageMetadata;
+        let candidates;
 
-            ai = new GoogleGenAI({
-                vertexai: true,
-                project: credentials.project_id || credentials.projectId,
-                location: process.env.GOOGLE_VERTEX_LOCATION || 'us-central1',
-                googleAuth: {
+        if (projectId && clientEmail && privateKey) {
+            const vertex_ai = new VertexAI({
+                project: projectId,
+                location: location,
+                googleAuthOptions: {
                     credentials: {
-                        client_email: credentials.client_email,
-                        private_key: credentials.private_key,
+                        client_email: clientEmail,
+                        private_key: privateKey
                     }
                 }
             });
-        } else {
-            return res.status(500).json({
-                error: 'Missing Vertex credentials and GOOGLE_GEMINI_API/GEMINI_API_KEY is not set'
+
+            const generativeModel = vertex_ai.getGenerativeModel({
+                model: model || 'gemini-1.5-flash',
+                generationConfig: config
             });
+
+            const resp = await generativeModel.generateContent({
+                contents: contents
+            });
+
+            result = resp;
+            // Vertex AI response structure normalization
+            usageMetadata = resp.response.usageMetadata;
+            candidates = resp.response.candidates;
+
+        } else {
+            // Fallback to Gemini API Key
+            const geminiApiKey = loadGeminiApiKey();
+            if (geminiApiKey) {
+                const ai = new GoogleGenAI({ apiKey: geminiApiKey });
+                const genModel = ai.getGenerativeModel({
+                    model: model || 'gemini-1.5-flash',
+                    generationConfig: config
+                });
+
+                result = await genModel.generateContent({ contents });
+                usageMetadata = result.usageMetadata;
+                candidates = result.candidates;
+            } else {
+                return res.status(500).json({
+                    error: 'Missing Vertex credentials (GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY) and GOOGLE_GEMINI_API/GEMINI_API_KEY is not set'
+                });
+            }
         }
 
-        // Generate content
-        const result = await ai.models.generateContent({
-            model: model || 'gemini-2.5-flash',
-            contents: contents,
-            config: config
-        });
-
         const text = extractText(result);
-        const usageMetadata = result.usageMetadata;
-        const candidates = result.candidates;
 
         return res.status(200).json({
             text,

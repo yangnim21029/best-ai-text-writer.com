@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { marked } from 'marked';
 import { generateSnippet } from '../services/contentGenerationService';
+import { getLanguageInstruction } from '../services/promptService';
 import type { AskAiRunActionInput } from '../components/AskAiSelection';
 import { TargetAudience, CostBreakdown, TokenUsage } from '../types';
 
@@ -14,6 +15,7 @@ type TiptapApi = {
     setHtml: (html: string) => void;
     getSelectionRange: () => { from: number; to: number };
     replaceRange: (range: { from: number; to: number }, html: string) => void;
+    highlightRange: (range: { from: number; to: number }) => void;
     clearHighlight: () => void;
 };
 
@@ -44,33 +46,44 @@ export const useAskAi = ({
     }, [tiptapApi]);
 
     const buildAskAiPrompt = useCallback((input: AskAiRunActionInput, text: string) => {
+        const languageInstruction = getLanguageInstruction(targetAudience);
+
         if (input.mode === 'format') {
+            let task = '';
             switch (input.preset) {
                 case 'bullet':
-                    return `TARGET CONTENT: """${text}"""\nTASK: Convert to a bullet list. Return ONLY the formatted HTML/Markdown.`;
+                    task = 'Convert to a bullet list.';
+                    break;
                 case 'ordered':
-                    return `TARGET CONTENT: """${text}"""\nTASK: Convert to an ordered (numbered) list. Return ONLY the formatted HTML/Markdown.`;
+                    task = 'Convert to an ordered (numbered) list.';
+                    break;
                 case 'table-2':
-                    return `TARGET CONTENT: """${text}"""\nTASK: Present as a 2-column table (Header + Row values). Return ONLY the table HTML/Markdown.`;
+                    task = 'Present as a 2-column table (Header + Row values).';
+                    break;
                 case 'table-3':
-                    return `TARGET CONTENT: """${text}"""\nTASK: Present as a 3-column table (Header + Row values). Return ONLY the table HTML/Markdown.`;
+                    task = 'Present as a 3-column table (Header + Row values).';
+                    break;
                 case 'checklist':
-                    return `TARGET CONTENT: """${text}"""\nTASK: Convert to a checklist with unchecked boxes. Return ONLY the formatted HTML/Markdown.`;
+                    task = 'Convert to a checklist with unchecked boxes.';
+                    break;
                 case 'quote':
-                    return `TARGET CONTENT: """${text}"""\nTASK: Wrap as a highlighted quote block. Return ONLY the formatted HTML/Markdown.`;
+                    task = 'Wrap as a highlighted quote block.';
+                    break;
                 case 'markdown-clean':
-                    return `TARGET CONTENT: """${text}"""\nTASK: Clean up Markdown/HTML, fix nesting, and keep structure minimal. Return ONLY the cleaned HTML/Markdown.`;
+                    task = 'Clean up Markdown/HTML, fix nesting, and keep structure minimal.';
+                    break;
                 default:
-                    return `TARGET CONTENT: """${text}"""\nTASK: Reformat cleanly. Return ONLY the HTML/Markdown.`;
+                    task = 'Reformat cleanly.';
             }
+            return `TARGET CONTENT: """${text}"""\nTASK: ${task} Return ONLY the formatted HTML/Markdown.\n\n${languageInstruction}`;
         }
 
         const presetInstruction = (() => {
             switch (input.preset) {
                 case 'rephrase':
-                    return 'Rephrase for clarity while keeping meaning.';
+                    return 'Rephrase for clarity while keeping meaning. Ensure the tone is natural and professional.';
                 case 'shorten':
-                    return 'Make the text noticeably shorter but keep core meaning.';
+                    return 'CRITICAL: Condense the text by 30-50%. Remove all fluff, redundancy, and filler words. Keep ONLY the core message.';
                 case 'elaborate':
                     return 'Expand with 1-2 concise sentences to add clarity.';
                 case 'formal':
@@ -86,8 +99,8 @@ export const useAskAi = ({
             }
         })();
 
-        return `TARGET TEXT: """${text}"""\nINSTRUCTION: ${presetInstruction}${input.prompt ? `\nCUSTOM PROMPT: ${input.prompt}` : ''}\nTASK: Return ONLY the rewritten result in HTML/Markdown.`;
-    }, []);
+        return `TARGET TEXT: """${text}"""\nINSTRUCTION: ${presetInstruction}${input.prompt ? `\nCUSTOM PROMPT: ${input.prompt}` : ''}\n\n${languageInstruction}\n\nTASK: Return ONLY the rewritten result in HTML/Markdown.`;
+    }, [targetAudience]);
 
     const runAskAiAction = useCallback(async (input: AskAiRunActionInput) => {
         if (!tiptapApi) {
