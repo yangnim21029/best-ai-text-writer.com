@@ -79,17 +79,18 @@ export default async function handler(req, res) {
             });
         }
 
-        const contentsPayload = texts.map((text) => ({
-            parts: [{ text }]
+        const requests = texts.map((text) => ({
+            content: {
+                role: 'user',
+                parts: [{ text }]
+            },
+            taskType: taskType || 'SEMANTIC_SIMILARITY',
+            ...(outputDimensionality ? { outputDimensionality } : {})
         }));
 
-        const response = await client.models.embedContent({
+        const response = await client.models.batchEmbedContents({
             model: model || 'gemini-embedding-001',
-            contents: contentsPayload,
-            config: {
-                taskType: taskType || 'SEMANTIC_SIMILARITY',
-                ...(outputDimensionality ? { outputDimensionality } : {})
-            }
+            requests
         });
 
         const embeddings = Array.isArray(response.embeddings)

@@ -51,6 +51,7 @@ export const InputForm: React.FC<InputFormProps> = ({
     const [filterError, setFilterError] = useState<string | null>(null);
     const [chunkScores, setChunkScores] = useState<number[]>([]);
     const [isScoringChunks, setIsScoringChunks] = useState(false);
+    const [manualKeep, setManualKeep] = useState<Record<number, boolean>>({});
 
     const {
         register,
@@ -159,6 +160,7 @@ export const InputForm: React.FC<InputFormProps> = ({
         setChunkPreview(chunks);
         setFilterError(null);
         setChunkScores([]);
+        setManualKeep({});
         setIsChunkModalOpen(true);
         void scoreChunks(chunks);
     };
@@ -232,7 +234,8 @@ export const InputForm: React.FC<InputFormProps> = ({
 
             const keptChunks = chunks.filter((chunk, idx) => {
                 const similarity = computedScores[idx] ?? 1;
-                return similarity >= SEMANTIC_THRESHOLD;
+                const forcedKeep = manualKeep[idx];
+                return forcedKeep || similarity >= SEMANTIC_THRESHOLD;
             });
 
             const filteredContent = keptChunks.join('\n\n').trim();
@@ -411,6 +414,17 @@ export const InputForm: React.FC<InputFormProps> = ({
                                     <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
                                         <span className="font-semibold text-gray-700">Chunk {idx + 1}</span>
                                         <div className="flex items-center gap-2">
+                                            <button
+                                                type="button"
+                                                onClick={() => setManualKeep(prev => ({ ...prev, [idx]: !prev[idx] }))}
+                                                className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${
+                                                    manualKeep[idx]
+                                                        ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                                        : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
+                                                }`}
+                                            >
+                                                {manualKeep[idx] ? '手動通過' : '手動通過？'}
+                                            </button>
                                             {typeof chunkScores[idx] === 'number' && !Number.isNaN(chunkScores[idx]) ? (
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] ${chunkScores[idx] >= SEMANTIC_THRESHOLD
                                                     ? 'border-green-200 text-green-700 bg-green-50'
@@ -442,7 +456,7 @@ export const InputForm: React.FC<InputFormProps> = ({
 
                         <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
                             <div className="text-[11px] text-gray-500">
-                                使用標題向量比對每個段落，低於 {SEMANTIC_THRESHOLD} 的會被移除。{isScoringChunks ? ' (計算中...)' : ''}
+                                使用標題向量比對每個段落，低於 {SEMANTIC_THRESHOLD} 的會被移除；手動通過的段落會強制保留。{isScoringChunks ? ' (計算中...)' : ''}
                             </div>
                             <div className="flex gap-2">
                                 <button
