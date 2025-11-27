@@ -65,10 +65,12 @@ export default async function handler(req, res) {
             project: projectId,
             location: location,
             googleAuthOptions: {
+                projectId: projectId,
                 credentials: {
                     client_email: clientEmail,
                     private_key: normalizePrivateKey(privateKeyRaw)
-                }
+                },
+                scopes: ['https://www.googleapis.com/auth/cloud-platform']
             }
         });
 

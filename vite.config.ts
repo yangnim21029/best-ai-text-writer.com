@@ -104,10 +104,12 @@ export default defineConfig(({ mode }) => {
                       project: credentials.project_id,
                       location,
                       googleAuthOptions: {
+                        projectId: credentials.project_id,
                         credentials: {
                           client_email: credentials.client_email,
                           private_key: credentials.private_key
-                        }
+                        },
+                        scopes: ['https://www.googleapis.com/auth/cloud-platform']
                       }
                     });
 
