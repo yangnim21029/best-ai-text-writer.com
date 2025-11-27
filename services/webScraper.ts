@@ -1,7 +1,5 @@
 
 import { ScrapedImage } from '../types';
-import { embedTexts, cosineSimilarity } from './embeddingService';
-
 /**
  * Web Scraper Service
  * Uses Jina AI Reader (https://jina.ai/reader) to turn URLs into LLM-friendly Markdown.
@@ -51,9 +49,8 @@ export const fetchUrlContent = async (url: string, options: FetchOptions = {}): 
     }
 
     const cleaned = cleanJinaBySeparator(rawText);
-    const filteredContent = await filterContentByTitleSimilarity(cleaned.title, cleaned.content);
 
-    return { ...cleaned, content: filteredContent };
+    return { ...cleaned };
 
   } catch (error: any) {
     console.error("Web Scraping Error:", error);
@@ -261,70 +258,4 @@ const cleanArtifacts = (text: string): string => {
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 
     return cleaned;
-};
-
-const SIMILARITY_THRESHOLD = 0.5;
-const CHUNK_SIZE = 200;
-
-const chunkContent = (content: string, chunkSize: number = CHUNK_SIZE): string[] => {
-    const paragraphs = content.split(/\n\s*\n/);
-    const chunks: string[] = [];
-    let buffer = '';
-
-    for (const paragraph of paragraphs) {
-        const trimmed = paragraph.trim();
-        if (!trimmed) continue;
-
-        const candidate = buffer ? `${buffer}\n\n${trimmed}` : trimmed;
-        if (candidate.length >= chunkSize) {
-            if (buffer) chunks.push(buffer.trim());
-
-            let remaining = trimmed;
-            while (remaining.length > chunkSize) {
-                chunks.push(remaining.slice(0, chunkSize));
-                remaining = remaining.slice(chunkSize);
-            }
-            buffer = remaining;
-        } else {
-            buffer = candidate;
-        }
-    }
-
-    if (buffer.trim()) {
-        chunks.push(buffer.trim());
-    }
-
-    return chunks;
-};
-
-const filterContentByTitleSimilarity = async (title: string, content: string): Promise<string> => {
-    if (!title || !content) return content;
-
-    const chunks = chunkContent(content);
-    if (!chunks.length) return content;
-
-    try {
-        // Embed title and chunks concurrently
-        const [titleEmbeddings, chunkEmbeddings] = await Promise.all([
-            embedTexts([title]),
-            embedTexts(chunks)
-        ]);
-
-        const titleEmbedding = titleEmbeddings[0];
-        if (!titleEmbedding || !titleEmbedding.length) return content;
-
-        const keptChunks = chunks.filter((chunk, idx) => {
-            const chunkEmbedding = chunkEmbeddings[idx];
-            if (!chunkEmbedding || !chunkEmbedding.length) return true;
-
-            const similarity = cosineSimilarity(titleEmbedding, chunkEmbedding);
-            return similarity >= SIMILARITY_THRESHOLD;
-        });
-
-        const filtered = keptChunks.join('\n\n').trim();
-        return filtered || content;
-    } catch (error) {
-        console.warn('Semantic similarity filter failed, returning original content', error);
-        return content;
-    }
 };

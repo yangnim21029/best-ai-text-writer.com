@@ -2,7 +2,7 @@ import React from 'react';
 import { UseFormRegister } from 'react-hook-form';
 import { ArticleFormValues } from '../../schemas/formSchema';
 import { ScrapedImage } from '../../types';
-import { Download, FileText, ImageIcon, Link2, Loader2 } from 'lucide-react';
+import { Download, FileText, Filter, ImageIcon, Link2, Loader2 } from 'lucide-react';
 
 interface SourceMaterialSectionProps {
     register: UseFormRegister<ArticleFormValues>;
@@ -16,6 +16,8 @@ interface SourceMaterialSectionProps {
     onFetchUrl: () => Promise<void>;
     isFetchingUrl: boolean;
     onToggleScrapedImage?: (image: ScrapedImage) => void;
+    onRequestSemanticFilter: () => void;
+    canSemanticFilter: boolean;
 }
 
 export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
@@ -30,6 +32,8 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
     onFetchUrl,
     isFetchingUrl,
     onToggleScrapedImage,
+    onRequestSemanticFilter,
+    canSemanticFilter,
 }) => {
     const [showAllExtracted, setShowAllExtracted] = React.useState(false);
     const MAX_PREVIEW_IMAGES = 24;
@@ -94,10 +98,22 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                                 className={`w-full h-36 px-3 py-2 bg-gray-50 rounded-lg border text-xs font-mono text-gray-600 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none resize-none custom-scrollbar transition-all group-hover:bg-white ${errors.referenceContent ? 'border-red-500' : 'border-gray-200'}`}
                             />
                             {errors.referenceContent && <p className="text-[10px] text-red-500">{errors.referenceContent.message}</p>}
-                            <div className="flex justify-end mt-1">
+                            <div className="flex justify-between items-center mt-1 gap-2 flex-wrap">
                                 <span className="text-[10px] text-gray-400 font-mono">
                                     {refWordCount} words | {refCharCount} chars
                                 </span>
+                                <button
+                                    type="button"
+                                    onClick={onRequestSemanticFilter}
+                                    disabled={!canSemanticFilter}
+                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-semibold transition-colors ${canSemanticFilter
+                                            ? 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
+                                            : 'border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed'
+                                        }`}
+                                >
+                                    <Filter className="w-3 h-3" />
+                                    語意過濾 (空白行分段)
+                                </button>
                             </div>
                         </div>
                     ) : (

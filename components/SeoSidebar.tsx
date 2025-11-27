@@ -377,7 +377,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
       <div className="flex items-center px-2 pt-2 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm flex-shrink-0 z-10">
         <button
             onClick={() => setActiveTab('analysis')}
-            className={`flex-1 pb-2 pt-1 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${
+            className={`flex-1 pb-2 pt-1 text-lg font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${
                 activeTab === 'analysis' 
                 ? 'border-indigo-600 text-indigo-700' 
                 : 'border-transparent text-gray-400 hover:text-gray-600'

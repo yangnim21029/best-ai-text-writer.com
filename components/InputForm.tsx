@@ -1,6 +1,8 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { ArticleConfig, CostBreakdown, GenerationStep, SavedProfile, ScrapedImage, TargetAudience, TokenUsage } from '../types';
+import { ArticleFormValues } from '../schemas/formSchema';
 import { summarizeBrandContent } from '../services/productService';
+import { embedTexts, cosineSimilarity } from '../services/embeddingService';
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
@@ -22,6 +24,13 @@ interface InputFormProps {
 }
 
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
+const SEMANTIC_THRESHOLD = 0.79;
+
+const splitIntoBlankLineChunks = (content: string): string[] =>
+    content
+        .split(/\n\s*\n+/)
+        .map(chunk => chunk.trim())
+        .filter(Boolean);
 
 export const InputForm: React.FC<InputFormProps> = ({
     onGenerate,
@@ -36,6 +45,13 @@ export const InputForm: React.FC<InputFormProps> = ({
     setInputType,
     brandKnowledge = ''
 }) => {
+    const [isChunkModalOpen, setIsChunkModalOpen] = useState(false);
+    const [chunkPreview, setChunkPreview] = useState<string[]>([]);
+    const [isFilteringChunks, setIsFilteringChunks] = useState(false);
+    const [filterError, setFilterError] = useState<string | null>(null);
+    const [chunkScores, setChunkScores] = useState<number[]>([]);
+    const [isScoringChunks, setIsScoringChunks] = useState(false);
+
     const {
         register,
         handleSubmit,
@@ -127,6 +143,108 @@ export const InputForm: React.FC<InputFormProps> = ({
         return hasTitle && hasRef && !isFetchingUrl && !isSummarizingProduct;
     }, [watchedValues.title, watchedValues.referenceContent, isFetchingUrl, isSummarizingProduct]);
 
+    const handlePreviewSemanticFilter = () => {
+        const content = (watchedValues.referenceContent || '').trim();
+        if (!content) {
+            alert('先貼上內容再做語意過濾。');
+            return;
+        }
+
+        const chunks = splitIntoBlankLineChunks(content);
+        if (!chunks.length) {
+            alert('找不到可以分段的內容（需有空白行分隔）。');
+            return;
+        }
+
+        setChunkPreview(chunks);
+        setFilterError(null);
+        setChunkScores([]);
+        setIsChunkModalOpen(true);
+        void scoreChunks(chunks);
+    };
+
+    const scoreChunks = async (chunks: string[]) => {
+        const title = (watchedValues.title || '').trim();
+
+        if (!title) {
+            setFilterError('請先填寫標題，再計算語意距離。');
+            return null;
+        }
+
+        setIsScoringChunks(true);
+        setFilterError(null);
+
+        try {
+            const [titleEmbeddings, chunkEmbeddings] = await Promise.all([
+                embedTexts([title]),
+                embedTexts(chunks),
+            ]);
+
+            const titleEmbedding = titleEmbeddings[0];
+            if (!titleEmbedding?.length) {
+                throw new Error('無法取得標題向量，請稍後再試。');
+            }
+
+            const similarities = chunks.map((chunk, idx) => {
+                const chunkEmbedding = chunkEmbeddings[idx];
+                if (!chunkEmbedding?.length) return 1;
+
+                const similarity = cosineSimilarity(titleEmbedding, chunkEmbedding);
+                return similarity;
+            });
+
+            setChunkScores(similarities);
+            return similarities;
+        } catch (error: any) {
+            setFilterError(error?.message || '語意過濾失敗，請稍後再試。');
+            return null;
+        } finally {
+            setIsScoringChunks(false);
+        }
+    };
+
+    const handleRunSemanticFilter = async () => {
+        const content = (watchedValues.referenceContent || '').trim();
+
+        if (!content) {
+            setFilterError('沒有可供分析的內容。');
+            return;
+        }
+
+        const chunks = chunkPreview.length ? chunkPreview : splitIntoBlankLineChunks(content);
+        if (!chunks.length) {
+            setFilterError('找不到可用的段落。');
+            return;
+        }
+
+        setIsFilteringChunks(true);
+        setFilterError(null);
+
+        try {
+            const existingScores = (chunkScores.length === chunks.length) ? chunkScores : null;
+            const computedScores = existingScores || (await scoreChunks(chunks)) || [];
+
+            if (!computedScores.length) {
+                setFilterError(prev => prev || '無法取得語意距離，請確認標題與 API 設定。');
+                setIsFilteringChunks(false);
+                return;
+            }
+
+            const keptChunks = chunks.filter((chunk, idx) => {
+                const similarity = computedScores[idx] ?? 1;
+                return similarity >= SEMANTIC_THRESHOLD;
+            });
+
+            const filteredContent = keptChunks.join('\n\n').trim();
+            setValue('referenceContent', filteredContent);
+            setIsChunkModalOpen(false);
+        } catch (error: any) {
+            setFilterError(error?.message || '語意過濾失敗，請稍後再試。');
+        } finally {
+            setIsFilteringChunks(false);
+        }
+    };
+
     return (
         <div className="flex flex-col h-full bg-slate-50/80 overflow-hidden font-sans">
             {/* Header Area */}
@@ -193,6 +311,8 @@ export const InputForm: React.FC<InputFormProps> = ({
                         onToggleScrapedImage={handleToggleScrapedImage}
                         onFetchUrl={handleFetchUrl}
                         isFetchingUrl={isFetchingUrl}
+                        onRequestSemanticFilter={handlePreviewSemanticFilter}
+                        canSemanticFilter={(watchedValues.referenceContent || '').trim().length > 0}
                     />
 
                     <div className="space-y-2">
@@ -266,6 +386,87 @@ export const InputForm: React.FC<InputFormProps> = ({
                     </button>
                 </div>
             </form>
+
+            {isChunkModalOpen && (
+                <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm flex items-center justify-center p-4">
+                    <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
+                        <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+                            <div>
+                                <p className="text-sm font-bold text-gray-900">語意過濾分段確認</p>
+                                <p className="text-[11px] text-gray-500 mt-0.5">以空白行分段，顯示與標題的語意相似度 (閾值 {SEMANTIC_THRESHOLD}).</p>
+                            </div>
+                            <button
+                                type="button"
+                                className="text-xs text-gray-400 hover:text-gray-600"
+                                onClick={() => setIsChunkModalOpen(false)}
+                                disabled={isFilteringChunks}
+                            >
+                                ✕
+                            </button>
+                        </div>
+
+                        <div className="p-5 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
+                            {chunkPreview.map((chunk, idx) => (
+                                <div key={`${idx}-${chunk.slice(0, 10)}`} className="border border-gray-100 rounded-lg p-3 bg-gray-50/60">
+                                    <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
+                                        <span className="font-semibold text-gray-700">Chunk {idx + 1}</span>
+                                        <div className="flex items-center gap-2">
+                                            {typeof chunkScores[idx] === 'number' && !Number.isNaN(chunkScores[idx]) ? (
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] ${chunkScores[idx] >= SEMANTIC_THRESHOLD
+                                                    ? 'border-green-200 text-green-700 bg-green-50'
+                                                    : 'border-amber-200 text-amber-700 bg-amber-50'
+                                                }`}>
+                                                    相似度 {chunkScores[idx].toFixed(3)}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-[10px] text-gray-500 bg-white">
+                                                    {isScoringChunks ? '計算中…' : '等待計算'}
+                                                </span>
+                                            )}
+                                            <span>{chunk.length} chars</span>
+                                        </div>
+                                    </div>
+                                    <p className="text-xs text-gray-800 whitespace-pre-wrap leading-relaxed">{chunk}</p>
+                                </div>
+                            ))}
+                            {chunkPreview.length === 0 && (
+                                <div className="text-xs text-gray-500">尚無可預覽的段落。</div>
+                            )}
+                        </div>
+
+                        {filterError && (
+                            <div className="px-5 py-2 text-[11px] text-red-600 border-t border-amber-100 bg-amber-50">
+                                {filterError}
+                            </div>
+                        )}
+
+                        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
+                            <div className="text-[11px] text-gray-500">
+                                使用標題向量比對每個段落，低於 {SEMANTIC_THRESHOLD} 的會被移除。{isScoringChunks ? ' (計算中...)' : ''}
+                            </div>
+                            <div className="flex gap-2">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsChunkModalOpen(false)}
+                                    disabled={isFilteringChunks || isScoringChunks}
+                                    className="px-3 py-2 text-[12px] font-semibold text-gray-600 bg-gray-100 rounded-lg border border-gray-200 hover:bg-gray-200 transition-colors disabled:opacity-50"
+                                >
+                                    取消
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={handleRunSemanticFilter}
+                                    disabled={isFilteringChunks || isScoringChunks}
+                                    className="px-3 py-2 text-[12px] font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md hover:brightness-110 transition-all disabled:opacity-60 flex items-center gap-2"
+                                >
+                                    {isFilteringChunks ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
+                                    同意並過濾
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
