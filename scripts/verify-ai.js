@@ -3,7 +3,6 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { VertexAI } from '@google-cloud/vertexai';
-import { MODEL } from '../config/constants.js';
 
 const normalizePrivateKey = (key) =>
   key?.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/^"|"$/g, '');
@@ -51,10 +50,17 @@ const main = async () => {
   });
   gemini - 2.5 - flash
   // Try a small set of models to avoid 404 on deprecated names
+  const primaryModel =
+    process.env.AI_CHECK_MODEL ||
+    process.env.MODEL_FLASH ||
+    process.env.VITE_MODEL ||
+    process.env.NEXT_PUBLIC_MODEL ||
+    process.env.MODEL ||
+    process.env.REACT_APP_MODEL;
+
   const candidates = [
-    process.env.AI_CHECK_MODEL,
-    MODEL?.FLASH,           // primary model configured in app (e.g., gemini-2.5-flash)
-    'gemini-2.5-flash',     // explicit fallback to the current prod model
+    primaryModel,
+    'gemini-2.5-flash', // default current model
   ].filter(Boolean);
 
   let lastErr = null;
