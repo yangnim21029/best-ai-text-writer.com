@@ -14,7 +14,18 @@ export const generateContent = async (
     config?: any
 ): Promise<AIResponse> => {
     try {
-        return await genAIClient.request({ model, contents, config });
+        // Format contents if it's a plain string (common case)
+        let formattedContents = contents;
+        if (typeof contents === 'string') {
+            formattedContents = [
+                {
+                    role: 'user',
+                    parts: [{ text: contents }]
+                }
+            ];
+        }
+
+        return await genAIClient.request({ model, contents: formattedContents, config });
     } catch (error) {
         console.error("AI Service Error:", error);
         throw error;
