@@ -75,7 +75,7 @@ export default async function handler(req, res) {
         });
 
         const generativeModel = vertex_ai.getGenerativeModel({
-            model: model || 'gemini-1.5-flash',
+            model: model || 'gemini-2.5-flash',
             generationConfig: config
         });
 

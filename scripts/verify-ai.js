@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { VertexAI } from '@google-cloud/vertexai';
+import { MODEL } from '../config/constants.js';
 
 const normalizePrivateKey = (key) =>
   key?.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/^"|"$/g, '');
@@ -48,15 +49,37 @@ const main = async () => {
       scopes: ['https://www.googleapis.com/auth/cloud-platform'],
     },
   });
+  gemini - 2.5 - flash
+  // Try a small set of models to avoid 404 on deprecated names
+  const candidates = [
+    process.env.AI_CHECK_MODEL,
+    MODEL?.FLASH,           // primary model configured in app (e.g., gemini-2.5-flash)
+    'gemini-2.5-flash',     // explicit fallback to the current prod model
+  ].filter(Boolean);
 
-  const model = vertex_ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
-  const res = await model.generateContent({
-    contents: [{ role: 'user', parts: [{ text: 'healthcheck' }] }],
-  });
+  let lastErr = null;
+  for (const modelName of candidates) {
+    try {
+      const model = vertex_ai.getGenerativeModel({ model: modelName });
+      const res = await model.generateContent({
+        contents: [{ role: 'user', parts: [{ text: 'healthcheck' }] }],
+      });
 
-  const text = res?.response?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('');
-  assert(text && text.length > 0, 'No response text from Vertex Gemini.');
-  console.log(`AI check OK, sample="${text.slice(0, 60)}${text.length > 60 ? '...' : ''}"`);
+      const text = res?.response?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('');
+      assert(text && text.length > 0, 'No response text from Vertex Gemini.');
+      console.log(`AI check OK (model=${modelName}), sample="${text.slice(0, 60)}${text.length > 60 ? '...' : ''}"`);
+      return;
+    } catch (err) {
+      lastErr = err;
+      if (String(err?.message || err).includes('404')) {
+        console.warn(`Model ${modelName} unavailable (404), trying next...`);
+        continue;
+      }
+      throw err;
+    }
+  }
+
+  throw lastErr || new Error('AI check failed: no model succeeded');
 };
 
 main().catch((err) => {

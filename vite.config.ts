@@ -199,7 +199,7 @@ export default defineConfig(({ mode }) => {
                     });
 
                     const generativeModel = vertex.getGenerativeModel({
-                      model: model || 'gemini-1.5-flash',
+                      model: model || 'gemini-2.5-flash',
                       generationConfig: config
                     });
 
