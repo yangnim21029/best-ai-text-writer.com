@@ -70,7 +70,6 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     const selectionRangeRef = useRef<Range | null>(null);
     const toolbarRef = useRef<HTMLDivElement | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
-    const [previewHeight, setPreviewHeight] = useState(360);
     const [toolbarSize, setToolbarSize] = useState({ width: 72, height: 200 });
 
     const editPresets: { id: PresetId; label: string }[] = [
@@ -101,31 +100,15 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
         if (!selectionRect) return { top: viewportSafeArea, left: viewportSafeArea };
         const toolbarWidth = toolbarSize.width || 72;
         const toolbarHeight = toolbarSize.height || 200;
-        const baseLeft = window.scrollX + selectionRect.right + 8; // position to the right of selection
-        const maxLeft = window.scrollX + window.innerWidth - toolbarWidth - viewportSafeArea;
+        const baseLeft = selectionRect.right + 8; // position to the right of selection
+        const maxLeft = window.innerWidth - toolbarWidth - viewportSafeArea;
         const clampedLeft = Math.max(viewportSafeArea, Math.min(baseLeft, maxLeft));
         const baseTop =
-            window.scrollY + selectionRect.top + selectionRect.height / 2 - toolbarHeight / 2; // vertical center to selection
-        const maxTop = window.scrollY + window.innerHeight - toolbarHeight - viewportSafeArea;
+            selectionRect.top + selectionRect.height / 2 - toolbarHeight / 2; // vertical center to selection
+        const maxTop = window.innerHeight - toolbarHeight - viewportSafeArea;
         const clampedTop = Math.max(viewportSafeArea, Math.min(baseTop, maxTop));
         return { top: clampedTop, left: clampedLeft };
     }, [selectionRect, toolbarSize]);
-
-    const previewPosition = useMemo(() => {
-        if (!selectionRect) return { top: 80, left: viewportSafeArea };
-        const previewWidth = Math.min(720, window.innerWidth * 0.9);
-        const baseLeft = window.scrollX + selectionRect.left + selectionRect.width / 2 - previewWidth / 2;
-        const maxLeft = window.scrollX + window.innerWidth - previewWidth - viewportSafeArea;
-        const clampedLeft = Math.max(viewportSafeArea, Math.min(baseLeft, maxLeft));
-
-        const spaceAbove = selectionRect.top - viewportSafeArea;
-        const placeAbove = spaceAbove > previewHeight + 24;
-        const top = placeAbove
-            ? window.scrollY + selectionRect.top - previewHeight - 16
-            : window.scrollY + selectionRect.bottom + 12;
-
-        return { top, left: clampedLeft };
-    }, [selectionRect, previewHeight]);
 
     const isInsideUi = (target: EventTarget | null | undefined) => {
         return target instanceof Element && target.closest('[data-askai-ui="true"]');
@@ -220,14 +203,6 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     }, []);
 
     useEffect(() => {
-        if (!isPreviewOpen || !previewRef.current) return;
-        const rect = previewRef.current.getBoundingClientRect();
-        if (rect.height > 0) {
-            setPreviewHeight(rect.height);
-        }
-    }, [isPreviewOpen, previewHtml]);
-
-    useEffect(() => {
         if (!toolbarRef.current) return;
         const rect = toolbarRef.current.getBoundingClientRect();
         if (rect.width && rect.height) {
@@ -241,7 +216,7 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     const dropdownAnchor = useMemo(() => {
         const menuWidth = 256; // w-64
         const desiredLeft = toolbarPosition.left + toolbarSize.width + 12;
-        const maxLeft = window.scrollX + window.innerWidth - menuWidth - viewportSafeArea;
+        const maxLeft = window.innerWidth - menuWidth - viewportSafeArea;
         return {
             top: toolbarPosition.top,
             left: Math.max(viewportSafeArea, Math.min(desiredLeft, maxLeft)),
@@ -430,45 +405,45 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     };
 
     const renderPreview = () => {
-        if (!isPreviewOpen || !selectionRect) return null;
+        if (!isPreviewOpen) return null;
         return (
-            <div
-                data-askai-ui="true"
-                className="fixed z-40 w-[min(720px,90vw)] bg-white shadow-2xl border border-gray-200 rounded-2xl p-4"
-                style={{ top: previewPosition.top, left: previewPosition.left }}
-                ref={previewRef}
-            >
-                <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                        <Wand2 className="w-4 h-4 text-purple-500" />
-                        <span>{previewTitle || (mode === 'format' ? 'Format' : 'Edit')}</span>
-                        {isLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+            <div data-askai-ui="true" className="fixed inset-0 z-40 flex items-start justify-center">
+                <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" />
+                <div
+                    className="relative mt-12 w-[min(720px,90vw)] bg-white shadow-2xl border border-gray-200 rounded-2xl p-4"
+                    ref={previewRef}
+                >
+                    <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
+                            <Wand2 className="w-4 h-4 text-purple-500" />
+                            <span>{previewTitle || (mode === 'format' ? 'Format' : 'Edit')}</span>
+                            {isLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                        </div>
+                        <button
+                            className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                            onClick={() => setIsPreviewOpen(false)}
+                        >
+                            <X className="w-4 h-4" />
+                        </button>
                     </div>
-                    <button
-                        className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
-                        onClick={() => setIsPreviewOpen(false)}
-                    >
-                        <X className="w-4 h-4" />
-                    </button>
-                </div>
 
-                <div className="grid md:grid-cols-2 gap-3 mb-4">
-                    <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
-                        <div className="text-xs font-semibold text-gray-500 mb-2">Before</div>
-                        <div className="text-sm text-gray-800 whitespace-pre-wrap">{selectionText}</div>
+                    <div className="grid md:grid-cols-2 gap-3 mb-4">
+                        <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
+                            <div className="text-xs font-semibold text-gray-500 mb-2">Before</div>
+                            <div className="text-sm text-gray-800 whitespace-pre-wrap">{selectionText}</div>
+                        </div>
+                        <div className="border border-purple-100 rounded-xl p-3 bg-purple-50/60">
+                            <div className="text-xs font-semibold text-purple-600 mb-2">After</div>
+                            <div
+                                className="text-sm text-gray-900 leading-relaxed"
+                                dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400">等待生成...</p>' }}
+                            />
+                        </div>
                     </div>
-                    <div className="border border-purple-100 rounded-xl p-3 bg-purple-50/60">
-                        <div className="text-xs font-semibold text-purple-600 mb-2">After</div>
-                        <div
-                            className="text-sm text-gray-900 leading-relaxed"
-                            dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400">等待生成...</p>' }}
-                        />
-                    </div>
-                </div>
 
-                <div className="flex flex-col md:flex-row md:items-center md:gap-3 gap-2">
-                    {mode === 'edit' && (
-                        <input
+                    <div className="flex flex-col md:flex-row md:items-center md:gap-3 gap-2">
+                        {mode === 'edit' && (
+                            <input
                                 className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
                                 placeholder="Refine with a prompt"
                                 value={customPrompt}
@@ -490,24 +465,25 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                                     e.currentTarget.value = '';
                                 }}
                                 defaultValue=""
-                        >
-                            <option value="" disabled>
-                                Refine
-                            </option>
-                            {editPresets.map(p => (
-                                <option key={p.id} value={p.id}>
-                                    {p.label}
+                            >
+                                <option value="" disabled>
+                                    Refine
                                 </option>
-                            ))}
-                        </select>
-                        <button
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 ${isLoading ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                            onClick={handleInsert}
-                            disabled={isLoading || !previewHtml}
-                        >
-                            Insert
-                            <ArrowRight className="w-4 h-4" />
-                        </button>
+                                {editPresets.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.label}
+                                    </option>
+                                ))}
+                            </select>
+                            <button
+                                className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 ${isLoading ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
+                                onClick={handleInsert}
+                                disabled={isLoading || !previewHtml}
+                            >
+                                Insert
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
