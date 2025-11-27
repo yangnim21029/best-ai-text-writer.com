@@ -79,23 +79,44 @@ export default async function handler(req, res) {
             });
         }
 
-        const requests = texts.map((text) => ({
-            content: {
-                role: 'user',
-                parts: [{ text }]
-            },
+        const modelId = model || 'gemini-embedding-001';
+        const basePayload = {
+            model: modelId,
             taskType: taskType || 'SEMANTIC_SIMILARITY',
             ...(outputDimensionality ? { outputDimensionality } : {})
-        }));
+        };
 
-        const response = await client.models.batchEmbedContents({
-            model: model || 'gemini-embedding-001',
-            requests
-        });
+        const supportsBatch = typeof client.models?.batchEmbedContents === 'function';
+        let embeddings = [];
 
-        const embeddings = Array.isArray(response.embeddings)
-            ? response.embeddings.map((e) => e?.values || [])
-            : [];
+        if (supportsBatch) {
+            const requests = texts.map((text) => ({
+                content: {
+                    role: 'user',
+                    parts: [{ text }]
+                },
+                ...basePayload
+            }));
+
+            const response = await client.models.batchEmbedContents({ model: modelId, requests });
+            embeddings = Array.isArray(response.embeddings)
+                ? response.embeddings.map((e) => e?.values || [])
+                : [];
+        } else {
+            // Fallback: call embedContent one-by-one (older SDK / runtime compatibility)
+            embeddings = await Promise.all(
+                texts.map(async (text) => {
+                    const resp = await client.models.embedContent({
+                        ...basePayload,
+                        content: {
+                            role: 'user',
+                            parts: [{ text }]
+                        }
+                    });
+                    return resp?.embedding?.values || resp?.data?.embedding?.values || [];
+                })
+            );
+        }
 
         return res.status(200).json({ embeddings });
     } catch (error) {
