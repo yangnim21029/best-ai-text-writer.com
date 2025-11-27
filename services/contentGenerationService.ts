@@ -1,11 +1,11 @@
 import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { filterSectionContext } from './contextFilterService';
-import { Type } from "@google/genai";
 import { promptRegistry } from './promptRegistry';
 import { MODEL } from '../config/constants';
 import { getAiProvider } from './aiProvider';
 import { generateContent } from './ai';
+import { Type } from './schemaTypes';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (

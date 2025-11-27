@@ -2,7 +2,7 @@ import { useCallback, useState } from 'react';
 import { generateSnippet } from '../services/contentGenerationService';
 import { TargetAudience, CostBreakdown, TokenUsage, ProductBrief } from '../types';
 import { promptRegistry } from '../services/promptRegistry';
-import { Type } from '@google/genai';
+import { Type } from '../services/schemaTypes';
 
 interface MetaContext {
     keyPoints: string[];

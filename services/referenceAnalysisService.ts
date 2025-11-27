@@ -1,6 +1,6 @@
 import { ServiceResponse, ReferenceAnalysis, TargetAudience } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
-import { Type } from "@google/genai";
+import { Type } from './schemaTypes';
 import { runLlm } from './llmOrchestrator';
 
 const stripJsonFences = (text?: string) => {

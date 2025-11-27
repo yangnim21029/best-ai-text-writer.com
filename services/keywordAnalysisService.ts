@@ -2,7 +2,7 @@ import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience } from 
 import { calculateCost, extractRawSnippets, getLanguageInstruction } from './promptService';
 import { promptRegistry } from './promptRegistry';
 import { runLlm } from './llmOrchestrator';
-import { Type } from '@google/genai';
+import { Type } from './schemaTypes';
 
 // Analyze Context & Generate Action Plan for keywords
 export const extractKeywordActionPlans = async (

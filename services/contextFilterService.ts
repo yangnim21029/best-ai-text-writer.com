@@ -1,6 +1,6 @@
 import { ServiceResponse, TargetAudience } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
-import { Type } from "@google/genai";
+import { Type } from './schemaTypes';
 import { runLlm } from './llmOrchestrator';
 
 // Smart Context Filter with Knowledge Base Support (Stronger RAG)

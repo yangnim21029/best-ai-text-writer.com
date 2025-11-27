@@ -1,6 +1,6 @@
 import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
-import { Type } from "@google/genai";
+import { Type } from './schemaTypes';
 import { runLlm } from './llmOrchestrator';
 import { MODEL } from '../config/constants';
 

@@ -6,9 +6,9 @@ import { VertexAI } from "@google-cloud/vertexai";
  */
 function normalizePrivateKey(privateKey) {
     if (!privateKey) return privateKey;
-    return privateKey
-        .replace(/\\n/g, '\n')
-        .replace(/\\r/g, '\r');
+    let key = privateKey.replace(/\\n/g, '\n').replace(/\\r/g, '\r');
+    // 新增：移除前後可能多餘的引號
+    return key.replace(/^"|"$/g, '');
 }
 
 export default async function handler(req, res) {
@@ -60,8 +60,7 @@ export default async function handler(req, res) {
             });
         }
 
-        // 3. 初始化 Vertex AI Client
-        // 關鍵：明確傳入 googleAuthOptions，這會阻止 SDK 去找檔案
+        // 3. 初始化 Vertex AI 並透過內部 GoogleAuth 取得存取權杖
         const vertex = new VertexAI({
             project: projectId,
             location: location,
@@ -73,35 +72,48 @@ export default async function handler(req, res) {
             }
         });
 
-        // 4. 取得模型並執行 Embedding
+        const token = await vertex.googleAuth.getAccessToken();
+        if (!token) {
+            throw new Error('Failed to obtain access token for embeddings');
+        }
+
+        // 4. 呼叫 Vertex Embedding REST API
         // 如果前端沒傳 model，預設使用 text-embedding-004 (目前 Vertex 最推薦的)
         const modelId = model || 'text-embedding-004';
-        const generativeModel = vertex.getGenerativeModel({ model: modelId });
+        const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predict`;
 
-        const basePayload = {
-            taskType: taskType || 'SEMANTIC_SIMILARITY',
+        const parameters = {
+            ...(taskType ? { taskType } : {}),
             ...(outputDimensionality ? { outputDimensionality } : {})
         };
 
-        // Vertex AI 雖然有 batch 支援，但簡單起見或避免 Payload 過大，這裡使用 Promise.all 並行處理
-        // 如果 texts 數量非常大 (>100)，建議分批處理 (chunking)
-        const embeddings = await Promise.all(
-            texts.map(async (text) => {
-                try {
-                    const resp = await generativeModel.embedContent({
-                        ...basePayload,
-                        content: {
-                            role: 'user',
-                            parts: [{ text }]
-                        }
-                    });
-                    return resp?.embedding?.values || [];
-                } catch (err) {
-                    console.error(`Error embedding text: "${text.substring(0, 20)}..."`, err.message);
-                    return []; // 失敗時回傳空陣列，避免整個請求掛掉
-                }
-            })
-        );
+        const payload = {
+            instances: texts.map(text => ({ content: text })),
+            ...(Object.keys(parameters).length ? { parameters } : {})
+        };
+
+        const apiResp = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`
+            },
+            body: JSON.stringify(payload)
+        });
+
+        if (!apiResp.ok) {
+            const detail = await apiResp.text();
+            throw new Error(`Embedding request failed (${apiResp.status}): ${detail}`);
+        }
+
+        const data = await apiResp.json();
+        const predictions = data?.predictions || [];
+        const embeddings = predictions.map(pred => {
+            if (Array.isArray(pred?.embeddings)) return pred.embeddings[0]?.values || [];
+            if (pred?.embeddings?.values) return pred.embeddings.values;
+            if (pred?.values) return pred.values;
+            return [];
+        });
 
         return res.status(200).json({ embeddings });
 

@@ -1,86 +1,27 @@
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
-import { GoogleGenAI } from '@google/genai';
+// 只引入 Vertex AI SDK
+import { VertexAI } from '@google-cloud/vertexai';
 
 /**
- * Parse Google credentials JSON string with error handling
- */
-function parseGoogleCredentialsJson(jsonString: string): any {
-  if (!jsonString) return null;
-
-  try {
-    let cleanedJson = jsonString;
-
-    // Try original parse
-    try {
-      const parsed = JSON.parse(cleanedJson);
-      if (parsed?.private_key) {
-        parsed.private_key = normalizePrivateKey(parsed.private_key);
-      }
-      return parsed;
-    } catch {
-      // Remove outer quotes and retry
-      if (
-        (cleanedJson.startsWith('"') && cleanedJson.endsWith('"')) ||
-        (cleanedJson.startsWith("'") && cleanedJson.endsWith("'"))
-      ) {
-        cleanedJson = cleanedJson.slice(1, -1);
-
-        // Fix common escape issues
-        cleanedJson = cleanedJson
-          .replace(/\\"/g, '"')
-          .replace(/\\'/g, "'")
-          .replace(/\\\\/g, '\\');
-      }
-
-      // Handle actual newlines in private_key
-      cleanedJson = cleanedJson.replace(
-        /"private_key":"([^"]*?)"/g,
-        (_match, privateKeyContent) => {
-          const fixedPrivateKey = privateKeyContent
-            .replace(/\n/g, '\\n')
-            .replace(/\r/g, '\\r')
-            .replace(/\t/g, '\\t');
-          return `"private_key":"${fixedPrivateKey}"`;
-        }
-      );
-
-      const parsed = JSON.parse(cleanedJson);
-      if (parsed?.private_key) {
-        parsed.private_key = normalizePrivateKey(parsed.private_key);
-      }
-      return parsed;
-    }
-  } catch (error) {
-    console.error('Failed to parse Google credentials JSON:', error);
-    return null;
-  }
-}
-
-/**
- * Ensure \n and \r sequences inside the private key are properly expanded
- * when they come from a .env file.
+ * 處理 Private Key 的換行符號問題
  */
 function normalizePrivateKey(privateKey: string) {
   if (!privateKey) return privateKey;
   return privateKey
     .replace(/\\n/g, '\n')
-    .replace(/\\r/g, '\r');
+    .replace(/\\r/g, '\r')
+    .replace(/^"|"$/g, ''); // 移除前後可能的引號
 }
 
 /**
- * Pull credentials from a JSON blob or individual .env variables
+ * 讀取 Vertex 憑證
  */
 function loadVertexCredentials(env: Record<string, string>): any {
-  const jsonFromEnv = parseGoogleCredentialsJson(env.GOOGLE_VERTEX_API_CONFIG_JSON);
-  if (jsonFromEnv?.project_id && jsonFromEnv?.client_email && jsonFromEnv?.private_key) {
-    return jsonFromEnv;
-  }
-
-  const projectId = env.GOOGLE_VERTEX_PROJECT_ID;
-  const clientEmail = env.GOOGLE_VERTEX_CLIENT_EMAIL;
-  const privateKey = env.GOOGLE_VERTEX_PRIVATE_KEY;
+  const projectId = env.GOOGLE_PROJECT_ID || env.GOOGLE_VERTEX_PROJECT_ID;
+  const clientEmail = env.GOOGLE_CLIENT_EMAIL || env.GOOGLE_VERTEX_CLIENT_EMAIL;
+  const privateKey = env.GOOGLE_PRIVATE_KEY || env.GOOGLE_VERTEX_PRIVATE_KEY;
 
   if (projectId && clientEmail && privateKey) {
     return {
@@ -89,67 +30,38 @@ function loadVertexCredentials(env: Record<string, string>): any {
       private_key: normalizePrivateKey(privateKey)
     };
   }
-
   return null;
 }
 
-function loadGeminiApiKey(env: Record<string, string>): string | null {
-  return env.GOOGLE_GEMINI_API || env.GEMINI_API_KEY || null;
-}
-
-function extractTextFromCandidate(candidate: any): string {
-  if (!candidate) return '';
-  const parts = candidate.content?.parts;
-  if (Array.isArray(parts)) {
-    return parts
-      .map((part: any) => part?.text || '')
-      .filter(Boolean)
-      .join(' ');
-  }
-  return '';
-}
-
+/**
+ * 提取文字內容 (針對 Vertex AI 格式)
+ */
 function extractText(result: any): string {
   if (!result) return '';
-  if (typeof result.text === 'function') return result.text();
-  if (typeof result.text === 'string') return result.text;
-
-  if (result.response) {
-    if (typeof result.response.text === 'function') return result.response.text();
-    if (typeof result.response.text === 'string') return result.response.text;
-    const textFromResponseCandidates = extractTextFromCandidate(result.response.candidates?.[0]);
-    if (textFromResponseCandidates) return textFromResponseCandidates;
+  if (result.response?.candidates?.[0]?.content?.parts) {
+    return result.response.candidates[0].content.parts.map((p: any) => p.text).join('');
   }
-
-  const textFromCandidates = extractTextFromCandidate(result.candidates?.[0]);
-  if (textFromCandidates) return textFromCandidates;
-
+  // 備用檢查
+  if (result.candidates?.[0]?.content?.parts) {
+    return result.candidates[0].content.parts.map((p: any) => p.text).join('');
+  }
   return '';
 }
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
-
-  const apiProxyTarget =
-    env.VITE_API_PROXY_TARGET ||
-    env.API_PROXY_TARGET ||
-    '';
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || env.API_PROXY_TARGET || '';
 
   return {
     server: {
       port: Number(env.VITE_PORT) || 5173,
       host: '0.0.0.0',
       proxy: apiProxyTarget ? {
-        '/api': {
-          target: apiProxyTarget,
-          changeOrigin: true,
-          secure: false
-        }
+        '/api': { target: apiProxyTarget, changeOrigin: true, secure: false }
       } : undefined
     },
     plugins: [
       react(),
-      // 若未設置代理目標，開發環境直接在 Vite 內處理 /api/generate 與 /api/embed
       !apiProxyTarget && {
         name: 'api-middleware',
         configureServer(server) {
@@ -160,219 +72,153 @@ export default defineConfig(({ mode }) => {
               res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
             };
 
+            // ==========================================
+            //  /api/embed (Vertex AI Only)
+            // ==========================================
             if (req.url?.startsWith('/api/embed') && (req.method === 'POST' || req.method === 'OPTIONS')) {
               setCors();
-
-              if (req.method === 'OPTIONS') {
-                res.statusCode = 200;
-                res.end();
-                return;
-              }
+              if (req.method === 'OPTIONS') { res.statusCode = 200; res.end(); return; }
 
               try {
                 let body = '';
-                req.on('data', chunk => {
-                  body += chunk.toString();
-                });
-
+                req.on('data', chunk => body += chunk.toString());
                 req.on('end', async () => {
                   try {
                     const { texts, taskType, outputDimensionality, model } = JSON.parse(body);
 
                     if (!Array.isArray(texts) || texts.length === 0) {
                       res.statusCode = 400;
-                      res.setHeader('Content-Type', 'application/json');
                       res.end(JSON.stringify({ error: 'texts array is required' }));
                       return;
                     }
 
-                    const geminiApiKey = loadGeminiApiKey(env);
                     const credentials = loadVertexCredentials(env);
-
-                    let ai;
-                    if (geminiApiKey) {
-                      ai = new GoogleGenAI({
-                        apiKey: geminiApiKey
-                      });
-                    } else if (credentials) {
-                      if (!credentials.project_id && !credentials.projectId) {
-                        res.statusCode = 500;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify({
-                          error: '憑證缺少 project id'
-                        }));
-                        return;
-                      }
-                      if (!credentials.client_email || !credentials.private_key) {
-                        res.statusCode = 500;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify({
-                          error: '憑證缺少 client_email 或 private_key'
-                        }));
-                        return;
-                      }
-
-                      ai = new GoogleGenAI({
-                        vertexai: true,
-                        project: credentials.project_id || credentials.projectId,
-                        location: env.GOOGLE_VERTEX_LOCATION || 'us-central1',
-                        googleAuth: {
-                          credentials: {
-                            client_email: credentials.client_email,
-                            private_key: credentials.private_key,
-                          }
-                        }
-                      });
-                    } else {
-                      res.statusCode = 500;
-                      res.setHeader('Content-Type', 'application/json');
-                      res.end(JSON.stringify({
-                        error: '缺少 Vertex 憑證，且未設定 GOOGLE_GEMINI_API/GEMINI_API_KEY'
-                      }));
-                      return;
+                    if (!credentials) {
+                      throw new Error("Missing Vertex AI Credentials (GOOGLE_PROJECT_ID, CLIENT_EMAIL, PRIVATE_KEY)");
                     }
 
-                    const contentsPayload = texts.map((text: string) => ({
-                      parts: [{ text }]
-                    }));
+                    const modelId = model || 'text-embedding-004';
+                    const location = env.GOOGLE_VERTEX_LOCATION || 'us-central1';
 
-                    const embedResponse = await ai.models.embedContent({
-                      model: model || 'gemini-embedding-001',
-                      contents: contentsPayload,
-                      config: {
-                        taskType: taskType || 'SEMANTIC_SIMILARITY',
-                        ...(outputDimensionality ? { outputDimensionality } : {})
+                    const vertex = new VertexAI({
+                      project: credentials.project_id,
+                      location,
+                      googleAuthOptions: {
+                        credentials: {
+                          client_email: credentials.client_email,
+                          private_key: credentials.private_key
+                        }
                       }
                     });
 
-                    const embeddings = Array.isArray(embedResponse.embeddings)
-                      ? embedResponse.embeddings.map((e: any) => e?.values || [])
-                      : [];
+                    // Access GoogleAuth from the Vertex client to fetch a token
+                    const token = await (vertex as any).googleAuth.getAccessToken();
+                    if (!token) {
+                      throw new Error('Failed to obtain access token for embeddings');
+                    }
+
+                    const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${credentials.project_id}/locations/${location}/publishers/google/models/${modelId}:predict`;
+
+                    const parameters: any = {};
+                    if (taskType) parameters.taskType = taskType;
+                    if (outputDimensionality) parameters.outputDimensionality = outputDimensionality;
+
+                    const payload = {
+                      instances: texts.map((text: string) => ({ content: text })),
+                      ...(Object.keys(parameters).length ? { parameters } : {})
+                    };
+
+                    const resp = await fetch(endpoint, {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                        Authorization: `Bearer ${token}`
+                      },
+                      body: JSON.stringify(payload)
+                    });
+
+                    if (!resp.ok) {
+                      const detail = await resp.text();
+                      throw new Error(`Embedding request failed (${resp.status}): ${detail}`);
+                    }
+
+                    const data = await resp.json();
+                    const predictions = data?.predictions || [];
+                    const embeddings = predictions.map((pred: any) => {
+                      if (Array.isArray(pred?.embeddings)) {
+                        return pred.embeddings[0]?.values || [];
+                      }
+                      if (pred?.embeddings?.values) return pred.embeddings.values;
+                      if (pred?.values) return pred.values;
+                      return [];
+                    });
 
                     res.statusCode = 200;
                     res.setHeader('Content-Type', 'application/json');
                     res.end(JSON.stringify({ embeddings }));
                   } catch (error: any) {
-                    console.error('Embedding Error:', error);
+                    console.error('Embed API Error:', error);
                     res.statusCode = 500;
-                    res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify({
-                      error: error.message || 'Internal Server Error',
-                      details: error.toString()
-                    }));
+                    res.end(JSON.stringify({ error: error.message }));
                   }
                 });
-              } catch (error: any) {
-                console.error('Request handling error:', error);
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  error: error.message || 'Internal Server Error'
-                }));
-              }
+              } catch (e) { res.statusCode = 500; res.end(); }
               return;
             }
 
+            // ==========================================
+            //  /api/generate (Vertex AI Only)
+            // ==========================================
             if (req.url?.startsWith('/api/generate') && req.method === 'POST') {
               setCors();
-
-              if (req.method === 'OPTIONS') {
-                res.statusCode = 200;
-                res.end();
-                return;
-              }
+              if (req.method === 'OPTIONS') { res.statusCode = 200; res.end(); return; }
 
               try {
                 let body = '';
-                req.on('data', chunk => {
-                  body += chunk.toString();
-                });
-
+                req.on('data', chunk => body += chunk.toString());
                 req.on('end', async () => {
                   try {
                     const { model, contents, config } = JSON.parse(body);
-
-                    const geminiApiKey = loadGeminiApiKey(env);
                     const credentials = loadVertexCredentials(env);
 
-                    let ai;
-                    if (geminiApiKey) {
-                      ai = new GoogleGenAI({
-                        apiKey: geminiApiKey
-                      });
-                    } else if (credentials) {
-                      if (!credentials.project_id && !credentials.projectId) {
-                        res.statusCode = 500;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify({
-                          error: '憑證缺少 project id'
-                        }));
-                        return;
-                      }
-                      if (!credentials.client_email || !credentials.private_key) {
-                        res.statusCode = 500;
-                        res.setHeader('Content-Type', 'application/json');
-                        res.end(JSON.stringify({
-                          error: '憑證缺少 client_email 或 private_key'
-                        }));
-                        return;
-                      }
-
-                      ai = new GoogleGenAI({
-                        vertexai: true,
-                        project: credentials.project_id || credentials.projectId,
-                        location: env.GOOGLE_VERTEX_LOCATION || 'us-central1',
-                        googleAuth: {
-                          credentials: {
-                            client_email: credentials.client_email,
-                            private_key: credentials.private_key,
-                          }
-                        }
-                      });
-                    } else {
-                      res.statusCode = 500;
-                      res.setHeader('Content-Type', 'application/json');
-                      res.end(JSON.stringify({
-                        error: '缺少 Vertex 憑證，且未設定 GOOGLE_GEMINI_API/GEMINI_API_KEY'
-                      }));
-                      return;
+                    if (!credentials) {
+                      throw new Error("Missing Vertex AI Credentials");
                     }
 
-                    const result = await ai.models.generateContent({
-                      model: model || 'gemini-2.5-flash',
-                      contents,
-                      config
+                    const vertex = new VertexAI({
+                      project: credentials.project_id,
+                      location: env.GOOGLE_VERTEX_LOCATION || 'us-central1',
+                      googleAuthOptions: {
+                        credentials: {
+                          client_email: credentials.client_email,
+                          private_key: credentials.private_key
+                        }
+                      }
                     });
 
+                    const generativeModel = vertex.getGenerativeModel({
+                      model: model || 'gemini-1.5-flash',
+                      generationConfig: config
+                    });
+
+                    const result = await generativeModel.generateContent({ contents });
+
                     const text = extractText(result);
-                    const usageMetadata = result.usageMetadata;
-                    const candidates = result.candidates;
+                    const usageMetadata = result.response?.usageMetadata;
+                    const candidates = result.response?.candidates;
 
                     res.statusCode = 200;
                     res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify({
-                      text,
-                      usageMetadata,
-                      candidates
-                    }));
+                    res.end(JSON.stringify({ text, usageMetadata, candidates }));
+
                   } catch (error: any) {
-                    console.error('Vertex AI Error:', error);
+                    console.error('Generate API Error:', error);
                     res.statusCode = 500;
                     res.setHeader('Content-Type', 'application/json');
-                    res.end(JSON.stringify({
-                      error: error.message || 'Internal Server Error',
-                      details: error.toString()
-                    }));
+                    res.end(JSON.stringify({ error: error.message }));
                   }
                 });
-              } catch (error: any) {
-                console.error('Request handling error:', error);
-                res.statusCode = 500;
-                res.setHeader('Content-Type', 'application/json');
-                res.end(JSON.stringify({
-                  error: error.message || 'Internal Server Error'
-                }));
-              }
+              } catch (e) { res.statusCode = 500; res.end(); }
             } else {
               next();
             }
@@ -380,24 +226,6 @@ export default defineConfig(({ mode }) => {
         }
       }
     ].filter(Boolean),
-    define: {
-      'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
-    },
-    resolve: {
-      alias: {
-        '@': path.resolve(__dirname, '.'),
-      }
-    },
-    build: {
-      chunkSizeWarningLimit: 1200,
-      rollupOptions: {
-        output: {
-          manualChunks: {
-            'vendor-react': ['react', 'react-dom'],
-            'vendor-icons': ['lucide-react'],
-          }
-        }
-      }
-    }
+    resolve: { alias: { '@': path.resolve(__dirname, '.') } }
   };
 });

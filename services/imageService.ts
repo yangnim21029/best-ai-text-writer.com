@@ -2,7 +2,7 @@
 import { ServiceResponse, ScrapedImage, TargetAudience, ImageAssetPlan } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { generateContent } from './ai';
-import { Type } from "@google/genai";
+import { Type } from './schemaTypes';
 import { promptRegistry } from './promptRegistry';
 import { MODEL } from '../config/constants';
 
