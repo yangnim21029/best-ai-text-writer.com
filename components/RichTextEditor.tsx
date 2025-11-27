@@ -258,10 +258,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }, [articleTitle, ctx?.articleTitle, metaDescription, metaTitle, recordMeta, urlSlug]);
 
     return (
-        <div
-            className="flex flex-col h-full w-full min-h-0 bg-white overflow-hidden relative"
-        >
-            <div className="flex flex-col gap-3 px-4 py-3 border-b border-gray-200 bg-white">
+        <div className="rte-container flex flex-col h-full w-full min-h-0 bg-white overflow-hidden relative">
+            <div className="rte-header flex flex-col gap-3 px-4 py-3 border-b border-gray-200 bg-white">
                 <div className="mb-1">
                     <input
                         value={articleTitle || ctx?.articleTitle || ''}
@@ -289,31 +287,32 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 </div>
             </div>
 
-            <EditorToolbar
-                onCommand={handleToolbarCommand}
-                onRemoveBold={() => tiptapApi?.clearBold?.()}
-                onOpenImageModal={openImageModal}
-                onDownloadAllImages={downloadImages}
-                isDownloadingImages={isDownloadingImages}
-                onToggleKeyPoints={() => { setShowKeyPoints(!showKeyPoints); setShowVisualAssets(false); }}
-                showKeyPoints={showKeyPoints}
-                hasKeyPoints={totalPoints > 0}
-                onToggleVisualAssets={() => { setShowVisualAssets(!showVisualAssets); setShowKeyPoints(false); }}
-                showVisualAssets={showVisualAssets}
-                onRebrand={() => { }}
-                isRebranding={false}
-                productName={effectiveProductBrief?.productName}
-                onToggleMetaPanel={() => setShowMetaPanel((v) => !v)}
-                showMetaPanel={showMetaPanel}
-                onUndo={() => tiptapApi?.undo()}
-                onRedo={() => tiptapApi?.redo()}
-            />
+            <div className="rte-toolbar-wrapper">
+                <EditorToolbar
+                    onCommand={handleToolbarCommand}
+                    onRemoveBold={() => tiptapApi?.clearBold?.()}
+                    onOpenImageModal={openImageModal}
+                    onDownloadAllImages={downloadImages}
+                    isDownloadingImages={isDownloadingImages}
+                    onToggleKeyPoints={() => { setShowKeyPoints(!showKeyPoints); setShowVisualAssets(false); }}
+                    showKeyPoints={showKeyPoints}
+                    hasKeyPoints={totalPoints > 0}
+                    onToggleVisualAssets={() => { setShowVisualAssets(!showVisualAssets); setShowKeyPoints(false); }}
+                    showVisualAssets={showVisualAssets}
+                    onRebrand={() => { }}
+                    isRebranding={false}
+                    productName={effectiveProductBrief?.productName}
+                    onToggleMetaPanel={() => setShowMetaPanel((v) => !v)}
+                    showMetaPanel={showMetaPanel}
+                    onUndo={() => tiptapApi?.undo()}
+                    onRedo={() => tiptapApi?.redo()}
+                />
+            </div>
 
-
-            <div className="flex-1 flex flex-row min-h-0 overflow-hidden relative">
-                <div className="flex-1 flex flex-col min-h-0 relative group">
-                    <div className="flex-1 min-h-0 overflow-y-auto">
-                        <div className="px-6 pb-6 py-1">
+            <div className="rte-workspace flex-1 flex flex-row min-h-0 overflow-hidden relative">
+                <div className="rte-editor-column flex-1 flex flex-col min-h-0 relative group">
+                    <div className="rte-scroll-area flex-1 min-h-0 overflow-y-auto">
+                        <div className="rte-content-wrapper px-6 pb-6 py-1">
                             <TiptapAdapter
                                 initialHtml={html}
                                 onChange={(nextHtml, plain) => handleInput(nextHtml, plain)}
@@ -331,6 +330,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         </div>
                     </div>
 
+                    {/* Editor Overlays */}
                     <AskAiSelection
                         onRunAction={runAskAiAction}
                         onInsert={(html) => {
@@ -362,6 +362,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     />
                 </div>
 
+                {/* Sidebars */}
                 {showKeyPoints && (
                     <KeyPointsPanel
                         brandExclusivePoints={effectiveBrandPoints}
@@ -397,7 +398,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </div>
 
             {isAiRunning && (
-                <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-40">
+                <div className="rte-loading-overlay absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-40">
                     <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-sm text-gray-700">
                         <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                         <span>AI is working...</span>
@@ -405,7 +406,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 </div>
             )}
 
-            <div className="px-4 py-2 bg-gray-50/95 backdrop-blur border-t border-gray-200 text-[10px] text-gray-500 font-mono flex items-center justify-end gap-4 select-none sticky bottom-0 z-10">
+            <div className="rte-footer px-4 py-2 bg-gray-50/95 backdrop-blur border-t border-gray-200 text-[10px] text-gray-500 font-mono flex items-center justify-end gap-4 select-none sticky bottom-0 z-10">
                 <span>{wordCount} words</span>
                 <span>{charCount} chars</span>
             </div>
