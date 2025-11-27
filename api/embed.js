@@ -1,8 +1,8 @@
-import { VertexAI } from "@google-cloud/vertexai";
+import { GoogleAuth } from "google-auth-library";
 
 /**
  * 處理 Private Key 的換行符號問題
- * .env 檔案中的 \n 常被讀取為字串 "\\n"，需要轉換回真正的換行符號
+ * .env 檔案中的 \n 常被讀取為字串 \\"n\", 需要轉換回真正的換行符號
  */
 function normalizePrivateKey(privateKey) {
     if (!privateKey) return privateKey;
@@ -48,7 +48,7 @@ export default async function handler(req, res) {
         const privateKeyRaw = process.env.GOOGLE_PRIVATE_KEY || process.env.GOOGLE_VERTEX_PRIVATE_KEY;
         const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1';
 
-        // 嚴格檢查：如果缺少任何一個憑證，直接報錯，不讓 SDK 去猜測
+        // 嚴格檢查
         if (!projectId || !clientEmail || !privateKeyRaw) {
             console.error("Missing Credentials:", {
                 hasProjectId: !!projectId,
@@ -60,27 +60,24 @@ export default async function handler(req, res) {
             });
         }
 
-        // 3. 初始化 Vertex AI 並透過內部 GoogleAuth 取得存取權杖
-        const vertex = new VertexAI({
-            project: projectId,
-            location: location,
-            googleAuthOptions: {
-                projectId: projectId,
-                credentials: {
-                    client_email: clientEmail,
-                    private_key: normalizePrivateKey(privateKeyRaw)
-                },
-                scopes: ['https://www.googleapis.com/auth/cloud-platform']
-            }
+        // 3. 初始化 Google Auth 並取得存取權杖
+        // Explicitly pass projectId to avoid "Could not load default credentials"
+        const auth = new GoogleAuth({
+            projectId: projectId,
+            credentials: {
+                client_email: clientEmail,
+                private_key: normalizePrivateKey(privateKeyRaw)
+            },
+            scopes: ['https://www.googleapis.com/auth/cloud-platform']
         });
 
-        const token = await vertex.googleAuth.getAccessToken();
-        if (!token) {
+        const client = await auth.getClient();
+        const token = await client.getAccessToken();
+        if (!token || !token.token) {
             throw new Error('Failed to obtain access token for embeddings');
         }
 
         // 4. 呼叫 Vertex Embedding REST API
-        // 如果前端沒傳 model，預設使用 text-embedding-004 (目前 Vertex 最推薦的)
         const modelId = model || 'text-embedding-004';
         const endpoint = `https://${location}-aiplatform.googleapis.com/v1/projects/${projectId}/locations/${location}/publishers/google/models/${modelId}:predict`;
 
@@ -98,7 +95,7 @@ export default async function handler(req, res) {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                Authorization: `Bearer ${token}`
+                Authorization: `Bearer ${token.token}`
             },
             body: JSON.stringify(payload)
         });

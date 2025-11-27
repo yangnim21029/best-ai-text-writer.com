@@ -39,18 +39,18 @@ const main = async () => {
   // Write a temp key file to make sure GoogleAuth picks it up reliably
   writeTempSa(saCreds);
 
-  const vertex_ai = new VertexAI({
-    project,
-    location,
-    googleAuthOptions: {
-      projectId: project,
-      credentials: saCreds,
-      scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-    },
-  });
-  gemini - 2.5 - flash
-  // Try a small set of models to avoid 404 on deprecated names
-  const primaryModel =
+      const vertex_ai = new VertexAI({
+        project,
+        location,
+        googleAuthOptions: {
+          projectId: project,
+          credentials: saCreds,
+          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
+        },
+      });
+  
+      // Try a small set of models to avoid 404 on deprecated names
+      const primaryModel =
     process.env.AI_CHECK_MODEL ||
     process.env.MODEL_FLASH ||
     process.env.VITE_MODEL ||
