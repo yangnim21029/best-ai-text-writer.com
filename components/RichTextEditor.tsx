@@ -160,6 +160,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             case 'formatBlock':
                 if (value === '<h2>') return tiptapApi.toggleHeading(2);
                 if (value === '<h3>') return tiptapApi.toggleHeading(3);
+                if (value === '<blockquote>') return tiptapApi.toggleBlockquote();
                 return tiptapApi.toggleHeading(1);
             case 'undo': return tiptapApi.undo();
             case 'redo': return tiptapApi.redo();

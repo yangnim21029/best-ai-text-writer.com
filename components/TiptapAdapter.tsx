@@ -174,6 +174,9 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 redo: () => editor.chain().focus().redo().run(),
                 clearBold: () => {
                     stripMarkdownEmphasis();
+                    if (editor.isActive('blockquote')) {
+                        editor.chain().focus().toggleBlockquote().run();
+                    }
                     return editor.chain().focus().unsetMark('bold').run();
                 },
                 focus: () => editor.chain().focus().run(),

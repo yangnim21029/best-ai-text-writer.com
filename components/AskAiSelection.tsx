@@ -358,6 +358,7 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                 <button
                     className="w-full mb-2 px-3 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-60"
                     disabled={!customPrompt.trim() || isLoading}
+                    onMouseDown={e => e.preventDefault()}
                     onClick={() => {
                         runAction({ mode: 'edit', preset: undefined, prompt: customPrompt, selectedText: selectionText });
                         setShowEditMenu(false);
@@ -518,6 +519,7 @@ const ToolbarIcon: React.FC<{
             className={`w-10 h-10 inline-flex items-center justify-center rounded-full border transition-colors ${
                 active ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-blue-300 text-gray-600'
             }`}
+            onMouseDown={e => e.preventDefault()}
             onClick={onClick}
             title={label}
         >
@@ -555,6 +557,7 @@ const MenuItem: React.FC<{
                     ? 'text-gray-300 cursor-not-allowed'
                     : 'text-gray-800 hover:bg-gray-50 active:bg-gray-100'
             }`}
+            onMouseDown={e => e.preventDefault()}
             onClick={onClick}
         >
             {icon || <PenLine className="w-4 h-4" />}

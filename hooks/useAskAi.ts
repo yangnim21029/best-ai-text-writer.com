@@ -116,7 +116,7 @@ export const useAskAi = ({
             throw new Error('No selection');
         }
         if (selectionRange) {
-            tiptapApi.highlightRange?.(selectionRange);
+            // tiptapApi.highlightRange?.(selectionRange);
         }
         const promptToSend = buildAskAiPrompt(input, selectedText);
 
