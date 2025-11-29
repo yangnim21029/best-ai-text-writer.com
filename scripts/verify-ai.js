@@ -1,99 +1,59 @@
 import assert from 'node:assert/strict';
-import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
-import { VertexAI } from '@google-cloud/vertexai';
 
-const normalizePrivateKey = (key) =>
-  key?.replace(/\\n/g, '\n').replace(/\\r/g, '\r').replace(/^"|"$/g, '');
+const trimSlash = (value = '') => value.replace(/\/+$/, '');
 
-const writeTempSa = (creds) => {
-  const filePath = path.join(os.tmpdir(), 'vertex-sa.json');
-  fs.writeFileSync(filePath, JSON.stringify(creds, null, 2), 'utf8');
-  process.env.GOOGLE_APPLICATION_CREDENTIALS = filePath;
-  return filePath;
-};
+const logSkip = (reason) => console.warn(`AI check skipped: ${reason}`);
 
-// Simple health check to ensure Vertex Gemini text generation works during build/deploy.
-// Fails the build if the model cannot be reached.
 const main = async () => {
   if (process.env.SKIP_AI_CHECK === '1') {
-    console.warn('Skipping AI check because SKIP_AI_CHECK=1.');
-    return;
+    return logSkip('SKIP_AI_CHECK=1');
   }
 
-  const project = process.env.GOOGLE_PROJECT_ID;
-  const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1';
-  const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
-  const privateKey = normalizePrivateKey(process.env.GOOGLE_PRIVATE_KEY);
+  const base = trimSlash(process.env.AI_BASE_URL || process.env.VITE_AI_BASE_URL || '');
+  const healthPath = process.env.AI_HEALTH_PATH || '/health';
+  const generatePath = process.env.AI_GENERATE_PATH || '/ai/generate';
+  const model = process.env.AI_CHECK_MODEL || 'gemini-2.5-flash';
+  const prompt = process.env.AI_CHECK_PROMPT || 'healthcheck';
 
-  assert(project && clientEmail && privateKey, 'Missing Vertex credentials (GOOGLE_PROJECT_ID, GOOGLE_CLIENT_EMAIL, GOOGLE_PRIVATE_KEY).');
+  if (!base) {
+    return logSkip('AI_BASE_URL not provided');
+  }
 
-  const saCreds = {
-    type: 'service_account',
-    project_id: project,
-    client_email: clientEmail,
-    private_key: privateKey,
-  };
-
-  // Write a temp key file to make sure GoogleAuth picks it up reliably
-  writeTempSa(saCreds);
-
-      const vertex_ai = new VertexAI({
-        project,
-        location,
-        googleAuthOptions: {
-          projectId: project,
-          credentials: saCreds,
-          scopes: ['https://www.googleapis.com/auth/cloud-platform'],
-        },
-      });
-  
-      // Try a small set of models to avoid 404 on deprecated names
-      const primaryModel =
-    process.env.AI_CHECK_MODEL ||
-    process.env.MODEL_FLASH ||
-    process.env.VITE_MODEL ||
-    process.env.NEXT_PUBLIC_MODEL ||
-    process.env.MODEL ||
-    process.env.REACT_APP_MODEL;
-
-  const candidates = [
-    primaryModel,
-    'gemini-2.5-flash', // default current model
-  ].filter(Boolean);
-
-  let lastErr = null;
-  for (const modelName of candidates) {
-    try {
-      const model = vertex_ai.getGenerativeModel({ model: modelName });
-      const res = await model.generateContent({
-        contents: [{ role: 'user', parts: [{ text: 'healthcheck' }] }],
-      });
-
-      const text = res?.response?.candidates?.[0]?.content?.parts?.map((p) => p.text).join('');
-      assert(text && text.length > 0, 'No response text from Vertex Gemini.');
-      console.log(`AI check OK (model=${modelName}), sample="${text.slice(0, 60)}${text.length > 60 ? '...' : ''}"`);
+  const healthUrl = `${base}${healthPath}`;
+  try {
+    const healthRes = await fetch(healthUrl);
+    if (healthRes.ok) {
+      console.log(`AI health OK: ${healthUrl} (${healthRes.status})`);
       return;
-    } catch (err) {
-      lastErr = err;
-      if (String(err?.message || err).includes('404')) {
-        console.warn(`Model ${modelName} unavailable (404), trying next...`);
-        continue;
-      }
-      throw err;
     }
+    console.warn(`Health check ${healthUrl} returned ${healthRes.status}, falling back to generate...`);
+  } catch (err) {
+    console.warn(`Health check failed (${healthUrl}), falling back to generate:`, err?.message || err);
   }
 
-  throw lastErr || new Error('AI check failed: no model succeeded');
+  const generateUrl = `${base}${generatePath}`;
+  const res = await fetch(generateUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt, model })
+  });
+
+  const contentType = res.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  if (!res.ok) {
+    const detail = isJson ? await res.json() : await res.text();
+    const message = typeof detail === 'string' ? detail : (detail?.error || JSON.stringify(detail));
+    throw new Error(`AI generate check failed (${res.status}): ${message}`);
+  }
+
+  const data = isJson ? await res.json() : { text: await res.text() };
+  const text = data?.text || (typeof data === 'string' ? data : '');
+  assert(text !== undefined, 'AI backend responded without text');
+  console.log(`AI generate OK (${generateUrl}): "${String(text).slice(0, 60)}${String(text).length > 60 ? '...' : ''}"`);
 };
 
 main().catch((err) => {
-  const message = err?.message || err;
-  if (process.env.SKIP_AI_CHECK === '1' || String(message).includes('Unable to authenticate your request')) {
-    console.warn(`AI check skipped due to auth issue: ${message}`);
-    return;
-  }
-  console.error('AI check failed:', message);
+  console.error('AI check failed:', err?.message || err);
   process.exit(1);
 });

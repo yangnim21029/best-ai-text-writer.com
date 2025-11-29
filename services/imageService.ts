@@ -5,6 +5,7 @@ import { generateContent } from './ai';
 import { Type } from './schemaTypes';
 import { promptRegistry } from './promptRegistry';
 import { MODEL } from '../config/constants';
+import { buildAiUrl } from './genAIClient';
 
 const VISUAL_STYLE_GUIDE = `
     **STRICT VISUAL CATEGORIES (Select ONE):**
@@ -20,6 +21,52 @@ const VISUAL_STYLE_GUIDE = `
     - **NO ABSTRACT ART:** No glowing brains, floating digital nodes, surreal metaphors, or "conceptual" 3D renders.
     - **NO TEXT:** Do not try to render specific sentences inside the image (AI cannot spell).
 `;
+
+const ensureDataUrl = (value: string, mimeType = 'image/png'): string | null => {
+    if (!value) return null;
+    if (value.startsWith('data:') || value.startsWith('http')) return value;
+    return `data:${mimeType};base64,${value}`;
+};
+
+const extractFromCandidates = (candidates: any[] | undefined): string | null => {
+    if (!Array.isArray(candidates)) return null;
+    for (const candidate of candidates) {
+        const parts = candidate?.content?.parts;
+        if (Array.isArray(parts)) {
+            for (const part of parts) {
+                if (part?.inlineData?.data) {
+                    return ensureDataUrl(part.inlineData.data, part.inlineData.mimeType);
+                }
+                if (typeof part?.text === 'string' && part.text.trim().startsWith('data:image')) {
+                    return part.text.trim();
+                }
+            }
+        }
+    }
+    return null;
+};
+
+const extractImagePayload = (payload: any): string | null => {
+    if (!payload) return null;
+    if (typeof payload === 'string') return ensureDataUrl(payload);
+    if (payload.image) return ensureDataUrl(payload.image, payload.mimeType);
+
+    const candidateImage = extractFromCandidates(payload.candidates || payload.response?.candidates);
+    if (candidateImage) return candidateImage;
+
+    const list = payload.images || payload.data;
+    if (Array.isArray(list) && list.length > 0) {
+        const first = list[0];
+        if (typeof first === 'string') return ensureDataUrl(first);
+        if (first?.b64_json || first?.base64 || first?.data) {
+            return ensureDataUrl(first.b64_json || first.base64 || first.data, first?.mimeType || payload?.mimeType);
+        }
+        if (first?.url) return first.url;
+    }
+
+    if (payload.result?.image) return ensureDataUrl(payload.result.image);
+    return null;
+};
 
 // NEW: Analyze and Define Global Visual Identity
 export const analyzeVisualStyle = async (
@@ -86,57 +133,30 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
     const startTs = Date.now();
 
     try {
-        // Updated to use Gemini 3 Pro Image Preview (Nano Banana Pro) for higher quality
-        const response = await generateContent(
-            MODEL.IMAGE_PREVIEW,
-            { parts: [{ text: prompt }] },
-            {
-                imageConfig: {
-                    aspectRatio: "16:9",
-                    imageSize: "1K"
-                }
-            }
-        );
+        const response = await fetch(buildAiUrl('/image'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                prompt,
+                model: MODEL.IMAGE_PREVIEW,
+                n: 1,
+                size: '1024x1024',
+                aspectRatio: '16:9'
+            })
+        });
 
-        let imageData = null;
-        // The proxy returns { text, usageMetadata } but for images, the text might be empty or data might be elsewhere?
-        // Wait, my proxy extracts `response.text()`.
-        // For Image Generation, the `text()` method usually returns nothing or metadata.
-        // I need to check how `generateContent` returns images in the new SDK.
-        // In the new SDK, images are in `candidates[0].content.parts[].inlineData`.
-        // My proxy `api/generate.js` only returns `text`.
-        // I need to update the proxy to return the full response or handle images.
+        const contentType = response.headers.get('content-type') || '';
+        const isJson = contentType.includes('application/json');
 
-        // Let's assume for now that I need to fix the proxy to return `candidates` if `text` is empty.
-        // But I can't fix the proxy in this file.
-        // I will assume the proxy returns `text` which might contain the base64 if I adjust the proxy?
-        // No, `response.text()` only returns text parts.
-
-        // FIX: I need to update `api/generate.js` to return `candidates` or handle images.
-        // Since I already wrote `api/generate.js`, I should update it to return more data.
-        // But for this file, I will write the code assuming `generateContent` returns the raw response structure if I modify `ai.ts`.
-        // Actually, `ai.ts` returns `{ text, usageMetadata }`.
-        // I should update `ai.ts` and `api/generate.js` to return the full `candidates` array.
-
-        // For now, I will comment out the image extraction logic and assume `response.text` contains the base64 string if I change the proxy to return it.
-        // But standard `text()` doesn't return image data.
-
-        // TEMPORARY FIX: Return null for image generation until proxy is updated.
-        // Or better, I will update `api/generate.js` in the next step to return `candidates`.
-
-        // Let's write the code assuming `response.candidates` will be available in the returned object from `generateContent`.
-        // I will update `ai.ts` to return `candidates`.
-
-        const candidates = (response as any).candidates;
-        if (candidates && candidates[0]?.content?.parts) {
-            for (const part of candidates[0].content.parts) {
-                if (part.inlineData && part.inlineData.data) {
-                    imageData = `data:${part.inlineData.mimeType || 'image/png'};base64,${part.inlineData.data}`;
-                }
-            }
+        if (!response.ok) {
+            const detail = isJson ? await response.json() : await response.text();
+            const message = typeof detail === 'string' ? detail : (detail?.error || JSON.stringify(detail));
+            throw new Error(`Image generation failed (${response.status}): ${message}`);
         }
 
-        const metrics = calculateCost(response.usageMetadata, 'IMAGE_GEN');
+        const payload = isJson ? await response.json() : { image: await response.text() };
+        const imageData = extractImagePayload(payload);
+        const metrics = calculateCost(payload.usageMetadata || payload.usage, 'IMAGE_GEN');
 
         return {
             data: imageData,

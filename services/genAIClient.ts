@@ -1,4 +1,5 @@
 import { AIResponse } from './ai';
+import { AI_DEFAULTS } from '../config/constants';
 
 interface GenAIRequest {
     model: string;
@@ -14,14 +15,73 @@ interface RetryOptions {
     delayMs?: number;
 }
 
-import { AI_DEFAULTS } from '../config/constants';
-
 const DEFAULT_RETRY: Required<RetryOptions> = {
     attempts: AI_DEFAULTS.RETRY_ATTEMPTS,
     delayMs: AI_DEFAULTS.RETRY_DELAY_MS,
 };
 
 const DEFAULT_TIMEOUT = AI_DEFAULTS.TIMEOUT_MS;
+
+const AI_BASE_URL = (import.meta.env.VITE_AI_BASE_URL || '').replace(/\/$/, '');
+const AI_PATH = (import.meta.env.VITE_AI_PATH || '/ai').replace(/\/$/, '');
+
+export const buildAiUrl = (path: string) => {
+    const prefix = AI_PATH
+        ? (AI_PATH.startsWith('/') ? AI_PATH : `/${AI_PATH}`)
+        : '';
+    return `${AI_BASE_URL}${prefix}${path}`;
+};
+
+const extractTextFromCandidates = (candidates: any[] | undefined): string => {
+    if (!Array.isArray(candidates)) return '';
+    for (const candidate of candidates) {
+        const parts = candidate?.content?.parts;
+        if (Array.isArray(parts)) {
+            const text = parts.map((p: any) => p?.text || '').filter(Boolean).join('');
+            if (text) return text;
+        }
+    }
+    return '';
+};
+
+const buildPrompt = (contents: any): string => {
+    if (!contents) return '';
+    if (typeof contents === 'string') return contents;
+    if (Array.isArray(contents)) {
+        const parts: string[] = [];
+        for (const item of contents) {
+            if (typeof item === 'string') {
+                parts.push(item);
+            } else if (item?.parts?.length) {
+                const joined = item.parts.map((p: any) => p?.text || '').filter(Boolean).join('');
+                if (joined) parts.push(joined);
+            } else if (item?.text) {
+                parts.push(item.text);
+            }
+        }
+        return parts.join('\n\n');
+    }
+    if (contents?.parts?.length) {
+        return contents.parts.map((p: any) => p?.text || '').filter(Boolean).join('');
+    }
+    if (contents?.text) return contents.text;
+    try {
+        return JSON.stringify(contents);
+    } catch {
+        return '';
+    }
+};
+
+const normalizeResponse = (data: any): AIResponse => {
+    const candidates = data?.candidates || data?.response?.candidates;
+    const text =
+        data?.text ||
+        data?.response?.text ||
+        extractTextFromCandidates(candidates) ||
+        (typeof data === 'string' ? data : '');
+    const usageMetadata = data?.usageMetadata || data?.usage || data?.response?.usageMetadata;
+    return { text, usageMetadata, candidates };
+};
 
 export class GenAIClient {
     async request(
@@ -34,14 +94,25 @@ export class GenAIClient {
             ? new AbortSignalAny([signal, controller.signal])
             : controller.signal;
 
+        const prompt = buildPrompt(contents);
+        const payload: Record<string, any> = { model };
+        if (prompt) payload.prompt = prompt;
+        if (config) payload.config = config;
+        if (contents && typeof contents !== 'string') {
+            payload.contents = contents;
+        }
+
         let lastError: unknown = null;
         for (let attempt = 0; attempt < attempts; attempt++) {
-            const timer = setTimeout(() => controller.abort('GenAI request timed out'), timeoutMs || DEFAULT_TIMEOUT);
+            const timer = setTimeout(
+                () => controller.abort('GenAI request timed out'),
+                timeoutMs || DEFAULT_TIMEOUT
+            );
             try {
-                const response = await fetch('/api/generate', {
+                const response = await fetch(buildAiUrl('/generate'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model, contents, config }),
+                    body: JSON.stringify(payload),
                     signal: combinedSignal,
                 });
 
@@ -50,13 +121,15 @@ export class GenAIClient {
 
                 if (!response.ok) {
                     const errorData = isJson ? await response.json() : await response.text();
-                    const detail = typeof errorData === 'string' ? errorData : (errorData.error || JSON.stringify(errorData));
+                    const detail = typeof errorData === 'string'
+                        ? errorData
+                        : (errorData.error || JSON.stringify(errorData));
                     throw new Error(`Failed to generate content (HTTP ${response.status}): ${detail}`);
                 }
 
                 const data = isJson ? await response.json() : { text: await response.text() };
                 clearTimeout(timer);
-                return data;
+                return normalizeResponse(data);
             } catch (err: any) {
                 lastError = err;
                 clearTimeout(timer);
