@@ -134,6 +134,67 @@ export const generateSectionHeading = async (
     };
 };
 
+export const refineSectionHeadings = async (
+    articleTitle: string,
+    headings: string[],
+    targetAudience: TargetAudience
+): Promise<ServiceResponse<{ before: string; after: string }[]>> => {
+    const startTs = Date.now();
+    const languageInstruction = getLanguageInstruction(targetAudience);
+    const prompt = promptRegistry.build('batchRefineHeadings', {
+        articleTitle,
+        headings,
+        languageInstruction,
+    });
+
+    const response = await generateContent(
+        MODEL.FLASH,
+        prompt,
+        {
+            responseMimeType: 'application/json',
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    headings: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                before: { type: Type.STRING },
+                                after: { type: Type.STRING },
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    );
+
+    let parsed: any = response.object;
+    if (!parsed && response.text) {
+        try {
+            parsed = JSON.parse(response.text);
+        } catch {
+            parsed = null;
+        }
+    }
+
+    const list = Array.isArray(parsed?.headings) ? parsed.headings : [];
+    const normalized = headings.map((before, idx) => {
+        const match = list.find((h: any) => (h?.before || '').trim() === before.trim()) || list[idx];
+        const after = typeof match?.after === 'string' ? match.after : before;
+        return { before, after };
+    });
+
+    const metrics = calculateCost(response.usageMetadata, 'FLASH');
+
+    return {
+        data: normalized,
+        ...metrics,
+        duration: Date.now() - startTs
+    };
+};
+
 
 // 3. Generate Single Section
 export const generateSectionContent = async (

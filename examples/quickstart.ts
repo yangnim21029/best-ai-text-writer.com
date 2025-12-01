@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-type Mode = 'generate' | 'schema' | 'image';
+type Mode = 'generate' | 'schema' | 'stream' | 'image';
 
 const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
 const normalizePath = (value = 'ai') => `/${value.replace(/^\/+/, '').replace(/\/+$/, '')}`;
@@ -19,7 +19,9 @@ if (!baseUrl) {
 const endpoint =
   mode === 'image'
     ? `${baseUrl}${aiPath}/image`
-    : `${baseUrl}${aiPath}/generate`;
+    : mode === 'stream'
+      ? `${baseUrl}${aiPath}/stream`
+      : `${baseUrl}${aiPath}/generate`;
 
 const bodyByMode: Record<Mode, Record<string, unknown>> = {
   generate: {
@@ -39,6 +41,10 @@ const bodyByMode: Record<Mode, Record<string, unknown>> = {
       required: ['title', 'description', 'keywords'],
     },
   },
+  stream: {
+    prompt: 'Stream this response please',
+    model: 'gemini-2.5-flash',
+  },
   image: {
     prompt: 'A scenic mountain lake at sunrise',
     model: 'google/gemini-2.5-flash-image',
@@ -52,11 +58,21 @@ if (token) headers.Authorization = `Bearer ${token}`;
 const main = async () => {
   console.log(`→ POST ${endpoint} (mode=${mode})`);
 
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(bodyByMode[mode]),
-  });
+  const doRequest = async (url: string) =>
+    fetch(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(bodyByMode[mode]),
+    });
+
+  let res = await doRequest(endpoint);
+
+  // Fallback: if /stream is missing, retry /generate automatically
+  if (mode === 'stream' && res.status === 404) {
+    const fallback = `${baseUrl}${aiPath}/generate`;
+    console.log(`↻ /stream returned 404, retrying ${fallback}`);
+    res = await doRequest(fallback);
+  }
 
   const contentType = res.headers.get('content-type') || '';
   const isJson = contentType.includes('application/json');

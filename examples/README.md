@@ -19,6 +19,9 @@ npx tsx examples/quickstart.ts
 # JSON (schema) generation
 npx tsx examples/quickstart.ts schema
 
+# Stream (tries /stream, falls back to /generate on 404)
+npx tsx examples/quickstart.ts stream
+
 # Image generation
 npx tsx examples/quickstart.ts image
 ```

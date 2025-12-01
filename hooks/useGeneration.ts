@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { ArticleConfig } from '../types';
-import { generateSectionContent, generateSectionHeading } from '../services/contentGenerationService';
+import { generateSectionContent, refineSectionHeadings } from '../services/contentGenerationService';
 import { analyzeText } from '../services/nlpService';
 import { extractKeywordActionPlans } from '../services/keywordAnalysisService';
 import { analyzeReferenceStructure } from '../services/referenceAnalysisService';
@@ -20,6 +20,21 @@ const turboHeaderBanner = `
         <span class="font-bold text-slate-700">📑 Active Blueprint:</span> <span class="text-blue-600">Turbo Mode</span>
     </div>
 `;
+
+const cleanHeadingText = (value: string | undefined): string => {
+    return (value || '')
+        .replace(/^#+\s*/, '')
+        .replace(/["“”]/g, '')
+        .trim();
+};
+
+const stripLeadingHeading = (content: string): string => {
+    if (!content) return '';
+    // Remove a leading H1/H2/H3 tag or markdown heading to avoid duplicates after we inject headings ourselves.
+    const withoutHtmlHeading = content.replace(/^\s*<h[1-6][^>]*>.*?<\/h[1-6]>\s*/i, '');
+    const withoutMdHeading = withoutHtmlHeading.replace(/^\s*#{1,6}\s.*(\r?\n|$)/, '');
+    return withoutMdHeading.trim();
+};
 
 const runGeneration = async (config: ArticleConfig) => {
     const generationStore = useGenerationStore.getState();
@@ -201,8 +216,7 @@ const runGeneration = async (config: ArticleConfig) => {
         generationStore.setGenerationStep('writing_content');
 
         const sectionBodies: string[] = new Array(sectionsToGenerate.length).fill("");
-        const sectionHeadings: string[] = new Array(sectionsToGenerate.length).fill("");
-        const sectionResults: string[] = new Array(sectionsToGenerate.length).fill("");
+        const sectionHeadings: string[] = sectionsToGenerate.map((s) => cleanHeadingText(s.title));
         const allKeyPoints = refAnalysisData?.keyInformationPoints || [];
         let currentCoveredPoints: string[] = [];
         let totalInjectedCount = 0;
@@ -214,12 +228,47 @@ const runGeneration = async (config: ArticleConfig) => {
             authorityAnalysis: authAnalysisData,
         };
 
-        const combineSections = () => sectionBodies.map((body, idx) => {
-            const heading = sectionHeadings[idx];
-            if (heading && body) return `<div><h3>${heading}</h3>\n${body}</div>`;
-            if (heading) return `<div><h3>${heading}</h3></div>`;
-            return body;
-        });
+        const getHeading = (idx: number) => cleanHeadingText(sectionHeadings[idx] || sectionsToGenerate[idx]?.title || `Section ${idx + 1}`);
+
+        const renderSectionBlock = (idx: number, bodyOverride?: string) => {
+            const heading = getHeading(idx);
+            const body = typeof bodyOverride === 'string' ? bodyOverride : sectionBodies[idx];
+            if (body) return `<section><h2>${heading}</h2>\n${body}</section>`;
+            return `<section><h2>${heading}</h2></section>`;
+        };
+
+        const renderTurboSections = () => mergeTurboSections(
+            sectionsToGenerate,
+            sectionBodies.map((body, idx) => body ? renderSectionBlock(idx, body) : "")
+        );
+
+        const renderProgressSections = () => sectionBodies
+            .map((_, idx) => renderSectionBlock(idx))
+            .join('\n\n');
+
+        const refineAllHeadings = async () => {
+            if (isStopped()) return;
+            const headingsInput = sectionHeadings.map((h, idx) => cleanHeadingText(h || sectionsToGenerate[idx]?.title));
+            if (headingsInput.length === 0) return;
+            try {
+                const refineRes = await refineSectionHeadings(
+                    fullConfig.title || "Article",
+                    headingsInput,
+                    fullConfig.targetAudience
+                );
+                const refinedList = headingsInput.map((before, idx) => {
+                    const match = refineRes.data?.find((h: any) => cleanHeadingText(h.before) === before) || refineRes.data?.[idx];
+                    return cleanHeadingText(match?.after || match?.before || before);
+                });
+                refinedList.forEach((heading, index) => {
+                    sectionHeadings[index] = heading;
+                });
+                metricsStore.addCost(refineRes.cost.totalCost, refineRes.usage.totalTokens);
+                generationStore.setContent(renderProgressSections());
+            } catch (err) {
+                console.warn('Heading refinement failed', err);
+            }
+        };
 
         // --- PARALLEL EXECUTION (TURBO MODE) ---
         if (config.turboMode) {
@@ -229,26 +278,6 @@ const runGeneration = async (config: ArticleConfig) => {
 
             const initialDisplay = buildTurboPlaceholder(sectionsToGenerate, outlineSourceLabel);
             generationStore.setContent(initialDisplay);
-
-            const headingPromises = sectionsToGenerate.map(async (section, i) => {
-                if (isStopped()) return;
-                try {
-                    const analysisPlan = refAnalysisData?.structure.find(s => s.title === section.title)?.narrativePlan;
-                    const headingRes = await generateSectionHeading(
-                        generatorConfig,
-                        section.title,
-                        analysisPlan,
-                        analysisStore.keywordPlans,
-                        allKeyPoints
-                    );
-                    sectionHeadings[i] = headingRes.data;
-                    metricsStore.addCost(headingRes.cost.totalCost, headingRes.usage.totalTokens);
-                    const combined = combineSections();
-                    generationStore.setContent(mergeTurboSections(sectionsToGenerate, combined));
-                } catch (err) {
-                    console.warn(`Heading generation failed for ${section.title}`, err);
-                }
-            });
 
             const promises = sectionsToGenerate.map(async (section, i) => {
                 if (isStopped()) return;
@@ -278,11 +307,10 @@ const runGeneration = async (config: ArticleConfig) => {
                     );
 
                     if (!isStopped()) {
-                        sectionBodies[i] = res.data.content;
+                        sectionBodies[i] = stripLeadingHeading(res.data.content);
                         console.log(`[Timer - Turbo] Section '${section.title}': ${res.duration}ms`);
 
-                        const combined = combineSections();
-                        generationStore.setContent(mergeTurboSections(sectionsToGenerate, combined));
+                        generationStore.setContent(renderTurboSections());
                         metricsStore.addCost(res.cost.totalCost, res.usage.totalTokens);
 
                         if (res.data.usedPoints && res.data.usedPoints.length > 0) {
@@ -295,15 +323,15 @@ const runGeneration = async (config: ArticleConfig) => {
                 } catch (err) {
                     console.error(`Parallel gen error for ${section.title}`, err);
                     sectionBodies[i] = ''; // Suppress error message in content
-                    const sectionDisplays = combineSections().map((c, idx) => c || `> ...Waiting: ${sectionsToGenerate[idx].title}`).join('\n\n');
-                    generationStore.setContent(turboHeaderBanner + sectionDisplays);
+                    generationStore.setContent(renderTurboSections());
                 }
             });
 
-            await Promise.all([...headingPromises, ...promises]);
+            await Promise.all(promises);
 
             if (!isStopped()) {
-                generationStore.setContent(combineSections().join('\n\n'));
+                generationStore.setContent(renderProgressSections());
+                await refineAllHeadings();
             }
 
         } else {
@@ -338,8 +366,8 @@ const runGeneration = async (config: ArticleConfig) => {
                     metricsStore.addCost(res.cost.totalCost, res.usage.totalTokens);
 
                     if (!isStopped()) {
-                        sectionResults[i] = res.data.content;
-                        generationStore.setContent(sectionResults.filter(s => s).join('\n\n'));
+                        sectionBodies[i] = stripLeadingHeading(res.data.content);
+                        generationStore.setContent(renderProgressSections());
 
                         if (res.data.usedPoints && res.data.usedPoints.length > 0) {
                             currentCoveredPoints = [...currentCoveredPoints, ...res.data.usedPoints];
@@ -351,9 +379,13 @@ const runGeneration = async (config: ArticleConfig) => {
                     }
                 } catch (err) {
                     console.error(`Failed to generate section: ${section.title}`, err);
-                    sectionResults[i] = ''; // Suppress error message in content
-                    generationStore.setContent(sectionResults.filter(s => s).join('\n\n'));
+                    sectionBodies[i] = ''; // Suppress error message in content
+                    generationStore.setContent(renderProgressSections());
                 }
+            }
+
+            if (!isStopped()) {
+                await refineAllHeadings();
             }
         }
 

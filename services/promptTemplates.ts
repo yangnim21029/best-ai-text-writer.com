@@ -201,6 +201,35 @@ export const promptTemplates = {
     - Keep it under 10 words.
     `,
 
+    batchRefineHeadings: ({
+        articleTitle,
+        headings,
+        languageInstruction,
+    }: {
+        articleTitle: string;
+        headings: string[];
+        languageInstruction: string;
+    }) => `
+    You are cleaning and unifying article section headings.
+
+    ARTICLE TITLE: "${articleTitle}"
+
+    ORIGINAL HEADINGS (ordered):
+    ${headings.map((h, i) => `${i + 1}. ${h}`).join('\n')}
+
+    ${languageInstruction}
+
+    RULES:
+    - Keep the meaning but remove numbering, quotes, and redundant words.
+    - Make headings unique (no duplicates) and concise (<= 12 words).
+    - Style them as clean H2/H3 titles (no markdown/hash prefixes).
+    - Preserve the order of the input list.
+
+    OUTPUT (JSON only):
+    { "headings": [ { "before": "...", "after": "..." } ] }
+    - If a heading is already good, repeat it in "after".
+    `,
+
     metaSeo: ({ targetAudience, contextLines, articlePreview }: { targetAudience: string; contextLines: string[]; articlePreview: string; }) => `
     You are an SEO expert. Generate meta Title, Description, and URL slug for the article.
 
