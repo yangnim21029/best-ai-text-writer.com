@@ -74,12 +74,24 @@ const buildPrompt = (contents: any): string => {
 
 const normalizeResponse = (data: any): AIResponse => {
     const candidates = data?.candidates || data?.response?.candidates;
+    const usageMetadata = data?.usageMetadata || data?.usage || data?.response?.usageMetadata;
+
+    // Check if this is a schema-based response (backend returns 'object' field)
+    if (data?.object !== undefined) {
+        return {
+            text: JSON.stringify(data.object),
+            object: data.object,
+            usageMetadata,
+            candidates
+        };
+    }
+
+    // Original text-based response
     const text =
         data?.text ||
         data?.response?.text ||
         extractTextFromCandidates(candidates) ||
         (typeof data === 'string' ? data : '');
-    const usageMetadata = data?.usageMetadata || data?.usage || data?.response?.usageMetadata;
     return { text, usageMetadata, candidates };
 };
 
@@ -97,7 +109,15 @@ export class GenAIClient {
         const prompt = buildPrompt(contents);
         const payload: Record<string, any> = { model };
         if (prompt) payload.prompt = prompt;
-        if (config) payload.config = config;
+
+        // Extract schema from config if present
+        if (config) {
+            const { responseSchema, responseMimeType, ...restConfig } = config;
+            if (responseSchema) payload.schema = responseSchema;
+            if (responseMimeType) payload.responseMimeType = responseMimeType;
+            if (Object.keys(restConfig).length > 0) payload.config = restConfig;
+        }
+
         if (contents && typeof contents !== 'string') {
             payload.contents = contents;
         }

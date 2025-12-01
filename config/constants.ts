@@ -8,6 +8,10 @@ export const PRICING = {
         input: 0.30 / 1000000,
         output: 0.30 / 1000000,
     },
+    IMAGE_PREVIEW: {
+        input: 0.30 / 1000000,
+        output: 30.00 / 1000000,
+    },
     IMAGE_GEN: {
         input: 0.30 / 1000000,
         output: 30.00 / 1000000,

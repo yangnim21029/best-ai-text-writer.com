@@ -19,12 +19,17 @@ export const runLlm = async ({ prompt, model, responseMimeType, config }: RunLlm
         responseMimeType || config ? { responseMimeType, ...config } : undefined
     );
     const metrics = calculateCost(response.usageMetadata, model);
-    return { text: response.text || '', ...metrics, duration: Date.now() - start };
+    return { text: response.text || '', object: response.object, ...metrics, duration: Date.now() - start };
 };
 
 export const runJsonLlm = async <T>({ prompt, model }: RunLlmParams): Promise<{ data: T; usage: any; cost: any; duration: number }> => {
     const res = await runLlm({ prompt, model });
     try {
+        // If backend returned a schema-based response, it's already parsed
+        if (res.object !== undefined) {
+            return { data: res.object as T, usage: res.usage, cost: res.cost, duration: res.duration };
+        }
+        // Fallback to manual parsing for non-schema responses
         const data = JSON.parse(res.text) as T;
         return { data, usage: res.usage, cost: res.cost, duration: res.duration };
     } catch (err) {

@@ -217,19 +217,12 @@ export const generateSectionContent = async (
         }
     );
 
-    let data;
-    try {
-        let cleanText = response.text || "{}";
-        cleanText = cleanText.replace(/^```json\s*/, "").replace(/\s*```$/, "");
-        data = JSON.parse(cleanText);
-    } catch (e) {
-        console.warn("JSON Parse Failed for section content, falling back to raw text", e);
-        data = {
-            content: response.text || "",
-            usedPoints: [],
-            injectedCount: 0
-        };
-    }
+    // Backend returns validated object when schema is used
+    const data = response.object || {
+        content: response.text || "",
+        usedPoints: [],
+        injectedCount: 0
+    };
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
 

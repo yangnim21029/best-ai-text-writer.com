@@ -327,6 +327,29 @@ export const promptTemplates = {
       { "word": "keyword", "contextSnippet": "snippet from text", "frequency": 3 }
     ]
     `,
+
+    imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string }) => `
+    Generate a detailed image generation prompt based on the following context.
+    
+    ${languageInstruction}
+    
+    CONTEXT TEXT:
+    ${contextText}
+    
+    VISUAL STYLE GUIDE:
+    ${visualStyle}
+    
+    ${guide}
+    
+    TASK:
+    Create a detailed, specific image generation prompt that:
+    1. Captures the essence of the context text
+    2. Adheres to the visual style guide
+    3. Is optimized for AI image generation
+    4. Avoids abstract concepts and focuses on concrete, photographable subjects
+    
+    Return ONLY the image prompt (no explanations or metadata).
+    `,
 };
 
 export type PromptTemplateKey = keyof typeof promptTemplates;

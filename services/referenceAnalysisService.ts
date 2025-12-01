@@ -3,19 +3,7 @@ import { calculateCost, getLanguageInstruction } from './promptService';
 import { Type } from './schemaTypes';
 import { runLlm } from './llmOrchestrator';
 
-const stripJsonFences = (text?: string) => {
-    if (!text) return '';
-    const cleaned = text.trim()
-        .replace(/^```(?:json)?/i, '')
-        .replace(/```$/, '')
-        .trim();
-    const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start !== -1 && end !== -1 && end > start) {
-        return cleaned.slice(start, end + 1);
-    }
-    return cleaned;
-};
+
 
 export const extractWebsiteTypeAndTerm = async (content: string) => {
     // Lightweight helper for URL scraping flow to infer websiteType & authorityTerms.
@@ -41,23 +29,15 @@ export const extractWebsiteTypeAndTerm = async (content: string) => {
             }
         }
     });
-    try {
-        const data = JSON.parse(stripJsonFences(res.text) || '{}');
-        return {
-            data: { websiteType: data.websiteType || '', authorityTerms: data.authorityTerms || '' },
-            usage: res.usage,
-            cost: res.cost,
-            duration: res.duration,
-        };
-    } catch (e) {
-        console.warn('Failed to parse websiteType/authorityTerms', e, res.text);
-        return {
-            data: { websiteType: '', authorityTerms: '' },
-            usage: res.usage,
-            cost: res.cost,
-            duration: res.duration,
-        };
-    }
+
+    // Backend returns validated object when schema is used
+    const data = res.object || (res.text ? JSON.parse(res.text) : {});
+    return {
+        data: { websiteType: data.websiteType || '', authorityTerms: data.authorityTerms || '' },
+        usage: res.usage,
+        cost: res.cost,
+        duration: res.duration,
+    };
 };
 
 // Extract Structure and General Strategy (Includes Replacement Rules)
@@ -119,7 +99,8 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
             }
         });
 
-        const data = JSON.parse(response.text || "{}");
+        // Backend returns validated object when schema is used
+        const data = response.object || (response.text ? JSON.parse(response.text) : {});
         const metrics = calculateCost(response.usage, 'FLASH');
 
         const combinedRules = [

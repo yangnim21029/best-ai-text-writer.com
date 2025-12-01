@@ -2,6 +2,7 @@
 // Define the response type
 export interface AIResponse {
     text: string;
+    object?: any;
     usageMetadata?: any;
     candidates?: any[];
 }
