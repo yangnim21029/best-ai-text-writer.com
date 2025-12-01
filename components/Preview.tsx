@@ -150,7 +150,7 @@ export const Preview: React.FC<PreviewProps> = ({
         case 'nlp_analysis': return 'Running NLP Tokenization...';
         case 'extracting_structure': return 'Extracting Deep Structure & Authority...';
         case 'analyzing_visuals': return 'Extracting Visual Identity (Color/Style)...';
-        case 'planning_keywords': return 'Planning Keyword Strategy...';
+        case 'planning_keywords': return 'Planning Keyword Strategy (streaming)...';
         case 'mapping_product': return 'Mapping Pain Points to Features...';
         default: return 'Initializing AI Agents...';
     }
