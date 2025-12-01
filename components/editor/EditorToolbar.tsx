@@ -135,7 +135,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
             </div>
 
             <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
-                <ToolbarButton icon={ImageIcon} onClick={onOpenImageModal} label="Insert AI Image" onCommand={onCommand} />
+                <ToolbarButton icon={ImageIcon} onClick={onOpenImageModal} label="AI 圖像生成（維護中）" onCommand={onCommand} />
                 <ToolbarButton
                     icon={isDownloadingImages ? Loader2 : Download}
                     onClick={onDownloadAllImages}

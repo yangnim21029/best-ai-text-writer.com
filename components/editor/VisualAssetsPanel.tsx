@@ -50,9 +50,10 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                     onClick={handleAutoPlan}
                     disabled={isPlanning || (useTiptap && !isTiptapReady)}
                     className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
+                    title="AI 圖像規劃維護中"
                 >
                     {isPlanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                    Auto-Plan
+                    Auto-Plan（維護中）
                 </button>
             </div>
 
@@ -93,9 +94,10 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                                 onClick={onBatchProcess}
                                 disabled={isBatchProcessing}
                                 className="text-[10px] bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 flex items-center gap-1 disabled:opacity-50"
+                                title="AI 圖像規劃維護中"
                             >
                                 {isBatchProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <PlayCircle className="w-3 h-3" />}
-                                Generate All
+                                Generate All（維護中）
                             </button>
                         </div>
 
@@ -124,7 +126,7 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                                                     onClick={() => onGenerateSinglePlan(plan)}
                                                     disabled={plan.status === 'generating'}
                                                     className="p-1.5 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded border border-gray-200 transition-colors"
-                                                    title="Generate this image"
+                                                    title="AI 圖像規劃維護中"
                                                 >
                                                     {plan.status === 'generating' ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> : <RefreshCw className="w-4 h-4" />}
                                                 </button>

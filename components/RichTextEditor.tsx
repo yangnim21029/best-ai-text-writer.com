@@ -177,6 +177,14 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         }
     };
 
+    const handleImageGenerationUnavailable = useCallback(() => {
+        window.alert('AI 圖像生成功能維護中，請稍後再試。');
+    }, []);
+
+    const handleImagePlanningUnavailable = useCallback(() => {
+        window.alert('AI 圖像規劃功能維護中，請稍後再試。');
+    }, []);
+
     const {
         showImageModal,
         setShowImageModal,
@@ -187,14 +195,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         imagePlans,
         isPlanning,
         isBatchProcessing,
-        openImageModal,
         generateImageFromPrompt,
         downloadImages,
-        autoPlanImages,
         updatePlanPrompt,
         injectImageIntoEditor,
-        generateSinglePlan,
-        handleBatchProcess,
     } = useImageEditor({
         editorRef: editorContainerRef,
         tiptapApi,
@@ -295,7 +299,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 <EditorToolbar
                     onCommand={handleToolbarCommand}
                     onRemoveBold={() => tiptapApi?.clearBold?.()}
-                    onOpenImageModal={openImageModal}
+                    onOpenImageModal={handleImageGenerationUnavailable}
                     onDownloadAllImages={downloadImages}
                     isDownloadingImages={isDownloadingImages}
                     onToggleKeyPoints={() => { setShowKeyPoints(!showKeyPoints); setShowVisualAssets(false); }}
@@ -404,9 +408,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         imagePlans={imagePlans as ImageAssetPlan[]}
                         isPlanning={isPlanning}
                         isBatchProcessing={isBatchProcessing}
-                        onBatchProcess={handleBatchProcess}
-                        onAutoPlan={autoPlanImages}
-                        onGenerateSinglePlan={generateSinglePlan}
+                        onBatchProcess={handleImagePlanningUnavailable}
+                        onAutoPlan={handleImagePlanningUnavailable}
+                        onGenerateSinglePlan={(_plan) => handleImagePlanningUnavailable()}
                         onUpdatePlanPrompt={updatePlanPrompt}
                         onInjectImage={injectImageIntoEditor}
                         useTiptap
