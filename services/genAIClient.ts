@@ -130,13 +130,15 @@ export class GenAIClient {
         }
 
         let lastError: unknown = null;
+        let useGeneratePath = false;
         for (let attempt = 0; attempt < attempts; attempt++) {
             const timer = setTimeout(
                 () => controller.abort('GenAI request timed out'),
                 timeoutMs || DEFAULT_TIMEOUT
             );
             try {
-                const response = await fetch(buildAiUrl('/stream'), {
+                const path = useGeneratePath ? '/generate' : '/stream';
+                const response = await fetch(buildAiUrl(path), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
@@ -151,6 +153,14 @@ export class GenAIClient {
                     const detail = typeof errorData === 'string'
                         ? errorData
                         : (errorData.error || JSON.stringify(errorData));
+
+                    // Some backends do not expose /ai/stream; automatically fall back to /ai/generate on 404.
+                    if (response.status === 404 && !useGeneratePath) {
+                        useGeneratePath = true;
+                        clearTimeout(timer);
+                        continue;
+                    }
+
                     throw new Error(`Failed to generate content (HTTP ${response.status}): ${detail}`);
                 }
 
