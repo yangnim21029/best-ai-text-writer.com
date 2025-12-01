@@ -14,6 +14,10 @@ export interface KeywordActionPlan {
 export interface SectionAnalysis {
   title: string;
   narrativePlan: string[]; // Specific writing instructions for this specific section
+  coreQuestion?: string; // One-sentence core question this section must answer
+  difficulty?: 'easy' | 'medium' | 'unclear'; // How hard it is to give a clear answer
+  writingMode?: 'direct' | 'multi_solutions'; // Derived from difficulty (easy => direct; others => multi solutions)
+  solutionAngles?: string[]; // Distinct solution paths for medium/unclear
 }
 
 export interface ReferenceAnalysis {

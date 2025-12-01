@@ -10,6 +10,12 @@ interface SeoSidebarProps {
     authorityAnalysis: AuthorityAnalysis | null;
     productMapping?: ProblemProductMapping[];
     productBrief?: ProductBrief;
+    headingOptimizations?: {
+        h2_before: string;
+        h2_after: string;
+        h2_reason?: string;
+        h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
+    }[];
     isLoading: boolean;
     status: GenerationStatus;
     onStop: () => void;
@@ -26,6 +32,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     authorityAnalysis,
     productMapping = [],
     productBrief,
+    headingOptimizations = [],
     isLoading,
     status,
     onStop,
@@ -37,6 +44,20 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
 
     const hasData = keywordPlans.length > 0 || referenceAnalysis !== null || authorityAnalysis !== null || productMapping.length > 0;
     const hasKnowledge = brandKnowledge && brandKnowledge.trim().length > 0;
+
+    const difficultyBadge = (value?: string) => {
+        const map: Record<string, { label: string; bg: string; text: string; border: string }> = {
+            easy: { label: 'Easy', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
+            medium: { label: 'Medium', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
+            unclear: { label: 'Unclear', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100' },
+        };
+        const variant = map[value || 'easy'];
+        return (
+            <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full border ${variant.bg} ${variant.text} ${variant.border}`}>
+                {variant.label}
+            </span>
+        );
+    };
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
@@ -267,20 +288,95 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             <div className="absolute left-5 top-4 bottom-4 w-px bg-gray-100"></div>
 
                             <div className="relative z-10">
-                                {referenceAnalysis.structure.map((section, idx) => (
-                                    <div key={idx} className="px-4 py-2 pl-10 relative hover:bg-blue-50/30 transition-colors group/item">
-                                        <div className="absolute left-3 top-2.5 w-4 h-4 rounded-full border-2 border-white bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm text-[9px] font-bold z-10 group-hover/item:bg-blue-600 group-hover/item:text-white transition-all">
+                                {referenceAnalysis.structure.map((section, idx) => {
+                                    const mode = section.writingMode || (section.difficulty === 'easy' ? 'direct' : 'multi_solutions');
+                                    const angles = section.solutionAngles?.filter(Boolean).slice(0, 2) || [];
+                                    return (
+                                        <div key={idx} className="px-4 py-2 pl-10 relative hover:bg-blue-50/30 transition-colors group/item">
+                                            <div className="absolute left-3 top-2.5 w-4 h-4 rounded-full border-2 border-white bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm text-[9px] font-bold z-10 group-hover/item:bg-blue-600 group-hover/item:text-white transition-all">
+                                                {idx + 1}
+                                            </div>
+                                            <div className="flex items-start justify-between gap-2 pr-1">
+                                                <div className="flex-1">
+                                                    <h5 className="text-[11px] font-bold text-gray-800 mb-0.5">{section.title}</h5>
+                                                    {section.coreQuestion && (
+                                                        <p className="text-[10px] text-gray-500 leading-normal">Q: {section.coreQuestion}</p>
+                                                    )}
+                                                </div>
+                                                {difficultyBadge(section.difficulty)}
+                                            </div>
+                                            {section.narrativePlan && (
+                                                <p className="text-[10px] text-gray-400 leading-normal">
+                                                    {section.narrativePlan[0]}
+                                                </p>
+                                            )}
+                                            {mode === 'multi_solutions' && angles.length > 0 && (
+                                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                                    {angles.map((angle, aIdx) => (
+                                                        <span key={aIdx} className="text-[9px] px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50 text-blue-700">
+                                                            {angle}
+                                                        </span>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Card 5: Heading Optimizer */}
+                {headingOptimizations.length > 0 && (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
+                        <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-indigo-50/80 to-white flex items-center gap-2">
+                            <BarChart2 className="w-3.5 h-3.5 text-indigo-600" />
+                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">H2 / H3 Optimizer</h4>
+                        </div>
+                        <div className="divide-y divide-gray-100">
+                            {headingOptimizations.slice(0, 6).map((item, idx) => (
+                                <div key={idx} className="p-3 space-y-2">
+                                    <div className="flex items-start gap-2">
+                                        <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold flex items-center justify-center border border-white shadow-sm">
                                             {idx + 1}
                                         </div>
-                                        <h5 className="text-[11px] font-bold text-gray-800 mb-0.5">{section.title}</h5>
-                                        {section.narrativePlan && (
-                                            <p className="text-[10px] text-gray-400 leading-normal">
-                                                {section.narrativePlan[0]}
-                                            </p>
-                                        )}
+                                        <div className="flex-1 space-y-1">
+                                            <div className="flex items-start gap-1.5">
+                                                <span className="text-[9px] text-gray-400 uppercase">H2</span>
+                                                <div className="flex-1">
+                                                    <div className="text-[10px] text-gray-500 line-through decoration-rose-200">{item.h2_before}</div>
+                                                    <div className="text-[11px] font-semibold text-gray-900 flex items-center gap-1">
+                                                        <ArrowRight className="w-3 h-3 text-indigo-400" />
+                                                        {item.h2_after}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            {item.h2_reason && (
+                                                <p className="text-[10px] text-gray-500 leading-snug">{item.h2_reason}</p>
+                                            )}
+                                        </div>
+                                        {difficultyBadge(item.h3 && item.h3.length > 0 ? 'medium' : 'easy')}
                                     </div>
-                                ))}
-                            </div>
+                                    {item.h3 && item.h3.length > 0 && (
+                                        <div className="pl-7 flex flex-wrap gap-1.5">
+                                            {item.h3.slice(0, 3).map((h3item, hIdx) => (
+                                                <div key={hIdx} className="px-2 py-1 bg-indigo-50 border border-indigo-100 rounded-lg flex flex-col gap-0.5 max-w-full">
+                                                    <span className="text-[9px] text-indigo-700 font-semibold truncate">H3</span>
+                                                    <span className="text-[10px] text-gray-500 line-through decoration-rose-200 truncate">{h3item.h3_before}</span>
+                                                    <span className="text-[10px] text-gray-800 font-medium truncate">{h3item.h3_after}</span>
+                                                    {h3item.h3_reason && (
+                                                        <span className="text-[9px] text-gray-500 line-clamp-2">{h3item.h3_reason}</span>
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                            {headingOptimizations.length > 6 && (
+                                <div className="p-2 text-[10px] text-gray-400 text-center">+{headingOptimizations.length - 6} more</div>
+                            )}
                         </div>
                     </div>
                 )}

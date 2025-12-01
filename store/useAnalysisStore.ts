@@ -22,6 +22,12 @@ interface AnalysisState {
     productMapping: ProblemProductMapping[];
     activeProductBrief: ProductBrief | undefined;
     articleTitle: string;
+    headingOptimizations: {
+        h2_before: string;
+        h2_after: string;
+        h2_reason?: string;
+        h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
+    }[];
     setKeywordPlans: (plans: KeywordActionPlan[]) => void;
     setRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     setAuthAnalysis: (analysis: AuthorityAnalysis | null) => void;
@@ -33,6 +39,12 @@ interface AnalysisState {
     setProductMapping: (mapping: ProblemProductMapping[]) => void;
     setActiveProductBrief: (brief: ProductBrief | undefined) => void;
     setArticleTitle: (title: string) => void;
+    setHeadingOptimizations: (items: {
+        h2_before: string;
+        h2_after: string;
+        h2_reason?: string;
+        h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
+    }[]) => void;
     reset: () => void;
 }
 
@@ -50,6 +62,7 @@ export const useAnalysisStore = create<AnalysisState>()(
             productMapping: [],
             activeProductBrief: undefined,
             articleTitle: '',
+            headingOptimizations: [],
             setKeywordPlans: (plans) => set({ keywordPlans: plans }),
             setRefAnalysis: (analysis) => set({ refAnalysis: analysis }),
             setAuthAnalysis: (analysis) => set({ authAnalysis: analysis }),
@@ -63,6 +76,7 @@ export const useAnalysisStore = create<AnalysisState>()(
             setProductMapping: (mapping) => set({ productMapping: mapping }),
             setActiveProductBrief: (brief) => set({ activeProductBrief: brief }),
             setArticleTitle: (title) => set({ articleTitle: title }),
+            setHeadingOptimizations: (items) => set({ headingOptimizations: items }),
             reset: () => set({
                 keywordPlans: [],
                 refAnalysis: null,
@@ -75,6 +89,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 productMapping: [],
                 activeProductBrief: undefined,
                 articleTitle: '',
+                headingOptimizations: [],
             }),
         }),
         {
@@ -90,6 +105,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 coveredPoints: state.coveredPoints,
                 targetAudience: state.targetAudience,
                 articleTitle: state.articleTitle,
+                headingOptimizations: state.headingOptimizations,
             }),
         }
     )

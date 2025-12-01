@@ -24,5 +24,6 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     resolve: { alias: { '@': path.resolve(__dirname, '.') } },
+    envPrefix: ['VITE_', 'AI_'],
   };
 });

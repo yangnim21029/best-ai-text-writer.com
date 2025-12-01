@@ -27,7 +27,12 @@ npx tsx examples/quickstart.ts image
 
 # Streaming reader (token-by-token stdout)
 npx tsx examples/stream-reader.ts "Give me two SEO title ideas for summer travel."
+
+# Batch embeddings
+npx tsx examples/embed.ts
 ```
+
+Set `AI_EMBED_MODEL_ID` if your backend expects a different embedding model (defaults to `gemini-embedding-001`).
 
 You can override the endpoint path if your backend mounts under a different prefix (e.g., `/api/ai`):
 ```bash

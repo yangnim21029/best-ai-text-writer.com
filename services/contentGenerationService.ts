@@ -1,4 +1,4 @@
-import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis } from '../types';
+import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis, SectionAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { filterSectionContext } from './contextFilterService';
 import { promptRegistry } from './promptRegistry';
@@ -138,7 +138,14 @@ export const refineSectionHeadings = async (
     articleTitle: string,
     headings: string[],
     targetAudience: TargetAudience
-): Promise<ServiceResponse<{ before: string; after: string }[]>> => {
+): Promise<ServiceResponse<{
+    before: string;
+    after: string;
+    h2_before: string;
+    h2_after: string;
+    h2_reason?: string;
+    h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
+}[]>> => {
     console.log('[refineSectionHeadings] START', { articleTitle, headingCount: headings.length });
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
@@ -163,8 +170,22 @@ export const refineSectionHeadings = async (
                             items: {
                                 type: Type.OBJECT,
                                 properties: {
-                                    before: { type: Type.STRING },
-                                    after: { type: Type.STRING },
+                                    before: { type: Type.STRING }, // backward compat
+                                    after: { type: Type.STRING },  // backward compat
+                                    h2_before: { type: Type.STRING },
+                                    h2_after: { type: Type.STRING },
+                                    h2_reason: { type: Type.STRING },
+                                    h3: {
+                                        type: Type.ARRAY,
+                                        items: {
+                                            type: Type.OBJECT,
+                                            properties: {
+                                                h3_before: { type: Type.STRING },
+                                                h3_after: { type: Type.STRING },
+                                                h3_reason: { type: Type.STRING },
+                                            }
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -204,9 +225,15 @@ export const refineSectionHeadings = async (
         };
 
         const normalized = headings.map((before, idx) => {
-            const match = list.find((h: any) => clean(h?.before) === clean(before)) || list[idx];
-            const rawAfter = typeof match?.after === 'string' ? match.after : before;
+            const match = list.find((h: any) =>
+                clean(h?.before) === clean(before) ||
+                clean(h?.h2_before) === clean(before)
+            ) || list[idx];
+            const rawAfter = typeof match?.h2_after === 'string'
+                ? match.h2_after
+                : (typeof match?.after === 'string' ? match.after : before);
             const beforeClean = clean(before);
+            const h2Before = clean(match?.h2_before || match?.before || before);
             let afterClean = clean(rawAfter);
             if (afterClean.toLowerCase() === beforeClean.toLowerCase() || afterClean === '') {
                 afterClean = improveDeterministically(beforeClean).trim();
@@ -214,7 +241,29 @@ export const refineSectionHeadings = async (
             if (afterClean === '' || afterClean.toLowerCase() === beforeClean.toLowerCase()) {
                 afterClean = beforeClean;
             }
-            return { before: beforeClean, after: afterClean };
+            const h3List = Array.isArray(match?.h3) ? match.h3 : [];
+            const normalizedH3 = h3List
+                .filter((h: any) => h && (h.h3_before || h.h3_after || h.before || h.after))
+                .map((h: any) => {
+                    const h3Before = clean(h.h3_before || h.before || '');
+                    const h3AfterRaw = typeof h.h3_after === 'string' ? h.h3_after : (h.after || h3Before);
+                    const h3After = clean(h3AfterRaw) || h3Before;
+                    const h3Reason = typeof h.h3_reason === 'string' ? h.h3_reason : (typeof h.reason === 'string' ? h.reason : '');
+                    return { h3_before: h3Before, h3_after: h3After, ...(h3Reason ? { h3_reason: h3Reason } : {}) };
+                });
+
+            const reason = typeof match?.h2_reason === 'string'
+                ? match.h2_reason
+                : (typeof match?.reason === 'string' ? match.reason : '');
+
+            return {
+                before: beforeClean,
+                after: afterClean,
+                h2_before: h2Before || beforeClean,
+                h2_after: afterClean,
+                ...(reason ? { h2_reason: reason } : {}),
+                ...(normalizedH3.length ? { h3: normalizedH3 } : {}),
+            };
         });
 
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
@@ -244,7 +293,8 @@ export const generateSectionContent = async (
     authorityAnalysis: AuthorityAnalysis | null = null,
     keyInfoPoints: string[] = [],
     currentCoveredPointsHistory: string[] = [],
-    currentInjectedCount: number = 0
+    currentInjectedCount: number = 0,
+    sectionMeta: Partial<SectionAnalysis> = {}
 ): Promise<ServiceResponse<SectionGenerationResult>> => {
 
     const startTs = Date.now();
@@ -271,6 +321,8 @@ export const generateSectionContent = async (
         return usageCount < MAX_USAGE_LIMIT;
     });
 
+    const { coreQuestion, difficulty, writingMode, solutionAngles } = sectionMeta || {};
+
     // Inject Product/Commercial Strategy if brief exists
     const injectionPlan = getSectionInjectionPlan(
         sectionTitle,
@@ -296,6 +348,10 @@ export const generateSectionContent = async (
         points: pointsAvailableForThisSection,
         injectionPlan,
         articleTitle: config.title,
+        coreQuestion,
+        difficulty,
+        writingMode,
+        solutionAngles,
     });
 
     const response = await generateContent(

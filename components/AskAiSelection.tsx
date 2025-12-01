@@ -380,11 +380,11 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
         if (!htmlToInsert) return;
         if (onInsert) {
             onInsert(htmlToInsert, activeTaskId || undefined);
-        setActiveTaskId(null);
-        setIsPreviewOpen(false);
-        clearSelectionHighlight();
-        return;
-    }
+            setActiveTaskId(null);
+            setIsPreviewOpen(false);
+            clearSelectionHighlight();
+            return;
+        }
         const range = activeTaskId ? taskRangesRef.current[activeTaskId] : selectionRangeRef.current;
         if (!range) return;
         const fragment = document.createDocumentFragment();
@@ -504,12 +504,12 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                             <select
                                 className="w-full px-3 py-2 text-sm border rounded-lg text-gray-700"
                                 value={activeTaskId || ''}
-                    onChange={e => {
-                        const next = e.target.value;
-                        if (!next) return;
-                        setActiveTaskView(next);
-                    }}
-                >
+                                onChange={e => {
+                                    const next = e.target.value;
+                                    if (!next) return;
+                                    setActiveTaskView(next);
+                                }}
+                            >
                                 {tasks.map((t, idx) => (
                                     <option key={t.id} value={t.id}>
                                         Task {idx + 1} — {t.title} ({t.status})
@@ -600,14 +600,16 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                                     ))}
                                 </select>
                             )}
-                            <button
-                                className={`px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 ${isActiveLoading ? 'bg-gray-300 text-gray-600 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'}`}
-                                onClick={handleInsert}
-                                disabled={isActiveLoading || !previewHtml}
-                            >
-                                Replace
-                                <ArrowRight className="w-4 h-4" />
-                            </button>
+                            {!isActiveLoading && (
+                                <button
+                                    className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                    onClick={handleInsert}
+                                    disabled={!previewHtml}
+                                >
+                                    Replace
+                                    <ArrowRight className="w-4 h-4" />
+                                </button>
+                            )}
                         </div>
                     </div>
                 </div>
@@ -672,9 +674,8 @@ const ToolbarIcon: React.FC<{
 }> = ({ icon, label, active, onClick }) => {
     return (
         <button
-            className={`w-10 h-10 inline-flex items-center justify-center rounded-full border transition-colors ${
-                active ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-blue-300 text-gray-600'
-            }`}
+            className={`w-10 h-10 inline-flex items-center justify-center rounded-full border transition-colors ${active ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-blue-300 text-gray-600'
+                }`}
             onMouseDown={e => e.preventDefault()}
             onClick={onClick}
             title={label}
@@ -708,11 +709,10 @@ const MenuItem: React.FC<{
     return (
         <button
             disabled={disabled}
-            className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm ${
-                disabled
+            className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm ${disabled
                     ? 'text-gray-300 cursor-not-allowed'
                     : 'text-gray-800 hover:bg-gray-50 active:bg-gray-100'
-            }`}
+                }`}
             onMouseDown={e => e.preventDefault()}
             onClick={onClick}
         >

@@ -52,6 +52,11 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
     
     TASK 1: Analyze the structure. Break the article down into main sections (H2/H3). The titles should be in the Target Language.
     TASK 2: For EACH section, write a specific "Narrative Action Plan". How did the author write *this specific part*? (e.g., "Started with a rhetorical question," "Used a bullet list for benefits").
+    TASK 2B: For EACH section, add:
+      - coreQuestion: The one question this section must answer (single sentence).
+      - difficulty: easy | medium | unclear (unclear = controversial/ambiguous).
+      - writingMode: "direct" if easy, otherwise "multi_solutions".
+      - solutionAngles: 2 distinct, non-overlapping angles ONLY if difficulty is medium/unclear (else empty).
     TASK 3: Create a "General Action Plan" (3 key points) on how to mimic this author's overall voice.
     TASK 4: Create a "Conversion & Value Strategy" (3 key points). How does this author present the *Value* or *Benefits*?
     
@@ -84,7 +89,11 @@ export const analyzeReferenceStructure = async (referenceContent: string, target
                                 type: Type.OBJECT,
                                 properties: {
                                     title: { type: Type.STRING },
-                                    narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } }
+                                    narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                    coreQuestion: { type: Type.STRING },
+                                    difficulty: { type: Type.STRING, description: "easy | medium | unclear" },
+                                    writingMode: { type: Type.STRING, description: "direct | multi_solutions" },
+                                    solutionAngles: { type: Type.ARRAY, items: { type: Type.STRING } }
                                 }
                             }
                         },

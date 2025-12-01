@@ -1,39 +1,49 @@
+import { EMBED_MODEL_ID } from '../config/constants';
 import { buildAiUrl } from './genAIClient';
-
-const EMBEDDING_MODEL = 'gemini-embedding-001';
 
 interface EmbedOptions {
   taskType?: string;
   outputDimensionality?: number;
+  signal?: AbortSignal;
 }
 
 interface EmbedResponse {
   embeddings?: number[][];
   embedding?: number[];
-  data?: { embedding?: number[] } | number[] | Array<{ embedding?: number[] }>;
+  data?: { embeddings?: number[][]; embedding?: number[] } | number[] | Array<{ embeddings?: number[][]; embedding?: number[] }>;
 }
 
-const extractEmbedding = (payload: EmbedResponse): number[] => {
+const asVector = (value: any): number[] | null => {
+  if (!Array.isArray(value)) return null;
+  return value as number[];
+};
+
+const asMatrix = (value: any): number[][] | null => {
+  if (!Array.isArray(value)) return null;
+  const vectors = value.map((entry: any) => asVector(entry)).filter(Boolean) as number[][];
+  return vectors.length ? vectors : null;
+};
+
+const extractEmbeddings = (payload: EmbedResponse): number[][] => {
   if (!payload) return [];
 
-  if (Array.isArray(payload.embeddings) && Array.isArray(payload.embeddings[0])) {
-    return payload.embeddings[0] as number[];
+  const direct = asMatrix(payload.embeddings);
+  if (direct) return direct;
+
+  const dataField: any = payload.data;
+
+  const nested = asMatrix(dataField?.embeddings);
+  if (nested) return nested;
+
+  if (Array.isArray(dataField)) {
+    const vectors = dataField
+      .map((entry: any) => asMatrix(entry?.embeddings)?.[0] || asVector(entry?.embedding) || asVector(entry))
+      .filter(Boolean) as number[][];
+    if (vectors.length) return vectors;
   }
 
-  if (Array.isArray(payload.embedding)) {
-    return payload.embedding;
-  }
-
-  if (Array.isArray(payload.data)) {
-    if (Array.isArray(payload.data[0])) return payload.data[0] as number[];
-    if ((payload.data[0] as any)?.embedding) return (payload.data[0] as any).embedding as number[];
-  }
-
-  if (payload.data && (payload.data as any).embedding) {
-    return (payload.data as any).embedding as number[];
-  }
-
-  return [];
+  const single = asVector(payload.embedding) || asVector(dataField?.embedding) || asVector(dataField);
+  return single ? [single] : [];
 };
 
 export const embedTexts = async (
@@ -42,32 +52,50 @@ export const embedTexts = async (
 ): Promise<number[][]> => {
   if (!Array.isArray(texts) || texts.length === 0) return [];
 
-  const runSingle = async (text: string): Promise<number[]> => {
-    const providerOptions: any = {};
-    if (options.taskType) providerOptions.taskType = options.taskType;
-    if (options.outputDimensionality) providerOptions.outputDimensionality = options.outputDimensionality;
+  const providerOptions: any = {};
+  if (options.taskType) providerOptions.taskType = options.taskType;
+  if (options.outputDimensionality) providerOptions.outputDimensionality = options.outputDimensionality;
 
-    const body: any = { text, model: EMBEDDING_MODEL };
-    if (Object.keys(providerOptions).length > 0) {
-      body.providerOptions = { google: providerOptions };
-    }
-
-    const response = await fetch(buildAiUrl('/embed'), {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-
-    if (!response.ok) {
-      const detail = await response.text();
-      throw new Error(`Failed to fetch embeddings: ${response.status} ${detail || ''}`.trim());
-    }
-
-    const data: EmbedResponse = await response.json();
-    return extractEmbedding(data);
+  const body: any = {
+    texts,
+    model: EMBED_MODEL_ID,
   };
 
-  return await Promise.all(texts.map((text) => runSingle(text)));
+  if (options.taskType) body.taskType = options.taskType;
+  if (options.outputDimensionality) body.outputDimensionality = options.outputDimensionality;
+
+  if (Object.keys(providerOptions).length > 0) {
+    body.providerOptions = { google: providerOptions };
+  }
+
+  const response = await fetch(buildAiUrl('/embed'), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+
+  const contentType = response.headers.get('content-type') || '';
+  const isJson = contentType.includes('application/json');
+
+  if (!response.ok) {
+    const detail = isJson ? await response.json().catch(() => undefined) : await response.text();
+    const message = typeof detail === 'string' ? detail : (detail as any)?.error || JSON.stringify(detail || '');
+    throw new Error(`Failed to fetch embeddings: ${response.status} ${message || ''}`.trim());
+  }
+
+  const payload: EmbedResponse = isJson ? await response.json() : { embeddings: [] };
+  const embeddings = extractEmbeddings(payload);
+
+  if (!embeddings.length) {
+    throw new Error('Embedding response did not include vectors');
+  }
+
+  if (embeddings.length !== texts.length) {
+    return texts.map((_, idx) => embeddings[idx] || []);
+  }
+
+  return embeddings;
 };
 
 export const cosineSimilarity = (a: number[], b: number[]): number => {

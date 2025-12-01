@@ -1,6 +1,6 @@
 import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
-import { ArticleConfig } from '../types';
+import { ArticleConfig, SectionAnalysis } from '../types';
 import { generateSectionContent, refineSectionHeadings } from '../services/contentGenerationService';
 import { analyzeText } from '../services/nlpService';
 import { extractKeywordActionPlans } from '../services/keywordAnalysisService';
@@ -235,7 +235,7 @@ const runGeneration = async (config: ArticleConfig) => {
         const refAnalysisData = structureResult?.structRes.data;
         const authAnalysisData = structureResult?.authRes.data;
 
-        let sectionsToGenerate: { title: string; specificPlan?: string[] }[] = [];
+        let sectionsToGenerate: (Partial<SectionAnalysis> & { title: string; specificPlan?: string[] })[] = [];
         let isUsingCustomOutline = false;
 
         if (fullConfig.sampleOutline && fullConfig.sampleOutline.trim().length > 0) {
@@ -308,6 +308,25 @@ const runGeneration = async (config: ArticleConfig) => {
                     const match = refineRes.data?.find((h: any) => cleanHeadingText(h.before) === before) || refineRes.data?.[idx];
                     return cleanHeadingText(match?.after || match?.before || before);
                 });
+                // Persist structured heading optimizations for UI
+                const normalizedForUi = (refineRes.data || []).map((item: any, idx: number) => {
+                    const h2Before = cleanHeadingText(item.h2_before || item.before || headingsInput[idx] || '');
+                    const h2After = cleanHeadingText(item.h2_after || item.after || item.before || headingsInput[idx] || '');
+                    const h3List = Array.isArray(item.h3) ? item.h3 : [];
+                    return {
+                        h2_before: h2Before,
+                        h2_after: h2After,
+                        h2_reason: item.h2_reason || item.reason || '',
+                        h3: h3List
+                            .filter((h: any) => h && (h.h3_before || h.h3_after))
+                            .map((h: any) => ({
+                                h3_before: cleanHeadingText(h.h3_before || h.before || ''),
+                                h3_after: cleanHeadingText(h.h3_after || h.after || h.h3_before || ''),
+                                h3_reason: h.h3_reason || h.reason || '',
+                            }))
+                    };
+                });
+                analysisStore.setHeadingOptimizations(normalizedForUi);
                 refinedList.forEach((heading, index) => {
                     sectionHeadings[index] = heading;
                 });
@@ -352,7 +371,8 @@ const runGeneration = async (config: ArticleConfig) => {
                         authAnalysisData,
                         allKeyPoints,
                         [],
-                        0
+                        0,
+                        section
                     );
 
                     if (!isStopped()) {
@@ -409,7 +429,8 @@ const runGeneration = async (config: ArticleConfig) => {
                         authAnalysisData,
                         allKeyPoints,
                         currentCoveredPoints,
-                        totalInjectedCount
+                        totalInjectedCount,
+                        section
                     );
                     console.log(`[Timer] Section '${section.title}': ${res.duration}ms`);
                     metricsStore.addCost(res.cost.totalCost, res.usage.totalTokens);

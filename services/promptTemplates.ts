@@ -17,6 +17,10 @@ export const promptTemplates = {
         points,
         injectionPlan,
         articleTitle,
+        coreQuestion,
+        difficulty,
+        writingMode,
+        solutionAngles,
     }: {
         sectionTitle: string;
         languageInstruction: string;
@@ -30,7 +34,14 @@ export const promptTemplates = {
         points: string[];
         injectionPlan: string;
         articleTitle: string;
-    }) => `
+        coreQuestion?: string;
+        difficulty?: 'easy' | 'medium' | 'unclear';
+        writingMode?: 'direct' | 'multi_solutions';
+        solutionAngles?: string[];
+    }) => {
+        const resolvedDifficulty = difficulty || 'easy';
+        const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
+        return `
     You are an expert editor writing the section: "${sectionTitle}".
     
     ${languageInstruction}
@@ -44,6 +55,22 @@ export const promptTemplates = {
     - Overall Voice: ${generalPlan?.join("; ") || "Professional, authoritative"}
     - Section Strategy: ${specificPlan?.join("; ") || "Explain thoroughly"}
     - Brand Knowledge Rules: ${kbInsights.length > 0 ? kbInsights.join("; ") : "None"}
+
+    QUESTION & CLARITY:
+    - Core Question: ${coreQuestion || "Infer the precise question and answer it"}
+    - Difficulty: ${resolvedDifficulty}
+    - Writing Mode: ${mode === 'direct' ? "direct answer first" : "multi solutions then synthesize"}
+    - If difficulty is unclear or medium, surface ambiguity, then propose multiple angles.
+    ${mode === 'multi_solutions'
+        ? `- Provide 2-3 distinct, non-overlapping solution paths before the final synthesized answer.`
+        : `- Lead with a concise, direct answer to the core question.`}
+
+    SOLUTION ANGLES (use if multi_solutions):
+    ${
+        mode === 'multi_solutions'
+            ? (solutionAngles && solutionAngles.length > 0 ? solutionAngles.join("; ") : "None provided; create 2 distinct angles.")
+            : "Not needed for direct mode."
+    }
     
     RESOURCES TO USE:
     - Keywords to Weave: ${keywordPlans.map((k: any) => k.word).join(", ")}
@@ -59,7 +86,9 @@ export const promptTemplates = {
     - Use proper Markdown for the content string (H3 for subsections, Lists where appropriate).
     - Do NOT repeat the H2 Title "${sectionTitle}".
     - Ensure smooth transitions from the previous section.
-    `,
+    - If writing mode is "multi_solutions", list the solution paths clearly, then close with a synthesized recommendation.
+    `;
+    },
 
     keywordActionPlan: ({
         languageInstruction,
@@ -214,21 +243,35 @@ export const promptTemplates = {
 
     ARTICLE TITLE: "${articleTitle}"
 
-    ORIGINAL HEADINGS (ordered):
+    ORIGINAL HEADINGS (ordered H2s; no hierarchy provided, treat each as H2):
     ${headings.map((h, i) => `${i + 1}. ${h}`).join('\n')}
 
     ${languageInstruction}
 
-    RULES:
-    - Keep the meaning but remove numbering, quotes, and redundant words.
-    - Make headings unique (no duplicates) and concise (<= 12 words).
-    - Style them as clean H2/H3 titles (no markdown/hash prefixes).
-    - Each "after" MUST be an improved rephrase of "before" (shorter, clearer, or more specific) — do NOT return the same text.
-    - Preserve the order of the input list.
+    STEP BY STEP:
+    1) Clarify role: H2 = main section headline; H3 = supporting subpoint under its H2.
+    2) Make it searchable: keep it concise (≤ 60 chars), add intent-bearing phrases (how to, vs, guide, tips) without stuffing.
+    3) Base on the original: infer the intended angle (how-to, comparison, benefits, FAQ) from each original H2; preserve intent but improve clickability and keyword alignment.
+    4) Rewrite:
+       - H2_after: unique, compelling, query-friendly; no hashes/numbers; MUST NOT be identical to h2_before (make a concise improvement).
+       - If you invent H3s, they must support the H2 with specific search phrases and not repeat the H2 wording.
+    5) Validate: no duplicates, no empty promises, no vague fillers. Reject identical before/after.
 
     OUTPUT (JSON only):
-    { "headings": [ { "before": "...", "after": "..." } ] }
-    - If a heading is already good, repeat it in "after".
+    {
+      "headings": [
+        {
+          "h2_before": "...",
+          "h2_after": "...",
+          "h2_reason": "why this angle/keywords",
+          "h3": [
+            { "h3_before": "...", "h3_after": "...", "h3_reason": "supporting angle & search phrasing" }
+          ]
+        }
+      ]
+    }
+    - If no H3s were provided, return "h3": [].
+    - If a heading is already good, repeat it in "h2_after".
     `,
 
     metaSeo: ({ targetAudience, contextLines, articlePreview }: { targetAudience: string; contextLines: string[]; articlePreview: string; }) => `

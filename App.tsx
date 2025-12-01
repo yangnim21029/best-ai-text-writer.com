@@ -274,6 +274,7 @@ const App: React.FC = () => {
                             authorityAnalysis={analysisStore.authAnalysis}
                             productMapping={analysisStore.productMapping}
                             productBrief={analysisStore.activeProductBrief}
+                            headingOptimizations={analysisStore.headingOptimizations}
                             isLoading={generationStore.status === 'analyzing'}
                             status={generationStore.status}
                             onStop={stop}

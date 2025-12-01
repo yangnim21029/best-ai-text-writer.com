@@ -3,6 +3,11 @@ export const MODEL = {
     IMAGE_PREVIEW: 'google/gemini-2.5-flash-image',
 };
 
+export const EMBED_MODEL_ID =
+    import.meta.env.VITE_EMBED_MODEL_ID ||
+    import.meta.env.AI_EMBED_MODEL_ID ||
+    'gemini-embedding-001';
+
 export const PRICING = {
     FLASH: {
         input: 0.30 / 1000000,

@@ -22,8 +22,8 @@ const DEFAULT_RETRY: Required<RetryOptions> = {
 
 const DEFAULT_TIMEOUT = AI_DEFAULTS.TIMEOUT_MS;
 
-const AI_BASE_URL = (import.meta.env.VITE_AI_BASE_URL || '').replace(/\/$/, '');
-const AI_PATH = (import.meta.env.VITE_AI_PATH || '/ai').replace(/\/$/, '');
+const AI_BASE_URL = (import.meta.env.VITE_AI_BASE_URL || import.meta.env.AI_BASE_URL || '').replace(/\/$/, '');
+const AI_PATH = (import.meta.env.VITE_AI_PATH || import.meta.env.AI_PATH || '/ai').replace(/\/$/, '');
 
 export const buildAiUrl = (path: string) => {
     const prefix = AI_PATH
