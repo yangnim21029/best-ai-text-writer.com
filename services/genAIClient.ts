@@ -91,7 +91,7 @@ export class GenAIClient {
         const { attempts, delayMs } = { ...DEFAULT_RETRY, ...retryOpts };
         const controller = new AbortController();
         const combinedSignal = signal
-            ? new AbortSignalAny([signal, controller.signal])
+            ? new AbortSignalAny([signal, controller.signal]).signal
             : controller.signal;
 
         const prompt = buildPrompt(contents);
@@ -109,7 +109,7 @@ export class GenAIClient {
                 timeoutMs || DEFAULT_TIMEOUT
             );
             try {
-                const response = await fetch(buildAiUrl('/generate'), {
+                const response = await fetch(buildAiUrl('/stream'), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
