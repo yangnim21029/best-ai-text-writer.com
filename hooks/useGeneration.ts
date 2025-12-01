@@ -40,6 +40,12 @@ const runGeneration = async (config: ArticleConfig) => {
     const generationStore = useGenerationStore.getState();
     const analysisStore = useAnalysisStore.getState();
     const metricsStore = useMetricsStore.getState();
+    const appendAnalysisLog = (msg: string) => {
+        generationStore.setContent(prev => {
+            const next = typeof prev === 'string' ? prev : '';
+            return next ? `${next}\n${msg}` : msg;
+        });
+    };
 
     // Reset State
     resetGenerationState();
@@ -47,6 +53,7 @@ const runGeneration = async (config: ArticleConfig) => {
     analysisStore.setScrapedImages(config.scrapedImages || []);
     analysisStore.setTargetAudience(config.targetAudience);
     analysisStore.setArticleTitle(config.title || '');
+    appendAnalysisLog('📊 Starting analysis stream...');
 
     // Inject global Brand Knowledge from store if not provided (or merge?)
     // In App.tsx it was passed from state. Here we can read it.
@@ -66,19 +73,23 @@ const runGeneration = async (config: ArticleConfig) => {
             if (!parsedProductBrief && config.productRawText && config.productRawText.length > 5) {
                 if (isStopped()) return { mapping: [] };
                 generationStore.setGenerationStep('parsing_product');
+                appendAnalysisLog('• Parsing product brief and CTA...');
                 const parseRes = await parseProductContext(config.productRawText);
                 console.log(`[Timer] Product Context Parse: ${parseRes.duration}ms`);
                 parsedProductBrief = parseRes.data;
+                appendAnalysisLog('✓ Product brief parsed.');
                 metricsStore.addCost(parseRes.cost.totalCost, parseRes.usage.totalTokens);
             }
 
             if (parsedProductBrief && parsedProductBrief.productName) {
                 if (isStopped()) return { brief: parsedProductBrief, mapping: [] };
                 generationStore.setGenerationStep('mapping_product');
+                appendAnalysisLog('• Mapping pain points to product features...');
                 const mapRes = await generateProblemProductMapping(parsedProductBrief, fullConfig.targetAudience);
                 console.log(`[Timer] Product Mapping: ${mapRes.duration}ms`);
                 generatedMapping = mapRes.data;
                 analysisStore.setProductMapping(generatedMapping);
+                appendAnalysisLog('✓ Product-feature mapping ready.');
                 metricsStore.addCost(mapRes.cost.totalCost, mapRes.usage.totalTokens);
             }
 
@@ -90,17 +101,22 @@ const runGeneration = async (config: ArticleConfig) => {
         const keywordTask = async () => {
             if (isStopped()) return;
             generationStore.setGenerationStep('nlp_analysis');
+            appendAnalysisLog('• Running NLP keyword scan...');
             const keywords = await analyzeText(fullConfig.referenceContent);
+            appendAnalysisLog(`✓ NLP scan found ${keywords.length} raw keywords.`);
 
             if (keywords.length > 0 && !isStopped()) {
                 generationStore.setGenerationStep('planning_keywords');
                 try {
+                    appendAnalysisLog('• Planning keyword strategy...');
                     const planRes = await extractKeywordActionPlans(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
                     console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
                     analysisStore.setKeywordPlans(planRes.data);
+                    appendAnalysisLog('✓ Keyword plan ready.');
                     metricsStore.addCost(planRes.cost.totalCost, planRes.usage.totalTokens);
                 } catch (e) {
                     console.warn("Action Plan extraction failed", e);
+                    appendAnalysisLog('⚠️ Keyword planning failed (continuing).');
                 }
             }
         };
@@ -109,6 +125,7 @@ const runGeneration = async (config: ArticleConfig) => {
         const structureTask = async () => {
             if (isStopped()) return;
             generationStore.setGenerationStep('extracting_structure');
+            appendAnalysisLog('• Extracting reference structure and authority signals...');
             const [structRes, authRes] = await Promise.all([
                 analyzeReferenceStructure(fullConfig.referenceContent, fullConfig.targetAudience),
                 analyzeAuthorityTerms(
@@ -121,6 +138,8 @@ const runGeneration = async (config: ArticleConfig) => {
 
             console.log(`[Timer] Structure Analysis: ${structRes.duration}ms`);
             console.log(`[Timer] Authority Analysis: ${authRes.duration}ms`);
+            appendAnalysisLog(`✓ Structure extracted (${structRes.data?.structure?.length || 0} sections).`);
+            appendAnalysisLog('✓ Authority terms mapped.');
 
             metricsStore.addCost(structRes.cost.totalCost, structRes.usage.totalTokens);
             metricsStore.addCost(authRes.cost.totalCost, authRes.usage.totalTokens);
@@ -135,6 +154,7 @@ const runGeneration = async (config: ArticleConfig) => {
         const visualTask = async () => {
             if (isStopped()) return;
             generationStore.setGenerationStep('analyzing_visuals');
+            appendAnalysisLog('• Analyzing source images and visual identity...');
 
             const initialImages = config.scrapedImages || [];
             const imagesToAnalyze = initialImages.slice(0, 5);
@@ -160,9 +180,11 @@ const runGeneration = async (config: ArticleConfig) => {
             try {
                 const styleRes = await analyzeVisualStyle(analyzedImages, fullConfig.websiteType || "Modern Business");
                 analysisStore.setVisualStyle(styleRes.data);
+                appendAnalysisLog('✓ Visual style extracted.');
                 metricsStore.addCost(styleRes.cost.totalCost, styleRes.usage.totalTokens);
             } catch (e) {
                 console.warn("Failed to extract visual style", e);
+                appendAnalysisLog('⚠️ Visual style extraction skipped.');
             }
         };
 
@@ -176,6 +198,7 @@ const runGeneration = async (config: ArticleConfig) => {
             productPromise,
             structurePromise
         ]);
+        appendAnalysisLog('✅ Analysis stage completed. Preparing to write...');
 
         if (config.turboMode) {
             keywordPromise.catch(err => console.warn('Keyword task failed (turbo background)', err));
@@ -214,6 +237,7 @@ const runGeneration = async (config: ArticleConfig) => {
 
         generationStore.setStatus('streaming');
         generationStore.setGenerationStep('writing_content');
+        generationStore.setContent('');
 
         const sectionBodies: string[] = new Array(sectionsToGenerate.length).fill("");
         const sectionHeadings: string[] = sectionsToGenerate.map((s) => cleanHeadingText(s.title));

@@ -230,6 +230,16 @@ export const Preview: React.FC<PreviewProps> = ({
                         <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.1s' }}></span>
                         <span className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce" style={{ animationDelay: '0.2s' }}></span>
                    </div>
+                   {content && (
+                     <div className="mt-6 w-full max-w-2xl bg-white border border-gray-200 rounded-xl shadow-sm text-left">
+                        <div className="px-4 py-2 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                            Analysis stream
+                        </div>
+                        <div className="p-4 max-h-52 overflow-y-auto custom-scrollbar text-sm text-gray-700 whitespace-pre-wrap">
+                            {content}
+                        </div>
+                     </div>
+                   )}
                </div>
            ) : (
                <>
