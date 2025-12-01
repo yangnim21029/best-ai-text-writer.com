@@ -65,7 +65,7 @@ export const Preview: React.FC<PreviewProps> = ({
 
   const isStreaming = status === 'streaming';
   const isAnalyzing = status === 'analyzing';
-  const showModal = isStreaming || isAnalyzing; // Show modal for both
+  const showModal = isAnalyzing; // Only block during analysis; keep article generation visible
   const stripHtml = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
   useEffect(() => {
