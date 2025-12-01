@@ -24,6 +24,9 @@ npx tsx examples/quickstart.ts stream
 
 # Image generation
 npx tsx examples/quickstart.ts image
+
+# Streaming reader (token-by-token stdout)
+npx tsx examples/stream-reader.ts "Give me two SEO title ideas for summer travel."
 ```
 
 You can override the endpoint path if your backend mounts under a different prefix (e.g., `/api/ai`):
