@@ -66,6 +66,7 @@ export const Preview: React.FC<PreviewProps> = ({
   const isStreaming = status === 'streaming';
   const isAnalyzing = status === 'analyzing';
   const showModal = isStreaming || isAnalyzing; // Show modal for both
+  const stripHtml = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
 
   useEffect(() => {
     if (status === 'completed' && content) {
@@ -249,7 +250,7 @@ export const Preview: React.FC<PreviewProps> = ({
                 >
                     {content ? (
                         <>
-                            {content}
+                            {stripHtml(content)}
                             <span className="inline-block w-2 h-5 bg-blue-600 ml-1 animate-pulse align-middle rounded-full"></span>
                         </>
                     ) : (
