@@ -34,6 +34,12 @@ const App: React.FC = () => {
 
     // --- Effects ---
 
+    useEffect(() => {
+        if (generationStore.status === 'analyzing' && !uiStore.showSidebar) {
+            uiStore.setShowSidebar(true);
+        }
+    }, [generationStore.status, uiStore.showSidebar, uiStore.setShowSidebar]);
+
     // Content Score Calculation (Variable Reward)
     useEffect(() => {
         if (!generationStore.content || generationStore.status === 'idle') {
@@ -141,7 +147,7 @@ const App: React.FC = () => {
         // Expired or missing -> clean up
         localStorage.removeItem(ACCESS_KEY);
         localStorage.removeItem(ACCESS_TS_KEY);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleUnlock = () => {
@@ -171,7 +177,7 @@ const App: React.FC = () => {
             analysisStore.reset();
             generationStore.resetGeneration();
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleRemoveScrapedImage = (image: ScrapedImage) => {
@@ -237,7 +243,6 @@ const App: React.FC = () => {
                         status={generationStore.status}
                         error={generationStore.error}
                         generationStep={generationStore.generationStep}
-                        onStop={stop}
                         keyInformationPoints={analysisStore.refAnalysis?.keyInformationPoints || []}
                         coveredPoints={analysisStore.coveredPoints}
                         targetAudience={analysisStore.targetAudience}
@@ -270,6 +275,8 @@ const App: React.FC = () => {
                             productMapping={analysisStore.productMapping}
                             productBrief={analysisStore.activeProductBrief}
                             isLoading={generationStore.status === 'analyzing'}
+                            status={generationStore.status}
+                            onStop={stop}
                             brandKnowledge={analysisStore.brandKnowledge}
                             setBrandKnowledge={analysisStore.setBrandKnowledge}
                             displayScale={uiStore.displayScale}

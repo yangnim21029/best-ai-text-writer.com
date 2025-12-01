@@ -9,6 +9,7 @@ interface UiState {
     displayScale: number;
     toggleInput: () => void;
     toggleSidebar: () => void;
+    setShowSidebar: (show: boolean) => void;
     setShowChangelog: (show: boolean) => void;
     setInputType: (type: 'text' | 'url') => void;
     setDisplayScale: (scale: number) => void;
@@ -24,6 +25,7 @@ export const useUiStore = create<UiState>()(
             displayScale: 1.1,
             toggleInput: () => set((state) => ({ showInput: !state.showInput })),
             toggleSidebar: () => set((state) => ({ showSidebar: !state.showSidebar })),
+            setShowSidebar: (show) => set({ showSidebar: show }),
             setShowChangelog: (show) => set({ showChangelog: show }),
             setInputType: (type) => set({ inputType: type }),
             setDisplayScale: (scale) => set({ displayScale: scale }),

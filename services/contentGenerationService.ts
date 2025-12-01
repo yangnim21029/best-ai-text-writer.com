@@ -139,6 +139,7 @@ export const refineSectionHeadings = async (
     headings: string[],
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<{ before: string; after: string }[]>> => {
+    console.log('[refineSectionHeadings] START', { articleTitle, headingCount: headings.length });
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
     const prompt = promptRegistry.build('batchRefineHeadings', {
@@ -146,72 +147,88 @@ export const refineSectionHeadings = async (
         headings,
         languageInstruction,
     });
+    console.log('[refineSectionHeadings] Prompt built, calling generateContent with model:', MODEL.FLASH);
 
-    const response = await generateContent(
-        MODEL.FLASH,
-        prompt,
-        {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    headings: {
-                        type: Type.ARRAY,
-                        items: {
-                            type: Type.OBJECT,
-                            properties: {
-                                before: { type: Type.STRING },
-                                after: { type: Type.STRING },
+    try {
+        const response = await generateContent(
+            MODEL.FLASH,
+            prompt,
+            {
+                responseMimeType: 'application/json',
+                responseSchema: {
+                    type: Type.OBJECT,
+                    properties: {
+                        headings: {
+                            type: Type.ARRAY,
+                            items: {
+                                type: Type.OBJECT,
+                                properties: {
+                                    before: { type: Type.STRING },
+                                    after: { type: Type.STRING },
+                                }
                             }
                         }
                     }
                 }
             }
-        }
-    );
+        );
+        console.log('[refineSectionHeadings] API response received:', {
+            hasObject: !!response.object,
+            hasText: !!response.text,
+            textLength: response.text?.length
+        });
 
-    let parsed: any = response.object;
-    if (!parsed && response.text) {
-        try {
-            parsed = JSON.parse(response.text);
-        } catch {
-            parsed = null;
-        }
-    }
-
-    const list = Array.isArray(parsed?.headings) ? parsed.headings : [];
-    const clean = (value: string) => (value || '').replace(/^#+\s*/, '').replace(/["“”]/g, '').trim();
-    const improveDeterministically = (value: string) => {
-        const words = clean(value).split(/\s+/).filter(Boolean);
-        if (words.length === 0) return value;
-        const stop = new Set(['the','a','an','and','of','for','to','in','with','on','at','by','from','about','into','over','after','under','between','within']);
-        const filtered = words.filter(w => !stop.has(w.toLowerCase())) || words;
-        const trimmed = filtered.slice(0, 10);
-        const candidate = trimmed.join(' ') || clean(value);
-        return candidate.length > 0 ? candidate : value;
-    };
-
-    const normalized = headings.map((before, idx) => {
-        const match = list.find((h: any) => clean(h?.before) === clean(before)) || list[idx];
-        const rawAfter = typeof match?.after === 'string' ? match.after : before;
-        const beforeClean = clean(before);
-        let afterClean = clean(rawAfter);
-        if (afterClean.toLowerCase() === beforeClean.toLowerCase() || afterClean === '') {
-            afterClean = improveDeterministically(beforeClean);
-            if (afterClean.toLowerCase() === beforeClean.toLowerCase()) {
-                afterClean = `${beforeClean} — Insight`;
+        let parsed: any = response.object;
+        if (!parsed && response.text) {
+            console.log('[refineSectionHeadings] Parsing text response as JSON');
+            try {
+                parsed = JSON.parse(response.text);
+            } catch (e) {
+                console.error('[refineSectionHeadings] JSON parse failed:', e);
+                parsed = null;
             }
         }
-        return { before: beforeClean, after: afterClean };
-    });
 
-    const metrics = calculateCost(response.usageMetadata, 'FLASH');
+        const list = Array.isArray(parsed?.headings) ? parsed.headings : [];
+        console.log('[refineSectionHeadings] Extracted headings list:', list.length);
 
-    return {
-        data: normalized,
-        ...metrics,
-        duration: Date.now() - startTs
-    };
+        const clean = (value: string) => (value || '').replace(/^#+\s*/, '').replace(/["""]/g, '').trim();
+        const improveDeterministically = (value: string) => {
+            const words = clean(value).split(/\s+/).filter(Boolean);
+            if (words.length === 0) return value;
+            const stop = new Set(['the', 'a', 'an', 'and', 'of', 'for', 'to', 'in', 'with', 'on', 'at', 'by', 'from', 'about', 'into', 'over', 'after', 'under', 'between', 'within']);
+            const filtered = words.filter(w => !stop.has(w.toLowerCase())) || words;
+            const trimmed = filtered.slice(0, 10);
+            const candidate = trimmed.join(' ') || clean(value);
+            return candidate.length > 0 ? candidate : value;
+        };
+
+        const normalized = headings.map((before, idx) => {
+            const match = list.find((h: any) => clean(h?.before) === clean(before)) || list[idx];
+            const rawAfter = typeof match?.after === 'string' ? match.after : before;
+            const beforeClean = clean(before);
+            let afterClean = clean(rawAfter);
+            if (afterClean.toLowerCase() === beforeClean.toLowerCase() || afterClean === '') {
+                afterClean = improveDeterministically(beforeClean).trim();
+            }
+            if (afterClean === '' || afterClean.toLowerCase() === beforeClean.toLowerCase()) {
+                afterClean = beforeClean;
+            }
+            return { before: beforeClean, after: afterClean };
+        });
+
+        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+        console.log('[refineSectionHeadings] SUCCESS - Duration:', Date.now() - startTs, 'ms');
+
+        return {
+            data: normalized,
+            ...metrics,
+            duration: Date.now() - startTs
+        };
+    } catch (error) {
+        console.error('[refineSectionHeadings] ERROR:', error);
+        throw error;
+    }
 };
 
 

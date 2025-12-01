@@ -64,6 +64,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const effectiveScale = displayScale ?? ctx?.displayScale ?? 1;
 
     const editorContainerRef = useRef<HTMLDivElement>(null);
+    const askAiBadgeContainerRef = useRef<HTMLDivElement>(null);
     const hasRestoredDraftRef = useRef(false);
     const [tiptapApi, setTiptapApi] = useState<{
         getSelectedText: () => string;
@@ -87,8 +88,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         clearBold: () => void;
         getSelectionRange: () => { from: number; to: number };
         replaceRange: (range: { from: number; to: number }, html: string) => void;
-        highlightRange: (range: { from: number; to: number }) => void;
-        clearHighlight: () => void;
+        markAskAiRange: (range: { from: number; to: number }, taskId: string) => void;
+        clearAskAiMarks: (taskId?: string) => void;
+        findAskAiRange: (taskId: string) => { from: number; to: number } | null;
         focus: () => void;
     } | null>(null);
 
@@ -213,7 +215,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         restoreSelection: () => { },
     });
 
-    const { runAskAiAction, handleAskAiInsert, clearAskAiState } = useAskAi({
+    const { runAskAiAction, handleAskAiInsert, clearAskAiState, lockAskAiRange, highlightAskAiTarget } = useAskAi({
         tiptapApi,
         targetAudience: effectiveTargetAudience as TargetAudience,
         onAddCost,
@@ -308,6 +310,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     showMetaPanel={showMetaPanel}
                     onUndo={() => tiptapApi?.undo()}
                     onRedo={() => tiptapApi?.redo()}
+                    askAiBadgeSlotRef={askAiBadgeContainerRef}
                 />
             </div>
 
@@ -342,9 +345,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     {/* Editor Overlays */}
                     <AskAiSelection
                         onRunAction={runAskAiAction}
-                        onInsert={(html) => {
-                            handleAskAiInsert(html);
+                        onInsert={(html, taskId) => {
+                            handleAskAiInsert(html, taskId);
                         }}
+                        onLockSelectionRange={(taskId) => lockAskAiRange(taskId)}
+                        onHighlightTask={(taskId) => {
+                            // Ensure the saved task gets a persistent highlight in the editor.
+                            highlightAskAiTarget(taskId);
+                        }}
+                        badgeContainerRef={askAiBadgeContainerRef}
                     />
 
                     {showMetaPanel && (
@@ -407,8 +416,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             </div>
 
             {isAiRunning && (
-                <div className="rte-loading-overlay absolute inset-0 bg-white/70 backdrop-blur-sm flex items-center justify-center z-40">
-                    <div className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-200 rounded-lg shadow-sm text-sm text-gray-700">
+                <div className="pointer-events-none fixed bottom-4 right-4 z-40">
+                    <div className="flex items-center gap-2 px-4 py-2 bg-white/90 border border-gray-200 rounded-lg shadow-sm text-sm text-gray-700">
                         <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
                         <span>AI is working...</span>
                     </div>

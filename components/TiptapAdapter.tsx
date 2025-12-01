@@ -3,10 +3,10 @@ import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
-import Highlight from '@tiptap/extension-highlight';
 import StarterKit from '@tiptap/starter-kit';
 import React, { useEffect, useMemo, useRef } from 'react';
 import { cn } from '../utils/cn';
+import { AskAiMark } from './editor/AskAiMark';
 
 interface TiptapAdapterProps {
     initialHtml: string;
@@ -24,8 +24,9 @@ interface TiptapAdapterProps {
         setHtml: (html: string) => void;
         getSelectionRange: () => { from: number; to: number };
         replaceRange: (range: { from: number; to: number }, html: string) => void;
-        highlightRange: (range: { from: number; to: number }) => void;
-        clearHighlight: () => void;
+        markAskAiRange: (range: { from: number; to: number }, taskId: string) => void;
+        clearAskAiMarks: (taskId?: string) => void;
+        findAskAiRange: (taskId: string) => { from: number; to: number } | null;
         toggleUnderline: () => void;
         toggleBold: () => void;
         toggleItalic: () => void;
@@ -79,7 +80,7 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 linkOnPaste: true,
                 openOnClick: false,
             }),
-            Highlight.configure({ multicolor: false }),
+            AskAiMark,
             Image,
             TextAlign.configure({
                 types: ['heading', 'paragraph'],
@@ -117,21 +118,49 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
         contentStyleRef.current = contentStyle;
         editorRef.current = editor;
 
-        const stripMarkdownEmphasis = () => {
+        const stripMarkdownEmphasis = (options?: { fallbackToDoc?: boolean }) => {
             const ed = editorRef.current;
             if (!ed) return false;
-            const { from, to } = ed.state.selection;
-            if (from === to) return false;
-            const text = ed.state.doc.textBetween(from, to, ' ');
-            const cleaned = text.replace(/^\s*\*{1,2}([\s\S]*?)\*{1,2}\s*$/, '$1');
-            if (cleaned === text) return false;
-            ed
-                .chain()
-                .focus()
-                .insertContentAt({ from, to }, cleaned)
-                .setTextSelection({ from, to: from + cleaned.length })
-                .run();
-            return true;
+            const { state } = ed;
+            const { from, to } = state.selection;
+            const hasSelection = from !== to;
+            const targetFrom = hasSelection ? from : options?.fallbackToDoc ? 0 : null;
+            const targetTo = hasSelection ? to : options?.fallbackToDoc ? state.doc.content.size : null;
+            if (targetFrom === null || targetTo === null) return false;
+
+            let tr = state.tr;
+            let changed = false;
+
+            state.doc.nodesBetween(targetFrom, targetTo, (node, pos) => {
+                if (!node.isText || !node.text) return;
+
+                const nodeStart = pos;
+                const nodeEnd = pos + node.nodeSize;
+                const clampedFrom = Math.max(nodeStart, targetFrom);
+                const clampedTo = Math.min(nodeEnd, targetTo);
+                const localFrom = clampedFrom - nodeStart;
+                const localTo = clampedTo - nodeStart;
+
+                const segment = node.text.slice(localFrom, localTo);
+                const cleanedSegment = segment.replace(/\*/g, '').replace(/>/g, '');
+
+                if (segment === cleanedSegment) return;
+
+                const newText = node.text.slice(0, localFrom) + cleanedSegment + node.text.slice(localTo);
+                const mappedFrom = tr.mapping.map(nodeStart);
+                const mappedTo = tr.mapping.map(nodeEnd);
+                tr = tr.replaceRangeWith(
+                    mappedFrom,
+                    mappedTo,
+                    state.schema.text(newText, node.marks),
+                );
+                changed = true;
+            });
+
+            if (changed) {
+                ed.view.dispatch(tr);
+            }
+            return changed;
         };
 
         if (onReadyRef.current) {
@@ -153,9 +182,48 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 },
                 replaceRange: (range, html: string) =>
                     editor.chain().focus().insertContentAt(range, html).run(),
-                highlightRange: (range) =>
-                    editor.chain().setTextSelection(range).setHighlight().run(),
-                clearHighlight: () => editor.chain().unsetHighlight().run(),
+                markAskAiRange: (range, taskId) => {
+                    editor.chain().setTextSelection(range).setAskAiMark({ taskId }).run();
+                },
+                clearAskAiMarks: (taskId) => {
+                    const ed = editorRef.current;
+                    if (!ed) return;
+                    const { state } = ed;
+                    const askAiMark = state.schema.marks.askai;
+                    if (!askAiMark) return;
+                    let tr = state.tr;
+                    state.doc.descendants((node, pos) => {
+                        if (!node.isText) return;
+                        node.marks.forEach(mark => {
+                            if (mark.type !== askAiMark) return;
+                            if (taskId && mark.attrs.taskId !== taskId) return;
+                            tr = tr.removeMark(pos, pos + node.nodeSize, askAiMark);
+                        });
+                    });
+                    if (tr.docChanged) {
+                        ed.view.dispatch(tr);
+                    }
+                },
+                findAskAiRange: (taskId) => {
+                    const ed = editorRef.current;
+                    if (!ed) return null;
+                    const { state } = ed;
+                    const askAiMark = state.schema.marks.askai;
+                    if (!askAiMark) return null;
+                    let from: number | null = null;
+                    let to: number | null = null;
+                    state.doc.descendants((node, pos) => {
+                        if (!node.isText) return;
+                        const hasMark = node.marks.some(mark => mark.type === askAiMark && mark.attrs.taskId === taskId);
+                        if (!hasMark) return;
+                        const start = pos;
+                        const end = pos + node.nodeSize;
+                        from = from === null ? start : Math.min(from, start);
+                        to = to === null ? end : Math.max(to, end);
+                    });
+                    if (from === null || to === null) return null;
+                    return { from, to };
+                },
                 toggleUnderline: () => editor.chain().focus().toggleUnderline().run(),
                 toggleBold: () => {
                     stripMarkdownEmphasis();
@@ -173,11 +241,11 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 undo: () => editor.chain().focus().undo().run(),
                 redo: () => editor.chain().focus().redo().run(),
                 clearBold: () => {
-                    stripMarkdownEmphasis();
+                    const removed = stripMarkdownEmphasis({ fallbackToDoc: true });
                     if (editor.isActive('blockquote')) {
                         editor.chain().focus().toggleBlockquote().run();
                     }
-                    return editor.chain().focus().unsetMark('bold').run();
+                    return removed;
                 },
                 focus: () => editor.chain().focus().run(),
             };

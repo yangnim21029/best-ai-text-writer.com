@@ -133,7 +133,10 @@ export class GenAIClient {
         let useGeneratePath = false;
         for (let attempt = 0; attempt < attempts; attempt++) {
             const timer = setTimeout(
-                () => controller.abort('GenAI request timed out'),
+                () => {
+                    console.error('[GenAIClient] Request TIMEOUT after', timeoutMs || DEFAULT_TIMEOUT, 'ms');
+                    controller.abort('GenAI request timed out');
+                },
                 timeoutMs || DEFAULT_TIMEOUT
             );
             try {

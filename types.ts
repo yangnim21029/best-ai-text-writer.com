@@ -55,7 +55,7 @@ export interface SavedProfile {
   name: string;
   websiteType: string;
   authorityTerms: string;
-  brandKnowledge?: string; 
+  brandKnowledge?: string;
   targetAudience: TargetAudience;
   useRag?: boolean;
   productBrief?: ProductBrief; // Deprecated in UI, kept for backward compat
@@ -76,7 +76,7 @@ export interface ImageAssetPlan {
   id: string;
   originalAlt?: string;
   generatedPrompt: string;
-  insertAfter: string; 
+  insertAfter: string;
   status: 'idle' | 'generating' | 'done' | 'error';
   url?: string;
 }
@@ -85,30 +85,30 @@ export interface ArticleConfig {
   title: string;
   referenceContent: string;
   sampleOutline?: string;
-  websiteType?: string;    
-  authorityTerms?: string; 
-  brandKnowledge?: string; 
-  targetAudience: TargetAudience; 
-  scrapedImages?: ScrapedImage[]; 
+  websiteType?: string;
+  authorityTerms?: string;
+  brandKnowledge?: string;
+  targetAudience: TargetAudience;
+  scrapedImages?: ScrapedImage[];
   useRag?: boolean;
   turboMode?: boolean; // NEW: Enable parallel generation
-  
+
   productBrief?: ProductBrief; // Structured data (Passed to generator)
   productRawText?: string;     // Raw input (Passed from UI)
-  
+
   // Derived data passed to the generator
   keywordPlans?: KeywordActionPlan[];
   referenceAnalysis?: ReferenceAnalysis;
   authorityAnalysis?: AuthorityAnalysis;
   productMapping?: ProblemProductMapping[]; // NEW: The logic map
-  
+
   // NEW: The Visual Identity
-  visualStyle?: string; 
+  visualStyle?: string;
 }
 
 export type GenerationStatus = 'idle' | 'analyzing' | 'streaming' | 'completed' | 'error';
 
-export type GenerationStep = 'idle' | 'fetching_url' | 'parsing_product' | 'nlp_analysis' | 'extracting_structure' | 'analyzing_visuals' | 'analyzing_authority' | 'planning_keywords' | 'mapping_product' | 'writing_content' | 'finalizing';
+export type GenerationStep = 'idle' | 'fetching_url' | 'parsing_product' | 'nlp_analysis' | 'extracting_structure' | 'analyzing_visuals' | 'analyzing_authority' | 'planning_keywords' | 'mapping_product' | 'writing_content' | 'refining_headings' | 'finalizing';
 
 // --- Cost Tracking Types ---
 
@@ -139,7 +139,7 @@ export interface ContentScore {
 
 // NEW: Tracking injection in individual sections
 export interface SectionGenerationResult {
-    content: string;
-    usedPoints: string[];
-    injectedCount: number; // Number of times product was mentioned
+  content: string;
+  usedPoints: string[];
+  injectedCount: number; // Number of times product was mentioned
 }

@@ -1,8 +1,8 @@
 
 
 import React, { useState } from 'react';
-import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, FileText, X, ShoppingBag, ArrowRight, Gem } from 'lucide-react';
-import { KeywordActionPlan, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief } from '../types';
+import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, X, ShoppingBag, ArrowRight, Gem, Square } from 'lucide-react';
+import { GenerationStatus, KeywordActionPlan, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief } from '../types';
 
 interface SeoSidebarProps {
     keywordPlans: KeywordActionPlan[];
@@ -11,6 +11,8 @@ interface SeoSidebarProps {
     productMapping?: ProblemProductMapping[];
     productBrief?: ProductBrief;
     isLoading: boolean;
+    status: GenerationStatus;
+    onStop: () => void;
     brandKnowledge: string;
     setBrandKnowledge: (kb: string) => void;
     displayScale?: number;
@@ -25,6 +27,8 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     productMapping = [],
     productBrief,
     isLoading,
+    status,
+    onStop,
     brandKnowledge,
     setBrandKnowledge,
     displayScale = 1
@@ -50,8 +54,11 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
         reader.readAsText(file);
     };
 
+    const isRunning = status === 'analyzing' || status === 'streaming';
+
     const AnalysisView = () => {
-        if (isLoading) {
+        // Show loading state only if we have absolutely no data yet
+        if (isLoading && !hasData) {
             return (
                 <div className="flex flex-col h-full p-8 items-center justify-center bg-white/50 space-y-6">
                     <div className="relative">
@@ -374,30 +381,49 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
         >
 
             {/* Sidebar Header / Tabs */}
-            <div className="flex items-center px-2 pt-2 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm flex-shrink-0 z-10">
-                <button
-                    onClick={() => setActiveTab('analysis')}
-                    className={`flex-1 pb-2 pt-1 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'analysis'
-                        ? 'border-indigo-600 text-indigo-700'
-                        : 'border-transparent text-gray-400 hover:text-gray-600'
-                        }`}
-                >
-                    <BarChart2 className="w-3.5 h-3.5" />
-                    Analysis
-                </button>
-                <button
-                    onClick={() => setActiveTab('knowledge')}
-                    className={`flex-1 pb-2 pt-1 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors relative ${activeTab === 'knowledge'
-                        ? 'border-indigo-600 text-indigo-700'
-                        : 'border-transparent text-gray-400 hover:text-gray-600'
-                        }`}
-                >
-                    <BookOpen className="w-3.5 h-3.5" />
-                    Knowledge
-                    {hasKnowledge && (
-                        <span className="absolute top-1 right-6 w-1.5 h-1.5 bg-green-500 rounded-full ring-2 ring-white"></span>
-                    )}
-                </button>
+            <div className="flex items-center px-2 pt-2 bg-white/80 backdrop-blur-md border-b border-gray-200 shadow-sm flex-shrink-0 z-10 justify-between gap-2">
+                <div className="flex flex-1 items-center">
+                    <button
+                        onClick={() => setActiveTab('analysis')}
+                        className={`flex-1 pb-2 pt-1 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${activeTab === 'analysis'
+                            ? 'border-indigo-600 text-indigo-700'
+                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                            }`}
+                    >
+                        <BarChart2 className="w-3.5 h-3.5" />
+                        Analysis
+                    </button>
+                    <button
+                        onClick={() => setActiveTab('knowledge')}
+                        className={`flex-1 pb-2 pt-1 text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors relative ${activeTab === 'knowledge'
+                            ? 'border-indigo-600 text-indigo-700'
+                            : 'border-transparent text-gray-400 hover:text-gray-600'
+                            }`}
+                    >
+                        <BookOpen className="w-3.5 h-3.5" />
+                        Knowledge
+                        {hasKnowledge && (
+                            <span className="absolute top-1 right-6 w-1.5 h-1.5 bg-green-500 rounded-full ring-2 ring-white"></span>
+                        )}
+                    </button>
+                </div>
+
+                {isRunning && (
+                    <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 text-indigo-600 rounded-md border border-indigo-100">
+                            <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
+                            <span className="text-[10px] font-bold uppercase tracking-wide">Analyzing...</span>
+                        </div>
+                        <button
+                            onClick={onStop}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors active:scale-95 whitespace-nowrap"
+                            title="停止分析"
+                        >
+                            <Square className="w-3.5 h-3.5" />
+                            <span>停止</span>
+                        </button>
+                    </div>
+                )}
             </div>
 
             {activeTab === 'analysis' ? <AnalysisView /> : <KnowledgeView />}

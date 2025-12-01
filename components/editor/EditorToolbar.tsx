@@ -45,6 +45,7 @@ interface EditorToolbarProps {
     showMetaPanel: boolean;
     onUndo: () => void;
     onRedo: () => void;
+    askAiBadgeSlotRef?: React.RefObject<HTMLDivElement>;
 }
 
 const ToolbarButton = ({
@@ -99,6 +100,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     showMetaPanel,
     onUndo,
     onRedo,
+    askAiBadgeSlotRef,
 }) => {
     return (
         <div className="flex flex-wrap items-center gap-1 p-2 border-b border-gray-200 bg-gray-50 flex-shrink-0 z-20">
@@ -203,7 +205,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 </button>
             </div>
 
-            <div className="flex items-center space-x-1 px-2">
+            <div className="flex items-center space-x-2 px-2">
                 <button
                     type="button"
                     onClick={(e) => {
@@ -218,6 +220,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                     <Sparkles className="w-3.5 h-3.5" />
                     <span>SEO Meta</span>
                 </button>
+                <div ref={askAiBadgeSlotRef} className="flex items-center" />
             </div>
         </div>
     );

@@ -14,11 +14,14 @@ export const generateContent = async (
     contents: any,
     config?: any
 ): Promise<AIResponse> => {
+    console.log('[generateContent] Calling API with model:', model, 'config:', !!config);
     try {
         const normalizedContents = typeof contents === 'undefined' ? '' : contents;
-        return await genAIClient.request({ model, contents: normalizedContents, config });
+        const result = await genAIClient.request({ model, contents: normalizedContents, config });
+        console.log('[generateContent] API success');
+        return result;
     } catch (error) {
-        console.error("AI Service Error:", error);
+        console.error("[generateContent] API ERROR:", error);
         throw error;
     }
 };

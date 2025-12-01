@@ -15,8 +15,9 @@ type TiptapApi = {
     setHtml: (html: string) => void;
     getSelectionRange: () => { from: number; to: number };
     replaceRange: (range: { from: number; to: number }, html: string) => void;
-    highlightRange: (range: { from: number; to: number }) => void;
-    clearHighlight: () => void;
+    markAskAiRange: (range: { from: number; to: number }, taskId: string) => void;
+    clearAskAiMarks: (taskId?: string) => void;
+    findAskAiRange: (taskId: string) => { from: number; to: number } | null;
 };
 
 interface UseAskAiParams {
@@ -36,12 +37,13 @@ export const useAskAi = ({
     updateCountsFromText,
     onChange,
 }: UseAskAiParams) => {
-    const askAiRangeRef = useRef<{ from: number; to: number } | null>(null);
+    const askAiRangesRef = useRef<Record<string, { from: number; to: number }>>({});
+    const lastRangeRef = useRef<{ from: number; to: number } | null>(null);
     const lastActionModeRef = useRef<AskAiMode | null>(null);
+    const pendingCountRef = useRef(0);
 
     const clearAskAiState = useCallback(() => {
-        tiptapApi?.clearHighlight?.();
-        askAiRangeRef.current = null;
+        // Keep other task highlights; only clear generic marks if no task is specified.
         lastActionModeRef.current = null;
     }, [tiptapApi]);
 
@@ -102,24 +104,48 @@ export const useAskAi = ({
         return `TARGET TEXT: """${text}"""\nINSTRUCTION: ${presetInstruction}${input.prompt ? `\nCUSTOM PROMPT: ${input.prompt}` : ''}\n\n${languageInstruction}\n\nTASK: Return ONLY the rewritten result in HTML/Markdown.`;
     }, [targetAudience]);
 
+    const lockAskAiRange = useCallback((taskId?: string) => {
+        if (!tiptapApi) return null;
+        const selectionRange = tiptapApi.getSelectionRange?.() || null;
+        if (selectionRange) {
+            lastRangeRef.current = selectionRange;
+            if (taskId) {
+                askAiRangesRef.current[taskId] = selectionRange;
+                tiptapApi.markAskAiRange?.(selectionRange, taskId);
+            }
+        }
+        return selectionRange;
+    }, [tiptapApi]);
+
     const runAskAiAction = useCallback(async (input: AskAiRunActionInput) => {
         if (!tiptapApi) {
             alert('Editor not ready.');
             throw new Error('Editor not ready');
         }
-        const selectionRange = tiptapApi.getSelectionRange?.() || null;
+        const selectionRange =
+            (input.taskId ? tiptapApi.findAskAiRange?.(input.taskId) : null) ||
+            (input.taskId ? askAiRangesRef.current[input.taskId] : null) ||
+            lastRangeRef.current ||
+            tiptapApi.getSelectionRange?.() ||
+            null;
         lastActionModeRef.current = input.mode;
-        askAiRangeRef.current = selectionRange;
-        const selectedText = (tiptapApi.getSelectedText?.() || input.selectedText || '').trim();
+        if (selectionRange) {
+            lastRangeRef.current = selectionRange;
+            if (input.taskId) {
+                askAiRangesRef.current[input.taskId] = selectionRange;
+            }
+        }
+        const selectedText = (input.selectedText || tiptapApi.getSelectedText?.() || '').trim();
         if (!selectedText) {
             alert('請先選取要調整的文字。');
             throw new Error('No selection');
         }
-        if (selectionRange) {
-            // tiptapApi.highlightRange?.(selectionRange);
+        if (selectionRange && input.taskId) {
+            tiptapApi.markAskAiRange?.(selectionRange, input.taskId);
         }
         const promptToSend = buildAskAiPrompt(input, selectedText);
 
+        pendingCountRef.current += 1;
         setIsAiLoading(true);
         try {
             const res = await generateSnippet(promptToSend, targetAudience as TargetAudience);
@@ -131,18 +157,27 @@ export const useAskAi = ({
             alert("Failed to generate content. Please try again.");
             throw error;
         } finally {
-            setIsAiLoading(false);
+            pendingCountRef.current = Math.max(0, pendingCountRef.current - 1);
+            setIsAiLoading(pendingCountRef.current > 0);
         }
     }, [buildAskAiPrompt, onAddCost, setIsAiLoading, targetAudience, tiptapApi]);
 
-    const handleAskAiInsert = useCallback((html: string) => {
+    const handleAskAiInsert = useCallback((html: string, taskId?: string) => {
         if (!tiptapApi) return;
-        const selectionRange = askAiRangeRef.current || tiptapApi.getSelectionRange?.();
+        const selectionRange =
+            (taskId ? tiptapApi.findAskAiRange?.(taskId) : null) ||
+            (taskId ? askAiRangesRef.current[taskId] : null) ||
+            lastRangeRef.current ||
+            tiptapApi.getSelectionRange?.();
         const mode = lastActionModeRef.current;
         if (selectionRange) {
             tiptapApi.replaceRange(selectionRange, html);
         } else {
             tiptapApi.insertHtml(html);
+        }
+        if (taskId) {
+            delete askAiRangesRef.current[taskId];
+            tiptapApi.clearAskAiMarks?.(taskId);
         }
         clearAskAiState();
         const updatedText = tiptapApi.getPlainText();
@@ -154,5 +189,12 @@ export const useAskAi = ({
         runAskAiAction,
         handleAskAiInsert,
         clearAskAiState,
+        lockAskAiRange,
+        highlightAskAiTarget: (taskId: string) => {
+            const range = tiptapApi?.findAskAiRange?.(taskId);
+            if (range) {
+                tiptapApi?.markAskAiRange?.(range, taskId);
+            }
+        },
     };
 };

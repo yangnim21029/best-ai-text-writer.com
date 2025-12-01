@@ -15,11 +15,7 @@ import { useMetricsStore } from '../store/useMetricsStore';
 import { resetGenerationState } from '../store/resetGenerationState';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
-const turboHeaderBanner = `
-    <div class="mb-6 p-3 bg-slate-50 border border-slate-200 rounded-lg flex items-center gap-2 text-xs font-mono text-slate-500">
-        <span class="font-bold text-slate-700">📑 Active Blueprint:</span> <span class="text-blue-600">Turbo Mode</span>
-    </div>
-`;
+
 
 const cleanHeadingText = (value: string | undefined): string => {
     return (value || '')
@@ -41,10 +37,15 @@ const runGeneration = async (config: ArticleConfig) => {
     const analysisStore = useAnalysisStore.getState();
     const metricsStore = useMetricsStore.getState();
     const appendAnalysisLog = (msg: string) => {
-        generationStore.setContent(prev => {
-            const next = typeof prev === 'string' ? prev : '';
-            return next ? `${next}\n${msg}` : msg;
-        });
+        // Only append logs to content during the analysis phase
+        if (useGenerationStore.getState().status === 'analyzing') {
+            generationStore.setContent(prev => {
+                const next = typeof prev === 'string' ? prev : '';
+                return next ? `${next}\n${msg}` : msg;
+            });
+        } else {
+            console.log(`[Background Log]: ${msg}`);
+        }
     };
     const summarizeList = (items: string[], max: number = 5) => {
         const slice = items.slice(0, max);
@@ -276,8 +277,8 @@ const runGeneration = async (config: ArticleConfig) => {
         const renderSectionBlock = (idx: number, bodyOverride?: string) => {
             const heading = getHeading(idx);
             const body = typeof bodyOverride === 'string' ? bodyOverride : sectionBodies[idx];
-            if (body) return `<section><h2>${heading}</h2>\n${body}</section>`;
-            return `<section><h2>${heading}</h2></section>`;
+            if (body) return `## ${heading}\n\n${body}`;
+            return `## ${heading}\n\n_(Writing...)_`;
         };
 
         const renderTurboSections = () => mergeTurboSections(
@@ -291,14 +292,18 @@ const runGeneration = async (config: ArticleConfig) => {
 
         const refineAllHeadings = async () => {
             if (isStopped()) return;
+            console.log('[Heading Refinement] Starting...');
+            generationStore.setGenerationStep('refining_headings');
             const headingsInput = sectionHeadings.map((h, idx) => cleanHeadingText(h || sectionsToGenerate[idx]?.title));
             if (headingsInput.length === 0) return;
+            console.log('[Heading Refinement] Processing', headingsInput.length, 'headings');
             try {
                 const refineRes = await refineSectionHeadings(
                     fullConfig.title || "Article",
                     headingsInput,
                     fullConfig.targetAudience
                 );
+                console.log('[Heading Refinement] Completed successfully');
                 const refinedList = headingsInput.map((before, idx) => {
                     const match = refineRes.data?.find((h: any) => cleanHeadingText(h.before) === before) || refineRes.data?.[idx];
                     return cleanHeadingText(match?.after || match?.before || before);
@@ -309,17 +314,18 @@ const runGeneration = async (config: ArticleConfig) => {
                 metricsStore.addCost(refineRes.cost.totalCost, refineRes.usage.totalTokens);
                 generationStore.setContent(renderProgressSections());
             } catch (err) {
-                console.warn('Heading refinement failed', err);
+                console.error('[Heading Refinement] FAILED:', err);
+                // Continue with original headings on failure
             }
         };
 
         // --- PARALLEL EXECUTION (TURBO MODE) ---
         if (config.turboMode) {
             const outlineSourceLabel = isUsingCustomOutline
-                ? `<span class="text-blue-600">User Custom Outline</span>`
-                : `<span class="text-indigo-600">AI Narrative Structure (Outline)</span>`;
+                ? `**User Custom Outline**`
+                : `**AI Narrative Structure (Outline)**`;
 
-            const initialDisplay = buildTurboPlaceholder(sectionsToGenerate, outlineSourceLabel);
+            const initialDisplay = `> 📑 **Active Blueprint:** ${outlineSourceLabel}\n\n`;
             generationStore.setContent(initialDisplay);
 
             const promises = sectionsToGenerate.map(async (section, i) => {

@@ -28,6 +28,37 @@ const ensureDataUrl = (value: string, mimeType = 'image/png'): string | null => 
     return `data:${mimeType};base64,${value}`;
 };
 
+const asArray = (value: any): any[] => {
+    if (!value) return [];
+    return Array.isArray(value) ? value : [value];
+};
+
+const pickFromImageLike = (input: any, fallbackMime?: string): string | null => {
+    if (!input) return null;
+    if (typeof input === 'string') return ensureDataUrl(input, fallbackMime || 'image/png');
+
+    if (input.inlineData?.data) {
+        return ensureDataUrl(input.inlineData.data, input.inlineData.mimeType || fallbackMime);
+    }
+
+    const directData = input.b64_json || input.base64 || input.base64Data || input.data || input.image;
+    if (typeof directData === 'string') {
+        return ensureDataUrl(directData, input.mimeType || input.mediaType || fallbackMime);
+    }
+
+    if (directData && typeof directData === 'object' && directData !== input) {
+        const nested = pickFromImageLike(directData, input.mimeType || input.mediaType || fallbackMime);
+        if (nested) return nested;
+    }
+
+    if (typeof input.text === 'string' && input.text.trim().startsWith('data:image')) {
+        return input.text.trim();
+    }
+
+    if (input.url && typeof input.url === 'string') return input.url;
+    return null;
+};
+
 const extractFromCandidates = (candidates: any[] | undefined): string | null => {
     if (!Array.isArray(candidates)) return null;
     for (const candidate of candidates) {
@@ -49,19 +80,27 @@ const extractFromCandidates = (candidates: any[] | undefined): string | null => 
 const extractImagePayload = (payload: any): string | null => {
     if (!payload) return null;
     if (typeof payload === 'string') return ensureDataUrl(payload);
-    if (payload.image) return ensureDataUrl(payload.image, payload.mimeType);
+
+    const direct = pickFromImageLike(payload, payload.mimeType || payload.mediaType);
+    if (direct) return direct;
 
     const candidateImage = extractFromCandidates(payload.candidates || payload.response?.candidates);
     if (candidateImage) return candidateImage;
 
-    const list = payload.images || payload.data;
-    if (Array.isArray(list) && list.length > 0) {
-        const first = list[0];
-        if (typeof first === 'string') return ensureDataUrl(first);
-        if (first?.b64_json || first?.base64 || first?.data) {
-            return ensureDataUrl(first.b64_json || first.base64 || first.data, first?.mimeType || payload?.mimeType);
+    const collections = [
+        payload.images,
+        payload.data?.images,
+        payload.response?.images,
+        payload.result?.images,
+        payload.data,
+        payload.result,
+    ];
+
+    for (const collection of collections) {
+        for (const entry of asArray(collection)) {
+            const found = pickFromImageLike(entry, payload?.mimeType || payload?.mediaType);
+            if (found) return found;
         }
-        if (first?.url) return first.url;
     }
 
     if (payload.result?.image) return ensureDataUrl(payload.result.image);

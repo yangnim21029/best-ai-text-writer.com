@@ -36,10 +36,6 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
             alert("Editor not ready.");
             return;
         }
-        if (useTiptap) {
-            alert("Auto-plan images is not supported in Tiptap mode yet.");
-            return;
-        }
         onAutoPlan();
     };
 
@@ -52,7 +48,7 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                 </h4>
                 <button 
                     onClick={handleAutoPlan}
-                    disabled={isPlanning}
+                    disabled={isPlanning || (useTiptap && !isTiptapReady)}
                     className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
                 >
                     {isPlanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
@@ -117,7 +113,7 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                                     </div>
                                     <div className="flex flex-col gap-1">
                                             {plan.status === 'done' ? (
-                                                <div className="w-8 h-8 rounded bg-gray-100 overflow-hidden border border-gray-200 relative group/img">
+                                                <div className="w-16 h-16 rounded bg-gray-100 overflow-hidden border border-gray-200 relative group/img">
                                                     <img src={plan.url} className="w-full h-full object-cover" />
                                                     <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/img:opacity-100 transition-opacity flex items-center justify-center cursor-pointer">
                                                         <Eye className="w-4 h-4 text-white" />
