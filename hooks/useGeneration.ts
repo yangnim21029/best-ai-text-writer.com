@@ -46,6 +46,11 @@ const runGeneration = async (config: ArticleConfig) => {
             return next ? `${next}\n${msg}` : msg;
         });
     };
+    const summarizeList = (items: string[], max: number = 5) => {
+        const slice = items.slice(0, max);
+        const more = items.length > max ? ` +${items.length - max}` : '';
+        return slice.join(', ') + more;
+    };
 
     // Reset State
     resetGenerationState();
@@ -89,7 +94,12 @@ const runGeneration = async (config: ArticleConfig) => {
                 console.log(`[Timer] Product Mapping: ${mapRes.duration}ms`);
                 generatedMapping = mapRes.data;
                 analysisStore.setProductMapping(generatedMapping);
-                appendAnalysisLog('✓ Product-feature mapping ready.');
+                if (generatedMapping.length > 0) {
+                    const example = generatedMapping[0];
+                    appendAnalysisLog(`✓ Product-feature mapping ready (${generatedMapping.length}). e.g., ${example.painPoint} → ${example.productFeature}`);
+                } else {
+                    appendAnalysisLog('✓ Product-feature mapping ready (no matches found).');
+                }
                 metricsStore.addCost(mapRes.cost.totalCost, mapRes.usage.totalTokens);
             }
 
@@ -103,7 +113,8 @@ const runGeneration = async (config: ArticleConfig) => {
             generationStore.setGenerationStep('nlp_analysis');
             appendAnalysisLog('• Running NLP keyword scan...');
             const keywords = await analyzeText(fullConfig.referenceContent);
-            appendAnalysisLog(`✓ NLP scan found ${keywords.length} raw keywords.`);
+            const topTokens = summarizeList(keywords.map(k => k.token), 6);
+            appendAnalysisLog(`✓ NLP scan found ${keywords.length} keywords. Top: ${topTokens}`);
 
             if (keywords.length > 0 && !isStopped()) {
                 generationStore.setGenerationStep('planning_keywords');
@@ -112,7 +123,8 @@ const runGeneration = async (config: ArticleConfig) => {
                     const planRes = await extractKeywordActionPlans(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
                     console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
                     analysisStore.setKeywordPlans(planRes.data);
-                    appendAnalysisLog('✓ Keyword plan ready.');
+                    const planWords = summarizeList(planRes.data.map(p => p.word), 6);
+                    appendAnalysisLog(`✓ Keyword plan ready (${planRes.data.length}). Focus: ${planWords}`);
                     metricsStore.addCost(planRes.cost.totalCost, planRes.usage.totalTokens);
                 } catch (e) {
                     console.warn("Action Plan extraction failed", e);
@@ -140,6 +152,13 @@ const runGeneration = async (config: ArticleConfig) => {
             console.log(`[Timer] Authority Analysis: ${authRes.duration}ms`);
             appendAnalysisLog(`✓ Structure extracted (${structRes.data?.structure?.length || 0} sections).`);
             appendAnalysisLog('✓ Authority terms mapped.');
+            if (structRes.data?.structure?.length) {
+                const sectionTitles = summarizeList(structRes.data.structure.map((s: any) => s.title), 6);
+                appendAnalysisLog(`Sections: ${sectionTitles}`);
+            }
+            if (authRes.data?.relevantTerms?.length) {
+                appendAnalysisLog(`Authority terms: ${summarizeList(authRes.data.relevantTerms, 6)}`);
+            }
 
             metricsStore.addCost(structRes.cost.totalCost, structRes.usage.totalTokens);
             metricsStore.addCost(authRes.cost.totalCost, authRes.usage.totalTokens);
@@ -180,7 +199,7 @@ const runGeneration = async (config: ArticleConfig) => {
             try {
                 const styleRes = await analyzeVisualStyle(analyzedImages, fullConfig.websiteType || "Modern Business");
                 analysisStore.setVisualStyle(styleRes.data);
-                appendAnalysisLog('✓ Visual style extracted.');
+                appendAnalysisLog(`✓ Visual style extracted: ${styleRes.data}`);
                 metricsStore.addCost(styleRes.cost.totalCost, styleRes.usage.totalTokens);
             } catch (e) {
                 console.warn("Failed to extract visual style", e);
