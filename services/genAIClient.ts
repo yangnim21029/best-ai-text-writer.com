@@ -113,7 +113,14 @@ export class GenAIClient {
         // Extract schema from config if present
         if (config) {
             const { responseSchema, responseMimeType, ...restConfig } = config;
-            if (responseSchema) payload.schema = responseSchema;
+
+            // Some backends expect `responseSchema`, others expect `schema`.
+            // Send both to stay backward compatible and avoid missing-field errors.
+            if (responseSchema) {
+                payload.schema = responseSchema;
+                payload.responseSchema = responseSchema;
+            }
+
             if (responseMimeType) payload.responseMimeType = responseMimeType;
             if (Object.keys(restConfig).length > 0) payload.config = restConfig;
         }

@@ -217,11 +217,25 @@ export const generateSectionContent = async (
         }
     );
 
-    // Backend returns validated object when schema is used
-    const data = response.object || {
-        content: response.text || "",
-        usedPoints: [],
-        injectedCount: 0
+    // Backend should return an object, but some deployments may only return a JSON string.
+    // Parse defensively so the editor doesn't render raw JSON blobs.
+    let parsed = response.object as any;
+    if (!parsed && response.text) {
+        try {
+            parsed = JSON.parse(response.text);
+        } catch {
+            parsed = null;
+        }
+    }
+
+    if (!parsed || typeof parsed !== 'object') {
+        parsed = { content: response.text || "", usedPoints: [], injectedCount: 0 };
+    }
+
+    const data = {
+        content: parsed.content || "",
+        usedPoints: Array.isArray(parsed.usedPoints) ? parsed.usedPoints : [],
+        injectedCount: typeof parsed.injectedCount === 'number' ? parsed.injectedCount : 0
     };
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
