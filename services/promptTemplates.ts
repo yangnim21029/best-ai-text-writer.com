@@ -223,6 +223,7 @@ export const promptTemplates = {
     - Keep the meaning but remove numbering, quotes, and redundant words.
     - Make headings unique (no duplicates) and concise (<= 12 words).
     - Style them as clean H2/H3 titles (no markdown/hash prefixes).
+    - Each "after" MUST be an improved rephrase of "before" (shorter, clearer, or more specific) — do NOT return the same text.
     - Preserve the order of the input list.
 
     OUTPUT (JSON only):

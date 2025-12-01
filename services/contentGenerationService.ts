@@ -180,10 +180,29 @@ export const refineSectionHeadings = async (
     }
 
     const list = Array.isArray(parsed?.headings) ? parsed.headings : [];
+    const clean = (value: string) => (value || '').replace(/^#+\s*/, '').replace(/["“”]/g, '').trim();
+    const improveDeterministically = (value: string) => {
+        const words = clean(value).split(/\s+/).filter(Boolean);
+        if (words.length === 0) return value;
+        const stop = new Set(['the','a','an','and','of','for','to','in','with','on','at','by','from','about','into','over','after','under','between','within']);
+        const filtered = words.filter(w => !stop.has(w.toLowerCase())) || words;
+        const trimmed = filtered.slice(0, 10);
+        const candidate = trimmed.join(' ') || clean(value);
+        return candidate.length > 0 ? candidate : value;
+    };
+
     const normalized = headings.map((before, idx) => {
-        const match = list.find((h: any) => (h?.before || '').trim() === before.trim()) || list[idx];
-        const after = typeof match?.after === 'string' ? match.after : before;
-        return { before, after };
+        const match = list.find((h: any) => clean(h?.before) === clean(before)) || list[idx];
+        const rawAfter = typeof match?.after === 'string' ? match.after : before;
+        const beforeClean = clean(before);
+        let afterClean = clean(rawAfter);
+        if (afterClean.toLowerCase() === beforeClean.toLowerCase() || afterClean === '') {
+            afterClean = improveDeterministically(beforeClean);
+            if (afterClean.toLowerCase() === beforeClean.toLowerCase()) {
+                afterClean = `${beforeClean} — Insight`;
+            }
+        }
+        return { before: beforeClean, after: afterClean };
     });
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');
