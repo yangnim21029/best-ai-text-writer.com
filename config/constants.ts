@@ -1,6 +1,6 @@
 export const MODEL = {
     FLASH: 'gemini-2.5-flash',
-    IMAGE_PREVIEW: 'gemini-3-pro-image-preview',
+    IMAGE_PREVIEW: 'google/gemini-2.5-flash-image',
 };
 
 export const PRICING = {

@@ -139,8 +139,6 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
             body: JSON.stringify({
                 prompt,
                 model: MODEL.IMAGE_PREVIEW,
-                n: 1,
-                size: '1024x1024',
                 aspectRatio: '16:9'
             })
         });
