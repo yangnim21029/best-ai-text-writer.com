@@ -17,6 +17,14 @@ export const calculateCost = (usage: any, modelType: keyof typeof PRICING): { us
     };
 };
 
+// Helper: Normalize usage to TokenUsage shape
+export const toTokenUsage = (usage: any): TokenUsage => {
+    const inputTokens = usage?.promptTokenCount || usage?.inputTokens || 0;
+    const outputTokens = usage?.candidatesTokenCount || usage?.outputTokens || 0;
+    const totalTokens = usage?.totalTokenCount || usage?.totalTokens || (inputTokens + outputTokens);
+    return { inputTokens, outputTokens, totalTokens };
+};
+
 // Helper: Get Language Instruction
 export const getLanguageInstruction = (audience: TargetAudience): string => {
     switch (audience) {

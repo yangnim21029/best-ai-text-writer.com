@@ -1,7 +1,7 @@
 import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience } from '../types';
-import { calculateCost, extractRawSnippets, getLanguageInstruction } from './promptService';
+import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from './promptService';
 import { promptRegistry } from './promptRegistry';
-import { runLlm } from './llmOrchestrator';
+import { aiClient } from './aiClient';
 import { Type } from './schemaTypes';
 
 // Analyze Context & Generate Action Plan for keywords
@@ -12,57 +12,52 @@ export const extractKeywordActionPlans = async (
 ): Promise<ServiceResponse<KeywordActionPlan[]>> => {
     const startTs = Date.now();
 
-    const topTokens = keywords.slice(15);
+    // Take top keywords to avoid token limits
+    const topTokens = keywords.slice(0, 12);
+
+    const truncateSnippet = (text: string, maxLen: number = 160) =>
+        text.length > maxLen ? `${text.slice(0, maxLen - 3)}...` : text;
+
+    // Prepare snippets for the prompt context
     const analysisPayload = topTokens.map(k => ({
         word: k.token,
-        snippets: extractRawSnippets(referenceContent, k.token)
-    })).filter(item => item.snippets.length > 0);
-
-    if (analysisPayload.length === 0) {
-        return { data: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
-    }
+        snippets: extractRawSnippets(referenceContent, k.token, 80)
+            .slice(0, 2)
+            .map(snippet => truncateSnippet(snippet))
+    }));
 
     const languageInstruction = getLanguageInstruction(targetAudience);
+
+    // Stringify the analysis payload for the prompt template
+    let analysisPayloadString = JSON.stringify(analysisPayload, null, 2);
+    const MAX_ANALYSIS_PAYLOAD = 8000;
+    if (analysisPayloadString.length > MAX_ANALYSIS_PAYLOAD) {
+        analysisPayloadString = analysisPayloadString.slice(0, MAX_ANALYSIS_PAYLOAD) + '\n...(truncated for length)...';
+    }
+
+    // Use the registry to build the prompt with snippet context
     const prompt = promptRegistry.build('keywordActionPlan', {
-        languageInstruction,
-        analysisPayloadString: JSON.stringify(analysisPayload.slice(0, 20), null, 2),
+        analysisPayloadString,
+        targetAudience,
+        languageInstruction
     });
 
     try {
-        const response = await runLlm({
-            prompt,
-            model: 'FLASH',
-            responseMimeType: 'application/json',
-            config: {
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        plans: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    word: { type: Type.STRING },
-                                    plan: { type: Type.ARRAY, items: { type: Type.STRING } }
-                                }
-                            }
-                        }
-                    }
+        const response = await aiClient.runJson<any[]>(prompt, 'FLASH', {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    word: { type: Type.STRING },
+                    plan: { type: Type.ARRAY, items: { type: Type.STRING } }
                 }
             }
         });
 
-        const result = JSON.parse(response.text || "{}");
-        const plans: any[] = result.plans || [];
+        const plans = response.data || [];
 
-        const uniquePlans = new Map();
-        plans.forEach((p: any) => {
-            if (p && p.word && !uniquePlans.has(p.word)) {
-                uniquePlans.set(p.word, p);
-            }
-        });
-
-        const finalPlans = Array.from(uniquePlans.values()).map((p: any) => {
+        // Map back to include snippets
+        const finalPlans: KeywordActionPlan[] = plans.map((p: any) => {
             const original = analysisPayload.find(ap => ap.word === p.word);
             return {
                 word: p.word,
@@ -73,13 +68,19 @@ export const extractKeywordActionPlans = async (
 
         return {
             data: finalPlans,
-            usage: response.usage,
+            usage: toTokenUsage(response.usage),
             cost: response.cost,
             duration: response.duration
         };
 
     } catch (e) {
         console.error("Action Plan extraction failed", e);
-        return { data: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
+        const usage = toTokenUsage((e as any)?.usage);
+        return {
+            data: [],
+            usage,
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+            duration: Date.now() - startTs
+        };
     }
 };
