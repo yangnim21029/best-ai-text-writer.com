@@ -1,13 +1,13 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { ArticleConfig, CostBreakdown, GenerationStep, SavedProfile, ScrapedImage, TargetAudience, TokenUsage } from '../types';
 import { ArticleFormValues } from '../schemas/formSchema';
 import { summarizeBrandContent } from '../services/productService';
-import { embedTexts, cosineSimilarity } from '../services/embeddingService';
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
 import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2 } from 'lucide-react';
 import { useArticleForm } from '../hooks/useArticleForm';
+import { useSemanticFilter } from '../hooks/useSemanticFilter';
 
 interface InputFormProps {
     onGenerate: (config: ArticleConfig) => void;
@@ -24,13 +24,6 @@ interface InputFormProps {
 }
 
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
-const SEMANTIC_THRESHOLD = 0.79;
-
-const splitIntoBlankLineChunks = (content: string): string[] =>
-    content
-        .split(/\n\s*\n+/)
-        .map(chunk => chunk.trim())
-        .filter(Boolean);
 
 export const InputForm: React.FC<InputFormProps> = ({
     onGenerate,
@@ -45,14 +38,6 @@ export const InputForm: React.FC<InputFormProps> = ({
     setInputType,
     brandKnowledge = ''
 }) => {
-    const [isChunkModalOpen, setIsChunkModalOpen] = useState(false);
-    const [chunkPreview, setChunkPreview] = useState<string[]>([]);
-    const [isFilteringChunks, setIsFilteringChunks] = useState(false);
-    const [filterError, setFilterError] = useState<string | null>(null);
-    const [chunkScores, setChunkScores] = useState<number[]>([]);
-    const [isScoringChunks, setIsScoringChunks] = useState(false);
-    const [manualKeep, setManualKeep] = useState<Record<number, boolean>>({});
-
     const {
         register,
         handleSubmit,
@@ -84,6 +69,21 @@ export const InputForm: React.FC<InputFormProps> = ({
         onSetActiveProfile,
         setInputType,
     });
+
+    const {
+        isChunkModalOpen,
+        setIsChunkModalOpen,
+        chunkPreview,
+        chunkScores,
+        isScoringChunks,
+        isFilteringChunks,
+        filterError,
+        manualKeep,
+        setManualKeep,
+        openFilterModal,
+        applyFilter,
+        SEMANTIC_THRESHOLD
+    } = useSemanticFilter();
 
     const onSubmit = (data: ArticleFormValues) => {
         const usableImages = scrapedImages.filter(img => !img.ignored);
@@ -146,105 +146,23 @@ export const InputForm: React.FC<InputFormProps> = ({
 
     const handlePreviewSemanticFilter = () => {
         const content = (watchedValues.referenceContent || '').trim();
+        const title = (watchedValues.title || '').trim();
+
         if (!content) {
             alert('先貼上內容再做語意過濾。');
             return;
         }
 
-        const chunks = splitIntoBlankLineChunks(content);
-        if (!chunks.length) {
-            alert('找不到可以分段的內容（需有空白行分隔）。');
-            return;
-        }
-
-        setChunkPreview(chunks);
-        setFilterError(null);
-        setChunkScores([]);
-        setManualKeep({});
-        setIsChunkModalOpen(true);
-        void scoreChunks(chunks);
-    };
-
-    const scoreChunks = async (chunks: string[]) => {
-        const title = (watchedValues.title || '').trim();
-
-        if (!title) {
-            setFilterError('請先填寫標題，再計算語意距離。');
-            return null;
-        }
-
-        setIsScoringChunks(true);
-        setFilterError(null);
-
-        try {
-            const [titleEmbeddings, chunkEmbeddings] = await Promise.all([
-                embedTexts([title]),
-                embedTexts(chunks),
-            ]);
-
-            const titleEmbedding = titleEmbeddings[0];
-            if (!titleEmbedding?.length) {
-                throw new Error('無法取得標題向量，請稍後再試。');
-            }
-
-            const similarities = chunks.map((chunk, idx) => {
-                const chunkEmbedding = chunkEmbeddings[idx];
-                if (!chunkEmbedding?.length) return 1;
-
-                const similarity = cosineSimilarity(titleEmbedding, chunkEmbedding);
-                return similarity;
-            });
-
-            setChunkScores(similarities);
-            return similarities;
-        } catch (error: any) {
-            setFilterError(error?.message || '語意過濾失敗，請稍後再試。');
-            return null;
-        } finally {
-            setIsScoringChunks(false);
-        }
+        openFilterModal(content, title);
     };
 
     const handleRunSemanticFilter = async () => {
         const content = (watchedValues.referenceContent || '').trim();
+        const title = (watchedValues.title || '').trim();
 
-        if (!content) {
-            setFilterError('沒有可供分析的內容。');
-            return;
-        }
-
-        const chunks = chunkPreview.length ? chunkPreview : splitIntoBlankLineChunks(content);
-        if (!chunks.length) {
-            setFilterError('找不到可用的段落。');
-            return;
-        }
-
-        setIsFilteringChunks(true);
-        setFilterError(null);
-
-        try {
-            const existingScores = (chunkScores.length === chunks.length) ? chunkScores : null;
-            const computedScores = existingScores || (await scoreChunks(chunks)) || [];
-
-            if (!computedScores.length) {
-                setFilterError(prev => prev || '無法取得語意距離，請確認標題與 API 設定。');
-                setIsFilteringChunks(false);
-                return;
-            }
-
-            const keptChunks = chunks.filter((chunk, idx) => {
-                const similarity = computedScores[idx] ?? 1;
-                const forcedKeep = manualKeep[idx];
-                return forcedKeep || similarity >= SEMANTIC_THRESHOLD;
-            });
-
-            const filteredContent = keptChunks.join('\n\n').trim();
+        const filteredContent = await applyFilter(content, title);
+        if (filteredContent !== null && filteredContent !== undefined) {
             setValue('referenceContent', filteredContent);
-            setIsChunkModalOpen(false);
-        } catch (error: any) {
-            setFilterError(error?.message || '語意過濾失敗，請稍後再試。');
-        } finally {
-            setIsFilteringChunks(false);
         }
     };
 
@@ -370,9 +288,9 @@ export const InputForm: React.FC<InputFormProps> = ({
                         type="submit"
                         disabled={isGenerating || !isReadyToGenerate}
                         className={`w-full py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] ${isGenerating
-                                || !isReadyToGenerate
-                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
+                            || !isReadyToGenerate
+                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
                             }`}
                     >
                         {isGenerating ? (
@@ -417,11 +335,10 @@ export const InputForm: React.FC<InputFormProps> = ({
                                             <button
                                                 type="button"
                                                 onClick={() => setManualKeep(prev => ({ ...prev, [idx]: !prev[idx] }))}
-                                                className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${
-                                                    manualKeep[idx]
+                                                className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${manualKeep[idx]
                                                         ? 'border-blue-200 bg-blue-50 text-blue-700'
                                                         : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
-                                                }`}
+                                                    }`}
                                             >
                                                 {manualKeep[idx] ? '手動通過' : '手動通過？'}
                                             </button>
@@ -429,7 +346,7 @@ export const InputForm: React.FC<InputFormProps> = ({
                                                 <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] ${chunkScores[idx] >= SEMANTIC_THRESHOLD
                                                     ? 'border-green-200 text-green-700 bg-green-50'
                                                     : 'border-amber-200 text-amber-700 bg-amber-50'
-                                                }`}>
+                                                    }`}>
                                                     相似度 {chunkScores[idx].toFixed(3)}
                                                 </span>
                                             ) : (
