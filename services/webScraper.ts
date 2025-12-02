@@ -23,7 +23,7 @@ export const fetchUrlContent = async (url: string, options: FetchOptions = {}): 
         // Construct headers, optionally including/excluding nav
         const headers: Record<string, string> = {
             'x-no-cache': 'false', // bypass cached content
-            'X-Md-Heading-Style': 'setext', // use setext heading style , # ## ### for h1, h2, h3
+            'X-Md-Heading-Style': 'setext', // setext headings (=== for H1, --- for H2)
         };
 
         if (!options.includeNav) {
@@ -126,7 +126,8 @@ const cleanJinaBySeparator = (rawText: string): { title: string, content: string
         contentBody = parts.slice(1).join('Markdown Content:');
     }
 
-    let cleanContent = contentBody.trim();
+    // Preserve heading structure: convert setext (=== / ---) to ATX (# / ##)
+    let cleanContent = convertSetextToAtx(contentBody.trim());
 
     // Extract images BEFORE cleaning them out
     const images = extractImagesFromContent(cleanContent);
@@ -139,6 +140,43 @@ const cleanJinaBySeparator = (rawText: string): { title: string, content: string
     }
 
     return { title, content: cleanContent, images };
+};
+
+// Convert setext headings (text + === / ---) into ATX (# / ##) so they survive later cleanup.
+// Skip fenced code blocks to avoid rewriting literal divider lines inside code samples.
+const convertSetextToAtx = (text: string): string => {
+    const lines = text.split('\n');
+    const out: string[] = [];
+    let inFence = false;
+
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
+
+        // Toggle code fence state
+        if (/^\s*(```|~~~)/.test(line.trim())) {
+            inFence = !inFence;
+            out.push(line);
+            continue;
+        }
+
+        if (!inFence && i + 1 < lines.length) {
+            const underline = lines[i + 1];
+            const match = underline.match(/^\s*(=+|-+)\s*$/);
+            const hasText = line.trim().length > 0;
+            const prevIsBlank = i === 0 || lines[i - 1].trim() === '';
+
+            if (match && hasText && prevIsBlank) {
+                const level = match[1].startsWith('=') ? '#' : '##';
+                out.push(`${level} ${line.trim()}`);
+                i++; // Skip underline line
+                continue;
+            }
+        }
+
+        out.push(line);
+    }
+
+    return out.join('\n');
 };
 
 /**
