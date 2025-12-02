@@ -7,6 +7,8 @@ import { mergeTurboSections } from '../../services/turboRenderer';
 import { refineAllHeadings } from './useHeadingRefiner';
 
 import { cleanHeadingText, stripLeadingHeading } from '../../utils/textUtils';
+import { planImagesForArticle, generateImage } from '../../services/imageService';
+import { appendAnalysisLog } from './generationLogger';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 
@@ -206,6 +208,51 @@ export const runContentGeneration = async (
     }
 
     if (!isStopped()) {
+        // --- IMAGE GENERATION PHASE ---
+        generationStore.setGenerationStep('generating_images');
+        const fullContent = sectionBodies.join('\n\n');
+
+        try {
+            appendAnalysisLog('Planning visual assets...');
+            const imagePlans = await planImagesForArticle(
+                fullContent,
+                analysisStore.scrapedImages,
+                config.targetAudience,
+                analysisStore.visualStyle
+            );
+
+            console.log(`[Images] Planned ${imagePlans.data.length} images`);
+            appendAnalysisLog(`Visual plan ready: ${imagePlans.data.length} images.`);
+            metricsStore.addCost(imagePlans.cost.totalCost, imagePlans.usage.totalTokens);
+
+            // Generate images in parallel (limit concurrency if needed, but for now all at once is fine for small batches)
+            const imagePromises = imagePlans.data.map(async (plan) => {
+                if (isStopped()) return;
+                try {
+                    const label = plan.category || plan.insertAfter || plan.id;
+                    appendAnalysisLog(`Generating image: ${label}...`);
+                    const imgRes = await generateImage(plan.generatedPrompt);
+
+                    if (imgRes.data) {
+                        // In a real app, you'd save this to a store or insert it into the content.
+                        // For now, we'll just log it and maybe append it to the end or store it.
+                        // TODO: Store generated images in a store for the UI to display or insert.
+                        console.log(`[Images] Generated: ${plan.id}`);
+                        metricsStore.addCost(imgRes.cost.totalCost, imgRes.usage.totalTokens);
+                    }
+                } catch (e) {
+                    console.error(`Failed to generate image ${plan.id}`, e);
+                }
+            });
+
+            await Promise.all(imagePromises);
+            appendAnalysisLog('Image generation completed.');
+
+        } catch (e) {
+            console.error("Image generation phase failed", e);
+            appendAnalysisLog('Image generation failed.');
+        }
+
         generationStore.setGenerationStep('finalizing');
         setTimeout(() => {
             generationStore.setStatus('completed');

@@ -11,108 +11,109 @@ interface FetchOptions {
 }
 
 export const fetchUrlContent = async (url: string, options: FetchOptions = {}): Promise<{ title: string, content: string, images: ScrapedImage[] }> => {
-  if (!url) return { title: '', content: '', images: [] };
+    if (!url) return { title: '', content: '', images: [] };
 
-  try {
-    new URL(url);
-  } catch (_) {
-    throw new Error("Invalid URL format");
-  }
-
-  try {
-    // Construct headers, optionally including/excluding nav
-    const headers: Record<string, string> = {
-        'x-no-cache': 'true'
-    };
-
-    if (!options.includeNav) {
-        // Default behavior: Remove nav, header, footer for article reading
-        headers['X-Remove-Selector'] = 'header, footer, nav, aside';
-    } else {
-        // If includeNav is true, we might still want to remove ads/sidebars but keep header/footer
-        headers['X-Remove-Selector'] = 'aside'; // Keep header/footer/nav for contact info
+    try {
+        new URL(url);
+    } catch (_) {
+        throw new Error("Invalid URL format");
     }
 
-    const response = await fetch(`https://r.jina.ai/${url}`, {
-        method: 'GET',
-        headers: headers
-    });
+    try {
+        // Construct headers, optionally including/excluding nav
+        const headers: Record<string, string> = {
+            'x-no-cache': 'false', // bypass cached content
+            'X-Md-Heading-Style': 'setext', // use setext heading style , # ## ### for h1, h2, h3
+        };
 
-    if (!response.ok) {
-      throw new Error(`Failed to fetch content: ${response.statusText}`);
+        if (!options.includeNav) {
+            // Default behavior: Remove nav, header, footer for article reading
+            headers['X-Remove-Selector'] = 'header, footer, nav, aside';
+        } else {
+            // If includeNav is true, we might still want to remove ads/sidebars but keep header/footer
+            headers['X-Remove-Selector'] = 'aside'; // Keep header/footer/nav for contact info
+        }
+
+        const response = await fetch(`https://r.jina.ai/${url}`, {
+            method: 'GET',
+            headers: headers
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to fetch content: ${response.statusText}`);
+        }
+
+        const rawText = await response.text();
+
+        if (!rawText || rawText.length < 50) {
+            throw new Error("Content retrieved is too short or empty.");
+        }
+
+        const cleaned = cleanJinaBySeparator(rawText);
+
+        return { ...cleaned };
+
+    } catch (error: any) {
+        console.error("Web Scraping Error:", error);
+        throw new Error(error.message || "Failed to scrape URL");
     }
-
-    const rawText = await response.text();
-    
-    if (!rawText || rawText.length < 50) {
-        throw new Error("Content retrieved is too short or empty.");
-    }
-
-    const cleaned = cleanJinaBySeparator(rawText);
-
-    return { ...cleaned };
-
-  } catch (error: any) {
-    console.error("Web Scraping Error:", error);
-    throw new Error(error.message || "Failed to scrape URL");
-  }
 };
 
 const extractImagesFromContent = (text: string, range: number = 50): ScrapedImage[] => {
-  // Regex to capture ![alt](url)
-  const regex = /!\[(.*?)\]\((.*?)\)/g;
-  let match;
-  const rawMatches: { index: number; length: number; image: ScrapedImage }[] = [];
+    // Regex to capture ![alt](url)
+    const regex = /!\[(.*?)\]\((.*?)\)/g;
+    let match;
+    const rawMatches: { index: number; length: number; image: ScrapedImage }[] = [];
 
-  while ((match = regex.exec(text)) !== null) {
-    const fullMatchStr = match[0];
-    const altText = match[1];
-    const url = match[2];
-    const matchIndex = match.index;
-    const matchLength = fullMatchStr.length;
+    while ((match = regex.exec(text)) !== null) {
+        const fullMatchStr = match[0];
+        const altText = match[1];
+        const url = match[2];
+        const matchIndex = match.index;
+        const matchLength = fullMatchStr.length;
 
-    const startPos = Math.max(0, matchIndex - range);
-    const endPos = Math.min(text.length, matchIndex + matchLength + range);
+        const startPos = Math.max(0, matchIndex - range);
+        const endPos = Math.min(text.length, matchIndex + matchLength + range);
 
-    const preContext = text.substring(startPos, matchIndex).trim(); 
-    const postContext = text.substring(matchIndex + matchLength, endPos).trim();
+        const preContext = text.substring(startPos, matchIndex).trim();
+        const postContext = text.substring(matchIndex + matchLength, endPos).trim();
 
-    rawMatches.push({
-      index: matchIndex,
-      length: matchLength,
-      image: {
-        url,
-        preContext,
-        altText,
-        postContext
-      }
-    });
-  }
+        rawMatches.push({
+            index: matchIndex,
+            length: matchLength,
+            image: {
+                url,
+                preContext,
+                altText,
+                postContext
+            }
+        });
+    }
 
-  if (rawMatches.length <= 10) {
-      return rawMatches.map(item => item.image);
-  }
+    if (rawMatches.length <= 10) {
+        return rawMatches.map(item => item.image);
+    }
 
-  const filteredImages: ScrapedImage[] = [];
-  let lastEndPos = -1;
+    const filteredImages: ScrapedImage[] = [];
+    let lastEndPos = -1;
 
-  for (const item of rawMatches) {
-      if (lastEndPos === -1) {
-          filteredImages.push(item.image);
-          lastEndPos = item.index + item.length;
-          continue;
-      }
+    for (const item of rawMatches) {
+        if (lastEndPos === -1) {
+            filteredImages.push(item.image);
+            lastEndPos = item.index + item.length;
+            continue;
+        }
 
-      const textBetween = text.substring(lastEndPos, item.index);
-      const meaningfulContent = textBetween.replace(/\s/g, '');
+        const textBetween = text.substring(lastEndPos, item.index);
+        const meaningfulContent = textBetween.replace(/\s/g, '');
 
-      if (meaningfulContent.length >= 30) {
-           filteredImages.push(item.image);
-           lastEndPos = item.index + item.length;
-      }
-  }
+        if (meaningfulContent.length >= 30) {
+            filteredImages.push(item.image);
+            lastEndPos = item.index + item.length;
+        }
+    }
 
-  return filteredImages;
+    return filteredImages;
 };
 
 const cleanJinaBySeparator = (rawText: string): { title: string, content: string, images: ScrapedImage[] } => {
@@ -122,7 +123,7 @@ const cleanJinaBySeparator = (rawText: string): { title: string, content: string
     let contentBody = rawText;
     if (rawText.includes('Markdown Content:')) {
         const parts = rawText.split('Markdown Content:');
-        contentBody = parts.slice(1).join('Markdown Content:'); 
+        contentBody = parts.slice(1).join('Markdown Content:');
     }
 
     let cleanContent = contentBody.trim();
@@ -150,7 +151,7 @@ const cleanArtifacts = (text: string): string => {
     // ============================================================
     // 1. Specific Junk Phrase Removal (Requested User Rules)
     // ============================================================
-    
+
     const junkPhrases = [
         /^Ad Placement\s*:.*$/gim,        // Remove "Ad Placement : xxxx" lines
         /^(Login|登入|Sign In).*$/gim,    // Remove lines starting with Login/登入
@@ -178,7 +179,7 @@ const cleanArtifacts = (text: string): string => {
     // Jina non-standard image artifacts cleanup
     cleaned = cleaned.replace(/^!Image\s+\d+:.*$/gm, '');
     cleaned = cleaned.replace(/!Image\s*\[.*?\]/gi, '');
-    
+
     // Remove orphaned closing link syntax often left behind
     cleaned = cleaned.replace(/^\]\(.*?\)/gm, '');
 
@@ -188,15 +189,15 @@ const cleanArtifacts = (text: string): string => {
     // ============================================================
 
     const linkRegex = /\[(.*?)\]\(.*?\)/g;
-    const linkMatches: {index: number, length: number}[] = [];
+    const linkMatches: { index: number, length: number }[] = [];
     let lMatch;
-    
+
     while ((lMatch = linkRegex.exec(cleaned)) !== null) {
         linkMatches.push({ index: lMatch.index, length: lMatch[0].length });
     }
 
     if (linkMatches.length > 6) {
-        const indicesToRemove: {start: number, end: number}[] = [];
+        const indicesToRemove: { start: number, end: number }[] = [];
         let lastValidEnd = -1;
 
         for (let i = 0; i < linkMatches.length; i++) {
@@ -243,17 +244,17 @@ const cleanArtifacts = (text: string): string => {
 
     // Google Analytics / Ads artifacts
     cleaned = cleaned.replace(/^\s*(UA-\d+-\d+|G-[A-Z0-9]+)\s*$/gm, '');
-    
+
     // Common noise words (Case insensitive)
     cleaned = cleaned.replace(/^(holiday|girlstyle|businessfocus|mamidaily)\s*$/gim, '');
-    
+
     // HK style "All Chinese" navs
     cleaned = cleaned.replace(/^All\s+[\u4e00-\u9fa5]+.*$/gm, '');
 
     // User-requested noise lines between content
     cleaned = cleaned.replace(/^\s*-{3,}\s*$/gm, ''); // ----- separators
     cleaned = cleaned.replace(/^\s*\u25b2?\s*Cosmopolitan\.com\.hk\s*$/gim, ''); // Cosmopolitan.com.hk with optional ▲
-    
+
     // Final Whitespace Cleanup
     cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
 

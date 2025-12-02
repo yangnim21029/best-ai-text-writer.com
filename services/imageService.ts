@@ -142,9 +142,9 @@ export const analyzeImageWithAI = async (
         const duration = Date.now() - startTs;
         const rawUsage = result.usage || { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
         const usageForCost = {
-            promptTokenCount: rawUsage.promptTokenCount ?? rawUsage.inputTokens ?? 0,
-            candidatesTokenCount: rawUsage.candidatesTokenCount ?? rawUsage.outputTokens ?? 0,
-            totalTokenCount: rawUsage.totalTokenCount ?? rawUsage.totalTokens ?? ((rawUsage.inputTokens || 0) + (rawUsage.outputTokens || 0))
+            promptTokenCount: rawUsage.inputTokens ?? 0,
+            candidatesTokenCount: rawUsage.outputTokens ?? 0,
+            totalTokenCount: rawUsage.totalTokens ?? ((rawUsage.inputTokens || 0) + (rawUsage.outputTokens || 0))
         };
         // Map model to PRICING key (FLASH for vision models)
         const modelType = model.includes('flash') ? 'FLASH' : 'FLASH';
@@ -374,6 +374,7 @@ export const planImagesForArticle = async (
 
         const finalPlans: ImageAssetPlan[] = plans.map((p: any, index: number) => ({
             id: `plan-${Date.now()}-${index}`,
+            category: p.category,
             generatedPrompt: p.generatedPrompt,
             insertAfter: p.insertAfter,
             status: 'idle'

@@ -79,6 +79,7 @@ export interface ScrapedImage {
 export interface ImageAssetPlan {
   id: string;
   originalAlt?: string;
+  category?: string;
   generatedPrompt: string;
   insertAfter: string;
   status: 'idle' | 'generating' | 'done' | 'error';
