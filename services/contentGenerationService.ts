@@ -174,6 +174,11 @@ export const generateSectionContent = async (
         difficulty,
         writingMode,
         solutionAngles,
+        avoidContent: [
+            ...futureSections,
+            ...previousSections,
+            ...relevantKeyPoints.filter(p => !pointsAvailableForThisSection.includes(p))
+        ]
     });
 
     const response = await generateContent(

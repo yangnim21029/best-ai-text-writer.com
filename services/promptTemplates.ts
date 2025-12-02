@@ -4,44 +4,46 @@ export type PromptBuilderPayload = Record<string, any>;
 export type PromptBuilder<T extends PromptBuilderPayload = PromptBuilderPayload> = (payload: T) => string;
 
 export const promptTemplates = {
-    sectionContent: ({
-        sectionTitle,
-        languageInstruction,
-        previousSections,
-        futureSections,
-        generalPlan,
-        specificPlan,
-        kbInsights,
-        keywordPlans,
-        relevantAuthTerms,
-        points,
-        injectionPlan,
-        articleTitle,
-        coreQuestion,
-        difficulty,
-        writingMode,
-        solutionAngles,
-    }: {
-        sectionTitle: string;
-        languageInstruction: string;
-        previousSections: string[];
-        futureSections: string[];
-        generalPlan?: string[];
-        specificPlan?: string[];
-        kbInsights: string[];
-        keywordPlans: { word: string }[];
-        relevantAuthTerms: string[];
-        points: string[];
-        injectionPlan: string;
-        articleTitle: string;
-        coreQuestion?: string;
-        difficulty?: 'easy' | 'medium' | 'unclear';
-        writingMode?: 'direct' | 'multi_solutions';
-        solutionAngles?: string[];
-    }) => {
-        const resolvedDifficulty = difficulty || 'easy';
-        const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
-        return `
+  sectionContent: ({
+    sectionTitle,
+    languageInstruction,
+    previousSections,
+    futureSections,
+    generalPlan,
+    specificPlan,
+    kbInsights,
+    keywordPlans,
+    relevantAuthTerms,
+    points,
+    injectionPlan,
+    articleTitle,
+    coreQuestion,
+    difficulty,
+    writingMode,
+    solutionAngles,
+    avoidContent,
+  }: {
+    sectionTitle: string;
+    languageInstruction: string;
+    previousSections: string[];
+    futureSections: string[];
+    generalPlan?: string[];
+    specificPlan?: string[];
+    kbInsights: string[];
+    keywordPlans: { word: string }[];
+    relevantAuthTerms: string[];
+    points: string[];
+    injectionPlan: string;
+    articleTitle: string;
+    coreQuestion?: string;
+    difficulty?: 'easy' | 'medium' | 'unclear';
+    writingMode?: 'direct' | 'multi_solutions';
+    solutionAngles?: string[];
+    avoidContent?: string[];
+  }) => {
+    const resolvedDifficulty = difficulty || 'easy';
+    const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
+    return `
     You are an expert editor writing the section: "${sectionTitle}".
     
     ${languageInstruction}
@@ -66,11 +68,10 @@ export const promptTemplates = {
         : `- Lead with a concise, direct answer to the core question.`}
 
     SOLUTION ANGLES (use if multi_solutions):
-    ${
-        mode === 'multi_solutions'
-            ? (solutionAngles && solutionAngles.length > 0 ? solutionAngles.join("; ") : "None provided; create 2 distinct angles.")
-            : "Not needed for direct mode."
-    }
+    ${mode === 'multi_solutions'
+        ? (solutionAngles && solutionAngles.length > 0 ? solutionAngles.join("; ") : "None provided; create 2 distinct angles.")
+        : "Not needed for direct mode."
+      }
     
     RESOURCES TO USE:
     - Keywords to Weave: ${keywordPlans.map((k: any) => k.word).join(", ")}
@@ -80,6 +81,12 @@ export const promptTemplates = {
     ${points.length > 0 ? points.join("; ") : "(No new key points needed for this section, focus on narrative)"}
     
     ${injectionPlan}
+
+    ${avoidContent && avoidContent.length > 0 ? `
+    ⛔ NEGATIVE CONSTRAINTS (DO NOT WRITE ABOUT):
+    To avoid repetition, you must NOT mention the following topics (they are covered in other sections):
+    ${avoidContent.map(c => `- ${c}`).join('\n')}
+    ` : ''}
     
     OUTPUT RULES:
     - Return ONLY the content for this section in JSON format.
@@ -88,15 +95,15 @@ export const promptTemplates = {
     - Ensure smooth transitions from the previous section.
     - If writing mode is "multi_solutions", list the solution paths clearly, then close with a synthesized recommendation.
     `;
-    },
+  },
 
-    keywordActionPlan: ({
-        languageInstruction,
-        analysisPayloadString,
-    }: {
-        languageInstruction: string;
-        analysisPayloadString: string;
-    }) => `
+  keywordActionPlan: ({
+    languageInstruction,
+    analysisPayloadString,
+  }: {
+    languageInstruction: string;
+    analysisPayloadString: string;
+  }) => `
     I have a list of High-Frequency Keywords and their "Context Snippets" from a Reference Text.
     
     TASK:
@@ -123,7 +130,7 @@ export const promptTemplates = {
     Return JSON only, no prose, no markdown fences.
     `,
 
-    productBrief: ({ productName, productUrl, languageInstruction }: any) => `
+  productBrief: ({ productName, productUrl, languageInstruction }: any) => `
     I need to create a "Product Brief" for a marketing article.
     
     PRODUCT NAME: "${productName}"
@@ -148,7 +155,7 @@ export const promptTemplates = {
     }
     `,
 
-    productMapping: ({ productBrief, articleTopic, languageInstruction }: any) => `
+  productMapping: ({ productBrief, articleTopic, languageInstruction }: any) => `
     I have a Product and an Article Topic.
     
     PRODUCT: ${productBrief.productName} (${productBrief.usp})
@@ -169,7 +176,7 @@ export const promptTemplates = {
     ]
     `,
 
-    brandSummary: ({ urls, languageInstruction }: any) => `
+  brandSummary: ({ urls, languageInstruction }: any) => `
     You are a web crawler and marketing copywriter.
     Crawl and summarize the following URLs to extract the brand's own service/product details, contact info, and unique selling points.
     URLs:
@@ -180,7 +187,7 @@ export const promptTemplates = {
     OUTPUT: A concise paragraph (200-300 words) summarizing the brand/service with contact info if present.
     `,
 
-    visualStyle: ({ languageInstruction, analyzedSamples, websiteType }: any) => `
+  visualStyle: ({ languageInstruction, analyzedSamples, websiteType }: any) => `
     I need to define a consistent "Visual Identity" (Master Style Prompt) for an article.
     
     WEBSITE CONTEXT: "${websiteType}"
@@ -203,25 +210,25 @@ export const promptTemplates = {
     ${languageInstruction}
     `,
 
-    snippet: ({ prompt, languageInstruction }: any) => `
+  snippet: ({ prompt, languageInstruction }: any) => `
     ${languageInstruction}
     ${prompt}
     `,
-    sectionHeading: ({
-        sectionTitle,
-        articleTitle,
-        languageInstruction,
-        keyPoints,
-        keywordPlans,
-        narrativeNotes,
-    }: {
-        sectionTitle: string;
-        articleTitle: string;
-        languageInstruction: string;
-        keyPoints: string[];
-        keywordPlans: { word: string }[];
-        narrativeNotes?: string[];
-    }) => `
+  sectionHeading: ({
+    sectionTitle,
+    articleTitle,
+    languageInstruction,
+    keyPoints,
+    keywordPlans,
+    narrativeNotes,
+  }: {
+    sectionTitle: string;
+    articleTitle: string;
+    languageInstruction: string;
+    keyPoints: string[];
+    keywordPlans: { word: string }[];
+    narrativeNotes?: string[];
+  }) => `
     You are creating a concise H3 heading for an article section.
     
     ARTICLE: "${articleTitle}"
@@ -239,15 +246,15 @@ export const promptTemplates = {
     - Keep it under 10 words.
     `,
 
-    batchRefineHeadings: ({
-        articleTitle,
-        headings,
-        languageInstruction,
-    }: {
-        articleTitle: string;
-        headings: string[];
-        languageInstruction: string;
-    }) => `
+  batchRefineHeadings: ({
+    articleTitle,
+    headings,
+    languageInstruction,
+  }: {
+    articleTitle: string;
+    headings: string[];
+    languageInstruction: string;
+  }) => `
     You are cleaning and unifying article section headings.
 
     ARTICLE TITLE: "${articleTitle}"
@@ -289,7 +296,7 @@ export const promptTemplates = {
     - If a heading is already good, repeat it in "h2_after".
     `,
 
-    metaSeo: ({ targetAudience, contextLines, articlePreview }: { targetAudience: string; contextLines: string[]; articlePreview: string; }) => `
+  metaSeo: ({ targetAudience, contextLines, articlePreview }: { targetAudience: string; contextLines: string[]; articlePreview: string; }) => `
     You are an SEO expert. Generate meta Title, Description, and URL slug for the article.
 
     Target audience: ${targetAudience}
@@ -303,7 +310,7 @@ export const promptTemplates = {
     { "title": "...", "description": "...", "slug": "..." }
     `,
 
-    rebrandContent: ({ productBrief, languageInstruction, currentContent }: any) => `
+  rebrandContent: ({ productBrief, languageInstruction, currentContent }: any) => `
     TASK: REBRAND this article content.
     
     BRAND IDENTITY:
@@ -324,7 +331,7 @@ export const promptTemplates = {
     ${currentContent}
     `,
 
-    smartFindBlock: ({ pointToInject, blocks }: any) => `
+  smartFindBlock: ({ pointToInject, blocks }: any) => `
     I need to insert this Key Point: "${pointToInject}"
     
     Here is a "Compact Index" of the article paragraphs:
@@ -334,7 +341,7 @@ export const promptTemplates = {
     Return ONLY the ID (e.g. "5").
     `,
 
-    smartRewriteBlock: ({ pointToInject, targetHtml, languageInstruction }: any) => `
+  smartRewriteBlock: ({ pointToInject, targetHtml, languageInstruction }: any) => `
     TASK: Rewrite the following HTML Block to naturally include this Key Point.
     
     KEY POINT: "${pointToInject}"
@@ -349,7 +356,7 @@ export const promptTemplates = {
     4. Return ONLY the new HTML string.
     `,
 
-    productContextFromText: ({ rawText }: any) => `
+  productContextFromText: ({ rawText }: any) => `
     Extract product/service information from the following text:
     
     "${rawText}"
@@ -368,7 +375,7 @@ export const promptTemplates = {
     }
     `,
 
-    authorityAnalysis: ({ languageInstruction, authorityTerms, websiteType, title }: any) => `
+  authorityAnalysis: ({ languageInstruction, authorityTerms, websiteType, title }: any) => `
     Analyze the Authority Terms for this article and surface only the most credible, relevant ones.
     
     WEBSITE TYPE: ${websiteType}
@@ -389,7 +396,7 @@ export const promptTemplates = {
     ${languageInstruction}
     Return JSON only.`,
 
-    referenceStructure: ({ content, targetAudience, languageInstruction }: any) => `
+  referenceStructure: ({ content, targetAudience, languageInstruction }: any) => `
     Analyze the reference text to extract:
     1) A Narrative Structure with reasoning.
     2) Conversion & value strategy (offers, CTAs, risk reversals).
@@ -424,7 +431,7 @@ export const promptTemplates = {
     }
     Return JSON only, no extra text or markdown fences.`,
 
-    keywordAnalysis: ({ content, targetAudience, languageInstruction }: { content: string; targetAudience: TargetAudience; languageInstruction: string }) => `
+  keywordAnalysis: ({ content, targetAudience, languageInstruction }: { content: string; targetAudience: TargetAudience; languageInstruction: string }) => `
     Analyze the reference content to extract high-frequency keywords and their semantic roles.
     
     TARGET AUDIENCE: ${targetAudience}
@@ -439,7 +446,7 @@ export const promptTemplates = {
     ]
     `,
 
-    imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string }) => `
+  imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string }) => `
     Generate a detailed image generation prompt based on the following context.
     
     ${languageInstruction}
