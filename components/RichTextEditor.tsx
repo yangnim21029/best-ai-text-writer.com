@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, FileText, Loader2, Type, Copy } from 'lucide-react';
+import { BookOpen, FileText, Loader2, Type, Copy, X } from 'lucide-react';
 import { TargetAudience, CostBreakdown, TokenUsage, ScrapedImage, ImageAssetPlan, ProductBrief } from '../types';
 import { TiptapAdapter } from './TiptapAdapter';
 import { EditorToolbar } from './editor/EditorToolbar';
@@ -13,6 +13,7 @@ import { useMetaGenerator } from '../hooks/useMetaGenerator';
 import { useOptionalEditorContext } from './editor/EditorContext';
 import { useAskAi } from '../hooks/useAskAi';
 import { useEditorAutosave } from '../hooks/useEditorAutosave';
+import { smartInjectPoint } from '../services/contentGenerationService';
 
 type AskAiMode = 'edit' | 'format';
 
@@ -66,6 +67,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const editorContainerRef = useRef<HTMLDivElement>(null);
     const askAiBadgeContainerRef = useRef<HTMLDivElement>(null);
     const hasRestoredDraftRef = useRef(false);
+    const [showCleanupModal, setShowCleanupModal] = useState(false);
+    const [cleanupSummary, setCleanupSummary] = useState({ boldMarks: 0, blockquotes: 0, quoteChars: 0 });
+    const [cleanupOptions, setCleanupOptions] = useState({ bold: true, blockquote: true, quotes: true });
+    const [cleanupBlocks, setCleanupBlocks] = useState<Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }>>([]);
+    const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
+    const [refiningPoint, setRefiningPoint] = useState<string | null>(null);
     const [tiptapApi, setTiptapApi] = useState<{
         getSelectedText: () => string;
         insertHtml: (html: string) => void;
@@ -85,7 +92,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         unsetLink: () => void;
         undo: () => void;
         redo: () => void;
-        clearBold: () => void;
+        clearBold: (options?: { removeBold?: boolean; removeBlockquotes?: boolean; removeQuotes?: boolean; target?: 'selection' | 'document'; scope?: { from: number; to: number } }) => boolean;
+        summarizeFormatting: () => { boldMarks: number; blockquotes: number; quoteChars: number; blocks: Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }> };
+        listCleanupTargets: () => Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }>;
         getSelectionRange: () => { from: number; to: number };
         replaceRange: (range: { from: number; to: number }, html: string) => void;
         markAskAiRange: (range: { from: number; to: number }, taskId: string) => void;
@@ -146,6 +155,105 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         updateCounts(plainText);
         recordHtml(nextHtml);
     };
+
+    const refreshCleanupSummary = useCallback(() => {
+        if (!tiptapApi) return;
+        const summary = tiptapApi.summarizeFormatting
+            ? tiptapApi.summarizeFormatting()
+            : { boldMarks: 0, blockquotes: 0, quoteChars: 0, blocks: [] };
+        setCleanupSummary(summary);
+        setCleanupOptions({
+            bold: true,
+            blockquote: true,
+            quotes: true,
+        });
+        const blocks = tiptapApi.listCleanupTargets ? tiptapApi.listCleanupTargets() : [];
+        setCleanupBlocks(blocks);
+        setSelectedBlocks(new Set(blocks.map((b, idx) => `${b.from}-${b.to}-${idx}`)));
+    }, [tiptapApi]);
+
+    const handleOpenCleanupModal = useCallback(() => {
+        if (!tiptapApi) return;
+        refreshCleanupSummary();
+        setShowCleanupModal(true);
+    }, [refreshCleanupSummary, tiptapApi]);
+
+    const handleApplyCleanup = useCallback(() => {
+        if (!tiptapApi) return;
+        // Apply in reverse order to keep ranges stable.
+        const blocksToClean = cleanupBlocks
+            .map((b, idx) => ({ ...b, id: `${b.from}-${b.to}-${idx}` }))
+            .filter(b => selectedBlocks.has(b.id))
+            .sort((a, b) => b.from - a.from);
+
+        if (blocksToClean.length === 0) {
+            setShowCleanupModal(false);
+            return;
+        }
+
+        blocksToClean.forEach(block => {
+            tiptapApi.clearBold?.({
+                removeBold: cleanupOptions.bold,
+                removeBlockquotes: cleanupOptions.blockquote,
+                removeQuotes: cleanupOptions.quotes,
+                scope: { from: block.from, to: block.to },
+            });
+        });
+        const plain = tiptapApi.getPlainText();
+        const htmlValue = tiptapApi.getHtml();
+        setHtml(htmlValue);
+        onChange?.(htmlValue);
+        ctx?.setContent?.(htmlValue);
+        updateCounts(plain);
+        recordHtml(htmlValue);
+        setShowCleanupModal(false);
+    }, [cleanupBlocks, cleanupOptions.blockquote, cleanupOptions.bold, cleanupOptions.quotes, ctx, onChange, recordHtml, selectedBlocks, tiptapApi, updateCounts]);
+
+    const handleRefinePoint = useCallback(async (point: string) => {
+        if (!tiptapApi) {
+            alert('Editor not ready.');
+            return;
+        }
+        setRefiningPoint(point);
+        setIsAiRunning(true);
+        try {
+            const fullHtml = tiptapApi.getHtml();
+            const res = await smartInjectPoint(fullHtml, point, effectiveTargetAudience as TargetAudience);
+            const { originalSnippet, newSnippet } = res.data || {};
+
+            if (originalSnippet && newSnippet) {
+                let nextHtml = fullHtml;
+                if (fullHtml.includes(originalSnippet)) {
+                    nextHtml = fullHtml.replace(originalSnippet, newSnippet);
+                } else {
+                    const suggestionHtml = `
+                        <div style="border-left: 4px solid #8b5cf6; padding-left: 12px; margin: 16px 0; background: #f5f3ff; padding: 12px; border-radius: 4px;">
+                            <p style="font-size: 10px; color: #8b5cf6; font-weight: bold; margin: 0 0 4px 0;">✨ REFINED WITH: ${point}</p>
+                            ${newSnippet}
+                        </div>
+                    `;
+                    nextHtml = fullHtml + suggestionHtml;
+                }
+                tiptapApi.setHtml(nextHtml);
+                const plain = tiptapApi.getPlainText();
+                setHtml(nextHtml);
+                onChange?.(nextHtml);
+                ctx?.setContent?.(nextHtml);
+                updateCounts(plain);
+                recordHtml(nextHtml);
+                if (onAddCost) onAddCost(res.cost, res.usage);
+                (onTogglePoint || ctx?.onTogglePoint)?.(point);
+            } else {
+                alert('AI 無法找到適合的段落插入此重點。');
+            }
+        } catch (e) {
+            console.error('Refine failed', e);
+            alert('Refinement failed.');
+        } finally {
+            setRefiningPoint(null);
+            setIsAiRunning(false);
+        }
+    }, [ctx, effectiveTargetAudience, onAddCost, onChange, onTogglePoint, recordHtml, tiptapApi, updateCounts]);
 
     const handleToolbarCommand = (command: string, value?: string) => {
         if (!tiptapApi) return;
@@ -298,7 +406,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             <div className="rte-toolbar-wrapper">
                 <EditorToolbar
                     onCommand={handleToolbarCommand}
-                    onRemoveBold={() => tiptapApi?.clearBold?.()}
+                    onRemoveBold={handleOpenCleanupModal}
                     onOpenImageModal={handleImageGenerationUnavailable}
                     onDownloadAllImages={downloadImages}
                     isDownloadingImages={isDownloadingImages}
@@ -360,6 +468,135 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         badgeContainerRef={askAiBadgeContainerRef}
                     />
 
+                    {showCleanupModal && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
+                            <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200 p-5 space-y-4">
+                                <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                        <h3 className="text-lg font-bold text-gray-800">清理粗體與引號</h3>
+                                        <p className="text-sm text-gray-500">預設全刪，取消勾選的項目會被保留。</p>
+                                    </div>
+                                    <button
+                                        onClick={() => setShowCleanupModal(false)}
+                                        className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
+                                        aria-label="Close cleanup modal"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                                        <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={cleanupOptions.bold}
+                                                onChange={(e) => setCleanupOptions((prev) => ({ ...prev, bold: e.target.checked }))}
+                                                className="mt-1 accent-blue-600"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="text-sm font-semibold text-gray-800">粗體/強調</div>
+                                                <div className="text-xs text-gray-500">{cleanupSummary.boldMarks} 段含粗體</div>
+                                            </div>
+                                        </label>
+                                        <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={cleanupOptions.blockquote}
+                                                onChange={(e) => setCleanupOptions((prev) => ({ ...prev, blockquote: e.target.checked }))}
+                                                className="mt-1 accent-blue-600"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="text-sm font-semibold text-gray-800">引用區塊</div>
+                                                <div className="text-xs text-gray-500">{cleanupSummary.blockquotes} 個 blockquote</div>
+                                            </div>
+                                        </label>
+                                        <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                            <input
+                                                type="checkbox"
+                                                checked={cleanupOptions.quotes}
+                                                onChange={(e) => setCleanupOptions((prev) => ({ ...prev, quotes: e.target.checked }))}
+                                                className="mt-1 accent-blue-600"
+                                            />
+                                            <div className="flex-1">
+                                                <div className="text-sm font-semibold text-gray-800">引號字元</div>
+                                                <div className="text-xs text-gray-500">{cleanupSummary.quoteChars} 個「」/“”/\" 字元</div>
+                                            </div>
+                                        </label>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <div className="text-xs font-semibold text-gray-700">選擇要清理的段落</div>
+                                        <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
+                                            {cleanupBlocks.map((block, idx) => {
+                                                const id = `${block.from}-${block.to}-${idx}`;
+                                                const checked = selectedBlocks.has(id);
+                                                return (
+                                                    <label key={id} className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={checked}
+                                                            onChange={(e) => {
+                                                                setSelectedBlocks(prev => {
+                                                                    const next = new Set(prev);
+                                                                    if (e.target.checked) next.add(id); else next.delete(id);
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className="mt-1 accent-blue-600"
+                                                        />
+                                                        <div className="flex-1 min-w-0">
+                                                            <div className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                                                                <span className="px-2 py-0.5 text-[10px] rounded-full bg-gray-100 text-gray-600 border border-gray-200">
+                                                                    {block.type}
+                                                                </span>
+                                                                <span className="text-xs text-gray-500">
+                                                                    粗體 {block.boldMarks} · 引用 {block.blockquotes} · 引號 {block.quoteChars}
+                                                                </span>
+                                                            </div>
+                                                            <div className="text-xs text-gray-600 truncate">{block.text || '（空白段落）'}</div>
+                                                        </div>
+                                                    </label>
+                                                );
+                                            })}
+                                            {cleanupBlocks.length === 0 && (
+                                                <div className="text-xs text-gray-400 p-2 bg-gray-50 border border-dashed border-gray-200 rounded">
+                                                    沒有找到包含粗體或引號的段落。
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center justify-between text-xs text-gray-500">
+                                    <button
+                                        type="button"
+                                        onClick={refreshCleanupSummary}
+                                        className="text-blue-600 hover:text-blue-700 font-semibold"
+                                    >
+                                        重新掃描
+                                    </button>
+                                    <div className="flex items-center gap-2">
+                                        <button
+                                            type="button"
+                                            onClick={() => setShowCleanupModal(false)}
+                                            className="px-3 py-2 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
+                                        >
+                                            取消
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleApplyCleanup}
+                                            className="px-3 py-2 rounded-md text-white font-semibold transition-colors bg-blue-600 hover:bg-blue-700"
+                                        >
+                                            套用清理
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+
                     {showMetaPanel && (
                         <MetaPanel
                             metaTitle={metaTitle}
@@ -390,9 +627,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         brandExclusivePoints={effectiveBrandPoints}
                         keyPoints={effectiveKeyPoints}
                         checkedPoints={effectiveCheckedPoints}
-                        refiningPoint={null}
+                        refiningPoint={refiningPoint}
                         onTogglePoint={onTogglePoint || ctx?.onTogglePoint}
-                        onRefinePoint={() => { }}
+                        onRefinePoint={handleRefinePoint}
                         useTiptap
                         isTiptapReady={Boolean(tiptapApi)}
                         uniqueCoveredCount={uniqueCoveredCount}

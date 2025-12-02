@@ -28,10 +28,6 @@ const ChecklistItem: React.FC<{
             alert("Editor not ready.");
             return;
         }
-        if (useTiptap) {
-            alert("Refine is not yet supported in Tiptap mode.");
-            return;
-        }
         onRefine(point);
     };
 

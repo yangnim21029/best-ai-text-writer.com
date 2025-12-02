@@ -39,7 +39,15 @@ interface TiptapAdapterProps {
         unsetLink: () => void;
         undo: () => void;
         redo: () => void;
-        clearBold: () => void;
+        clearBold: (options?: {
+            removeBold?: boolean;
+            removeBlockquotes?: boolean;
+            removeQuotes?: boolean;
+            target?: 'selection' | 'document';
+            scope?: { from: number; to: number };
+        }) => boolean;
+        summarizeFormatting: () => { boldMarks: number; blockquotes: number; quoteChars: number; blocks: Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }> };
+        listCleanupTargets: () => Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }>;
         focus: () => void;
     }) => void;
     containerRef?: React.RefObject<HTMLDivElement>;
@@ -118,18 +126,28 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
         contentStyleRef.current = contentStyle;
         editorRef.current = editor;
 
-        const stripMarkdownEmphasis = (options?: { fallbackToDoc?: boolean }) => {
+        const stripMarkdownEmphasis = (options?: {
+            fallbackToDoc?: boolean;
+            stripQuotes?: boolean;
+            stripBlockquoteChars?: boolean;
+            stripAsterisks?: boolean;
+            scope?: { from: number; to: number };
+            dispatch?: boolean;
+        }) => {
             const ed = editorRef.current;
-            if (!ed) return false;
+            if (!ed) return { changed: false, tr: null as any };
             const { state } = ed;
-            const { from, to } = state.selection;
+            const { from, to } = options?.scope || state.selection;
             const hasSelection = from !== to;
             const targetFrom = hasSelection ? from : options?.fallbackToDoc ? 0 : null;
             const targetTo = hasSelection ? to : options?.fallbackToDoc ? state.doc.content.size : null;
-            if (targetFrom === null || targetTo === null) return false;
+            if (targetFrom === null || targetTo === null) return { changed: false, tr: null as any };
 
             let tr = state.tr;
             let changed = false;
+            const stripQuotes = options?.stripQuotes !== false;
+            const stripBlockquoteChars = options?.stripBlockquoteChars !== false;
+            const stripAsterisks = options?.stripAsterisks !== false;
 
             state.doc.nodesBetween(targetFrom, targetTo, (node, pos) => {
                 if (!node.isText || !node.text) return;
@@ -142,7 +160,10 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 const localTo = clampedTo - nodeStart;
 
                 const segment = node.text.slice(localFrom, localTo);
-                const cleanedSegment = segment.replace(/\*/g, '').replace(/>/g, '');
+                let cleanedSegment = segment;
+                if (stripAsterisks) cleanedSegment = cleanedSegment.replace(/\*/g, '');
+                if (stripBlockquoteChars) cleanedSegment = cleanedSegment.replace(/>/g, '');
+                if (stripQuotes) cleanedSegment = cleanedSegment.replace(/[\"“”「」]/g, '');
 
                 if (segment === cleanedSegment) return;
 
@@ -158,9 +179,77 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
             });
 
             if (changed) {
+                if (options?.dispatch === false) {
+                    return { changed, tr };
+                }
                 ed.view.dispatch(tr);
             }
-            return changed;
+            return { changed, tr };
+        };
+
+        const summarizeFormatting = () => {
+            const ed = editorRef.current;
+            if (!ed) return { boldMarks: 0, blockquotes: 0, quoteChars: 0, blocks: [] };
+            const boldMark = ed.state.schema.marks.bold;
+            let boldMarks = 0;
+            let blockquotes = 0;
+            let quoteChars = 0;
+            const blocks: Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }> = [];
+
+            ed.state.doc.descendants((node, pos) => {
+                if (node.type.name === 'blockquote') {
+                    blockquotes += 1;
+                }
+
+                if (node.isText && node.text) {
+                    if (boldMark && node.marks.some(mark => mark.type === boldMark)) {
+                        boldMarks += 1;
+                    }
+                    const matches = node.text.match(/[\"“”「」]/g);
+                    if (matches) {
+                        quoteChars += matches.length;
+                    }
+                }
+
+                if (node.isBlock) {
+                    let blockBold = node.type.name === 'blockquote' ? 1 : 0;
+                    let blockBlockquote = node.type.name === 'blockquote' ? 1 : 0;
+                    let blockQuotes = 0;
+
+                    node.descendants((child) => {
+                        if (child.type.name === 'blockquote') {
+                            blockBlockquote += 1;
+                        }
+                        if (child.isText && child.text) {
+                            if (boldMark && child.marks.some(mark => mark.type === boldMark)) {
+                                blockBold += 1;
+                            }
+                            const matches = child.text.match(/[\"“”「」]/g);
+                            if (matches) {
+                                blockQuotes += matches.length;
+                            }
+                        }
+                    });
+
+                    const text = node.textBetween(0, node.content.size, ' ', ' ').trim();
+                    blocks.push({
+                        from: pos,
+                        to: pos + node.nodeSize,
+                        text,
+                        boldMarks: blockBold,
+                        blockquotes: blockBlockquote,
+                        quoteChars: blockQuotes,
+                        type: node.type.name,
+                    });
+                }
+            });
+
+            return { boldMarks, blockquotes, quoteChars, blocks };
+        };
+
+        const listCleanupTargets = () => {
+            const summary = summarizeFormatting();
+            return summary.blocks.filter(b => b.boldMarks > 0 || b.blockquotes > 0 || b.quoteChars > 0);
         };
 
         if (onReadyRef.current) {
@@ -240,13 +329,73 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 unsetLink: () => editor.chain().focus().unsetLink().run(),
                 undo: () => editor.chain().focus().undo().run(),
                 redo: () => editor.chain().focus().redo().run(),
-                clearBold: () => {
-                    const removed = stripMarkdownEmphasis({ fallbackToDoc: true });
-                    if (editor.isActive('blockquote')) {
-                        editor.chain().focus().toggleBlockquote().run();
+                clearBold: (options) => {
+                    const ed = editorRef.current;
+                    if (!ed) return false;
+                    const { state } = ed;
+                    const removeBold = options?.removeBold !== false;
+                    const removeBlockquotes = options?.removeBlockquotes !== false;
+                    const removeQuotes = options?.removeQuotes !== false;
+                    const targetDocument = options?.target === 'document';
+                    const customScope = options?.scope;
+                    const { from, to } = state.selection;
+                    const hasSelection = from !== to;
+                    const scopeFrom = customScope?.from ?? (targetDocument || !hasSelection ? 0 : from);
+                    const scopeTo = customScope?.to ?? (targetDocument || !hasSelection ? state.doc.content.size : to);
+
+                    let changed = false;
+                    const { tr: strippedTr, changed: stripped } = stripMarkdownEmphasis({
+                        fallbackToDoc: targetDocument || !hasSelection,
+                        stripQuotes: removeQuotes,
+                        stripBlockquoteChars: true,
+                        stripAsterisks: true,
+                        scope: { from: scopeFrom, to: scopeTo },
+                        dispatch: false,
+                    });
+
+                    let tr = strippedTr || state.tr;
+                    changed = changed || stripped;
+
+                    if (removeBold) {
+                        const boldMark = state.schema.marks.bold;
+                        if (boldMark) {
+                            state.doc.descendants((node, pos) => {
+                                if (!node.isText) return;
+                                if (!node.marks.some(mark => mark.type === boldMark)) return;
+                                const nodeStart = pos;
+                                const nodeEnd = pos + node.nodeSize;
+                                if (nodeEnd <= scopeFrom || nodeStart >= scopeTo) return;
+                                const mappedFrom = tr.mapping.map(pos);
+                                const mappedTo = tr.mapping.map(pos + node.nodeSize);
+                                tr = tr.removeMark(mappedFrom, mappedTo, boldMark);
+                                changed = true;
+                            });
+                        }
                     }
-                    return removed;
+
+                    if (removeBlockquotes) {
+                        const blockquoteType = state.schema.nodes.blockquote;
+                        if (blockquoteType) {
+                            state.doc.descendants((node, pos) => {
+                                if (node.type !== blockquoteType) return;
+                                const nodeStart = pos;
+                                const nodeEnd = pos + node.nodeSize;
+                                if (nodeEnd <= scopeFrom || nodeStart >= scopeTo) return;
+                                const mappedFrom = tr.mapping.map(nodeStart);
+                                const mappedTo = tr.mapping.map(nodeEnd);
+                                tr = tr.replaceWith(mappedFrom, mappedTo, node.content);
+                                changed = true;
+                            });
+                        }
+                    }
+
+                    if (changed && tr) {
+                        ed.view.dispatch(tr);
+                    }
+                    return changed;
                 },
+                summarizeFormatting,
+                listCleanupTargets,
                 focus: () => editor.chain().focus().run(),
             };
             onReadyRef.current(api);

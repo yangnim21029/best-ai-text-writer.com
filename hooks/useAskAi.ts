@@ -18,6 +18,8 @@ type TiptapApi = {
     markAskAiRange: (range: { from: number; to: number }, taskId: string) => void;
     clearAskAiMarks: (taskId?: string) => void;
     findAskAiRange: (taskId: string) => { from: number; to: number } | null;
+    clearBold?: (options?: { removeBold?: boolean; removeBlockquotes?: boolean; removeQuotes?: boolean; target?: 'selection' | 'document' }) => boolean;
+    summarizeFormatting?: () => { boldMarks: number; blockquotes: number; quoteChars: number };
 };
 
 interface UseAskAiParams {
