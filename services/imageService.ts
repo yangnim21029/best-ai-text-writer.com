@@ -107,6 +107,60 @@ const extractImagePayload = (payload: any): string | null => {
     return null;
 };
 
+// NEW: Analyze Image with AI (Vision)
+export const analyzeImageWithAI = async (
+    imageUrl: string,
+    prompt: string = 'Describe this image in detail.',
+    model: string = MODEL.FLASH
+): Promise<ServiceResponse<string>> => {
+    const startTs = Date.now();
+
+    try {
+        const response = await fetch(buildAiUrl('/vision'), {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                prompt,
+                image: imageUrl,
+                model,
+            }),
+        });
+
+        if (!response.ok) {
+            const errorText = await response.text();
+            throw new Error(`Vision API request failed (${response.status}): ${errorText}`);
+        }
+
+        const result = await response.json() as {
+            text: string;
+            usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+            finishReason?: string;
+        };
+
+        const duration = Date.now() - startTs;
+        const rawUsage = result.usage || { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+        const usageForCost = {
+            promptTokenCount: rawUsage.promptTokenCount ?? rawUsage.inputTokens ?? 0,
+            candidatesTokenCount: rawUsage.candidatesTokenCount ?? rawUsage.outputTokens ?? 0,
+            totalTokenCount: rawUsage.totalTokenCount ?? rawUsage.totalTokens ?? ((rawUsage.inputTokens || 0) + (rawUsage.outputTokens || 0))
+        };
+        // Map model to PRICING key (FLASH for vision models)
+        const modelType = model.includes('flash') ? 'FLASH' : 'FLASH';
+        const metrics = calculateCost(usageForCost, modelType);
+
+        return {
+            data: result.text,
+            ...metrics,
+            duration,
+        };
+    } catch (error) {
+        const duration = Date.now() - startTs;
+        throw new Error(`Failed to analyze image: ${error instanceof Error ? error.message : String(error)}`);
+    }
+};
+
 // NEW: Analyze and Define Global Visual Identity
 export const analyzeVisualStyle = async (
     scrapedImages: ScrapedImage[],
@@ -123,7 +177,7 @@ export const analyzeVisualStyle = async (
     const prompt = promptRegistry.build('visualStyle', { languageInstruction: getLanguageInstruction('zh-TW'), analyzedSamples, websiteType });
 
     try {
-    const response = await generateContent(MODEL.FLASH, prompt);
+        const response = await generateContent(MODEL.FLASH, prompt);
 
         const metrics = calculateCost(response.usageMetadata, 'FLASH');
         return {
@@ -245,77 +299,6 @@ const convertSvgToPng = (svgBlob: Blob): Promise<string> => {
 
         img.src = url;
     });
-};
-
-function blobToBase64(blob: Blob): Promise<string> {
-    return new Promise((resolve, _) => {
-        const reader = new FileReader();
-        reader.onloadend = () => resolve(reader.result?.toString().split(',')[1] || '');
-        reader.readAsDataURL(blob);
-    });
-}
-
-// NEW: Analyze Image from URL (Image Understanding)
-export const analyzeImageWithAI = async (imageUrl: string): Promise<ServiceResponse<string>> => {
-    const startTs = Date.now();
-    const PROXY = "https://corsproxy.io/?";
-
-    try {
-        // 1. Fetch Image via Proxy to avoid CORS
-        const response = await fetch(PROXY + encodeURIComponent(imageUrl));
-        if (!response.ok) throw new Error("Failed to fetch image");
-
-        const blob = await response.blob();
-
-        let base64 = "";
-        let mimeType = blob.type;
-
-        if (
-            blob.type.includes('svg') ||
-            blob.type.includes('xml') ||
-            imageUrl.toLowerCase().endsWith('.svg')
-        ) {
-            try {
-                base64 = await convertSvgToPng(blob);
-                mimeType = "image/png";
-            } catch (svgError) {
-                console.warn("SVG Conversion failed", svgError);
-                return {
-                    data: "Skipped: SVG/Vector image not supported/convertible.",
-                    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-                    cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-                    duration: Date.now() - startTs
-                };
-            }
-        } else {
-            base64 = await blobToBase64(blob);
-        }
-
-        // 2. Send to Gemini (Multimodal)
-        const result = await generateContent(
-            MODEL.FLASH,
-            [
-                { text: "Describe this image in detail for SEO purposes. Focus on the main subject, mood, and any visible text." },
-                { inlineData: { mimeType: mimeType, data: base64 } }
-            ]
-        );
-
-        const metrics = calculateCost(result.usageMetadata, 'FLASH');
-        return {
-            data: result.text || "No description generated.",
-            ...metrics,
-            duration: Date.now() - startTs
-        };
-
-    } catch (e) {
-        console.warn("Image Analysis Failed", e);
-        return {
-            data: "Analysis failed (Format or Network error)",
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-            duration: Date.now() - startTs
-        };
-    }
 };
 
 // NEW: Plan images for the entire article with Visual Style injection

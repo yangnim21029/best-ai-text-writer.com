@@ -26,8 +26,11 @@ interface AnalysisState {
         h2_before: string;
         h2_after: string;
         h2_reason?: string;
+        h2_options?: { text: string; reason?: string; score?: number }[];
+        needs_manual?: boolean;
         h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
     }[];
+    languageInstruction: string;
     setKeywordPlans: (plans: KeywordActionPlan[]) => void;
     setRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     setAuthAnalysis: (analysis: AuthorityAnalysis | null) => void;
@@ -43,8 +46,11 @@ interface AnalysisState {
         h2_before: string;
         h2_after: string;
         h2_reason?: string;
+        h2_options?: { text: string; reason?: string; score?: number }[];
+        needs_manual?: boolean;
         h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
     }[]) => void;
+    setLanguageInstruction: (instruction: string) => void;
     reset: () => void;
 }
 
@@ -63,6 +69,7 @@ export const useAnalysisStore = create<AnalysisState>()(
             activeProductBrief: undefined,
             articleTitle: '',
             headingOptimizations: [],
+            languageInstruction: '',
             setKeywordPlans: (plans) => set({ keywordPlans: plans }),
             setRefAnalysis: (analysis) => set({ refAnalysis: analysis }),
             setAuthAnalysis: (analysis) => set({ authAnalysis: analysis }),
@@ -77,6 +84,7 @@ export const useAnalysisStore = create<AnalysisState>()(
             setActiveProductBrief: (brief) => set({ activeProductBrief: brief }),
             setArticleTitle: (title) => set({ articleTitle: title }),
             setHeadingOptimizations: (items) => set({ headingOptimizations: items }),
+            setLanguageInstruction: (instruction) => set({ languageInstruction: instruction }),
             reset: () => set({
                 keywordPlans: [],
                 refAnalysis: null,
@@ -90,6 +98,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 activeProductBrief: undefined,
                 articleTitle: '',
                 headingOptimizations: [],
+                languageInstruction: '',
             }),
         }),
         {
@@ -106,6 +115,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 targetAudience: state.targetAudience,
                 articleTitle: state.articleTitle,
                 headingOptimizations: state.headingOptimizations,
+                languageInstruction: state.languageInstruction,
             }),
         }
     )

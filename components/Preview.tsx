@@ -156,7 +156,9 @@ export const Preview: React.FC<PreviewProps> = ({
           </div>
         </div>
         <div className="text-center">
-          <h3 className="text-xl font-bold text-gray-800 tracking-tight">AI 正在為您規劃文章</h3>
+          <h3 className="text-xl font-bold text-gray-800 tracking-tight">
+            {getStepLabel(generationStep)}
+          </h3>
           <p className="text-sm text-gray-500 font-medium mt-1">請查看右側面板以獲取即時分析結果...</p>
         </div>
       </div>

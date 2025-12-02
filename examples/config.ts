@@ -6,6 +6,7 @@ const normalizePath = (value = 'ai') => `/${value.replace(/^\/+/, '').replace(/\
 export const AI_BASE_URL = trimTrailingSlash(process.env.AI_BASE_URL || process.env.VITE_AI_BASE_URL || '');
 export const AI_PATH = normalizePath(process.env.AI_PATH || process.env.VITE_AI_PATH || 'ai');
 export const EMBED_MODEL_ID = process.env.AI_EMBED_MODEL_ID || process.env.VITE_AI_EMBED_MODEL_ID || 'gemini-embedding-001';
+export const MODEL_ID = process.env.AI_MODEL_ID || process.env.VITE_AI_MODEL_ID || 'gemini-2.5-flash';
 export const AI_TOKEN = process.env.AI_TOKEN || '';
 export const EMBED_ENDPOINT = `${AI_PATH}/embed`;
 

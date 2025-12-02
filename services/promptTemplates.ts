@@ -112,6 +112,15 @@ export const promptTemplates = {
 
     INPUT DATA:
     ${analysisPayloadString}
+
+    OUTPUT JSON (array):
+    [
+      {
+        "word": "keyword",
+        "plan": ["sentence-level guidance 1", "guidance 2", "guidance 3"]
+      }
+    ]
+    Return JSON only, no prose, no markdown fences.
     `,
 
     productBrief: ({ productName, productUrl, languageInstruction }: any) => `
@@ -250,12 +259,13 @@ export const promptTemplates = {
 
     STEP BY STEP:
     1) Clarify role: H2 = main section headline; H3 = supporting subpoint under its H2.
-    2) Make it searchable: keep it concise (≤ 60 chars), add intent-bearing phrases (how to, vs, guide, tips) without stuffing.
-    3) Base on the original: infer the intended angle (how-to, comparison, benefits, FAQ) from each original H2; preserve intent but improve clickability and keyword alignment.
+    2) Keep it natural in Chinese: do NOT stuff English intent words (how to, vs, guide, tips). Preserve the original intent/angle.
+    3) Make it clickable: concise (≤ 60 chars), keyword-aligned, but no empty promises.
     4) Rewrite:
-       - H2_after: unique, compelling, query-friendly; no hashes/numbers; MUST NOT be identical to h2_before (make a concise improvement).
-       - If you invent H3s, they must support the H2 with specific search phrases and not repeat the H2 wording.
-    5) Validate: no duplicates, no empty promises, no vague fillers. Reject identical before/after.
+       - Provide **3 improved H2 options**; each must NOT be identical to h2_before.
+       - H2_after = your best single pick among those 3 options.
+       - If you invent H3s, they must support the H2 and not repeat its wording.
+    5) Validate: no duplicates, no vague fillers. Reject identical before/after.
 
     OUTPUT (JSON only):
     {
@@ -264,6 +274,11 @@ export const promptTemplates = {
           "h2_before": "...",
           "h2_after": "...",
           "h2_reason": "why this angle/keywords",
+          "h2_options": [
+            { "text": "option 1", "reason": "reasoning" },
+            { "text": "option 2", "reason": "reasoning" },
+            { "text": "option 3", "reason": "reasoning" }
+          ],
           "h3": [
             { "h3_before": "...", "h3_after": "...", "h3_reason": "supporting angle & search phrasing" }
           ]
@@ -354,23 +369,35 @@ export const promptTemplates = {
     `,
 
     authorityAnalysis: ({ languageInstruction, authorityTerms, websiteType, title }: any) => `
-    Evaluate the following "Authority Terms" for an article.
+    Analyze the Authority Terms for this article and surface only the most credible, relevant ones.
     
     WEBSITE TYPE: ${websiteType}
     ARTICLE TITLE: ${title}
     TERMS: ${authorityTerms}
     
-    ${languageInstruction}
+    GOALS:
+    - Keep only terms that strengthen trust/credibility for this topic and site type.
+    - Drop vague, unrelated, or unverifiable claims.
+    - Propose strategic combinations of 2-3 terms to reinforce authority.
     
-    For each term, return a JSON array of:
-    { "term": "...", "usage": "HOW/WHERE to inject", "risk": "Risks or misuses to avoid" }
-    `,
+    OUTPUT JSON:
+    {
+      "relevantTerms": ["best-fit term 1", "best-fit term 2"],
+      "combinations": ["term A + term B in intro", "term C in meta description"]
+    }
+    
+    ${languageInstruction}
+    Return JSON only.`,
 
     referenceStructure: ({ content, targetAudience, languageInstruction }: any) => `
-    Analyze the following reference text to extract a Narrative Structure and Key Information Points.
+    Analyze the reference text to extract:
+    1) A Narrative Structure with reasoning.
+    2) Conversion & value strategy (offers, CTAs, risk reversals).
+    3) Key information points to preserve.
+    4) Brand-exclusive points that must NOT apply to competitors.
+    5) Competitor brand & product names to suppress/avoid.
     
     TARGET AUDIENCE: ${targetAudience}
-    
     ${languageInstruction}
     
     CONTENT:
@@ -379,12 +406,23 @@ export const promptTemplates = {
     OUTPUT JSON:
     {
       "structure": [
-        { "title": "Section Title", "narrativePlan": ["Bullet 1", "Bullet 2"] }
+        {
+          "title": "Section Title",
+          "narrativePlan": ["Bullet 1", "Bullet 2"],
+          "coreQuestion": "Main question/problem",
+          "difficulty": "easy | medium | unclear",
+          "writingMode": "direct | multi_solutions",
+          "solutionAngles": ["Angle A", "Angle B"]
+        }
       ],
       "generalPlan": ["Overall voice guidelines"],
-      "keyInformationPoints": ["Point 1", "Point 2"]
+      "conversionPlan": ["Value prop", "CTA", "Offer"],
+      "keyInformationPoints": ["Point 1", "Point 2"],
+      "brandExclusivePoints": ["Facts unique to brand"],
+      "competitorBrands": ["Competitor Brand 1", "Competitor Brand 2"],
+      "competitorProducts": ["Competitor Product 1", "Competitor Product 2"]
     }
-    `,
+    Return JSON only, no extra text or markdown fences.`,
 
     keywordAnalysis: ({ content, targetAudience, languageInstruction }: { content: string; targetAudience: TargetAudience; languageInstruction: string }) => `
     Analyze the reference content to extract high-frequency keywords and their semantic roles.

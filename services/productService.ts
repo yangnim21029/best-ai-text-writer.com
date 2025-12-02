@@ -107,39 +107,9 @@ export const mapProblemsToProduct = async (
         };
 
     } catch (e) {
-        console.error("Product Mapping Failed", e);
-        return {
-            data: [],
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-            duration: Date.now() - startTs
-        };
-    }
-};
-
-export const summarizeBrandContent = async (
-    urls: string[],
-    targetAudience: TargetAudience
-): Promise<ServiceResponse<string>> => {
-    const startTs = Date.now();
-    const languageInstruction = getLanguageInstruction(targetAudience);
-
-    const prompt = promptRegistry.build('brandSummary', { urls, languageInstruction });
-
-    try {
-        const response = await generateContent(MODEL.FLASH, prompt);
-        const metrics = calculateCost(response.usageMetadata, 'FLASH');
-
-        return {
-            data: response.text?.trim() || "",
-            ...metrics,
-            duration: Date.now() - startTs
-        };
-
-    } catch (e) {
         console.error("Brand Content Summarization Failed", e);
         return {
-            data: "",
+            data: [],
             usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
             cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: Date.now() - startTs
@@ -206,4 +176,33 @@ export const generateProblemProductMapping = async (
     articleTopic: string = "General Content"
 ): Promise<ServiceResponse<ProblemProductMapping[]>> => {
     return mapProblemsToProduct(productBrief, articleTopic, targetAudience);
+};
+
+export const summarizeBrandContent = async (
+    urls: string[],
+    targetAudience: TargetAudience
+): Promise<ServiceResponse<string>> => {
+    const startTs = Date.now();
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    const prompt = promptRegistry.build('brandSummary', { urls, languageInstruction });
+
+    try {
+        const response = await generateContent(MODEL.FLASH, prompt);
+        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+
+        return {
+            data: response.text?.trim() || "",
+            ...metrics,
+            duration: Date.now() - startTs
+        };
+    } catch (e) {
+        console.error("Brand Summary Failed", e);
+        return {
+            data: "",
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+            duration: Date.now() - startTs
+        };
+    }
 };

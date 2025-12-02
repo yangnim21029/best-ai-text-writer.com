@@ -147,3 +147,26 @@ export interface SectionGenerationResult {
   usedPoints: string[];
   injectedCount: number; // Number of times product was mentioned
 }
+
+export interface HeadingOption {
+  text: string;
+  reason?: string;
+  score?: number;
+}
+
+export interface HeadingH3 {
+  h3_before: string;
+  h3_after: string;
+  h3_reason?: string;
+}
+
+export interface HeadingResult {
+  before: string;
+  after: string;
+  h2_before: string;
+  h2_after: string;
+  h2_reason?: string;
+  h2_options?: HeadingOption[];
+  h3?: HeadingH3[];
+  needs_manual?: boolean;
+}

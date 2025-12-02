@@ -275,6 +275,8 @@ const App: React.FC = () => {
                             productMapping={analysisStore.productMapping}
                             productBrief={analysisStore.activeProductBrief}
                             headingOptimizations={analysisStore.headingOptimizations}
+                            targetAudience={analysisStore.targetAudience}
+                            languageInstruction={analysisStore.languageInstruction}
                             isLoading={generationStore.status === 'analyzing'}
                             status={generationStore.status}
                             onStop={stop}
