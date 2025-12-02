@@ -69,7 +69,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const hasRestoredDraftRef = useRef(false);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
     const [cleanupSummary, setCleanupSummary] = useState({ boldMarks: 0, blockquotes: 0, quoteChars: 0 });
-    const [cleanupOptions, setCleanupOptions] = useState({ bold: true, blockquote: true, quotes: true });
     const [cleanupBlocks, setCleanupBlocks] = useState<Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }>>([]);
     const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
     const [refiningPoint, setRefiningPoint] = useState<string | null>(null);
@@ -162,11 +161,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             ? tiptapApi.summarizeFormatting()
             : { boldMarks: 0, blockquotes: 0, quoteChars: 0, blocks: [] };
         setCleanupSummary(summary);
-        setCleanupOptions({
-            bold: true,
-            blockquote: true,
-            quotes: true,
-        });
         const blocks = tiptapApi.listCleanupTargets ? tiptapApi.listCleanupTargets() : [];
         setCleanupBlocks(blocks);
         setSelectedBlocks(new Set(blocks.map((b, idx) => `${b.from}-${b.to}-${idx}`)));
@@ -193,9 +187,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
         blocksToClean.forEach(block => {
             tiptapApi.clearBold?.({
-                removeBold: cleanupOptions.bold,
-                removeBlockquotes: cleanupOptions.blockquote,
-                removeQuotes: cleanupOptions.quotes,
+                removeBold: true,
+                removeBlockquotes: true,
+                removeQuotes: true,
                 scope: { from: block.from, to: block.to },
             });
         });
@@ -207,7 +201,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         updateCounts(plain);
         recordHtml(htmlValue);
         setShowCleanupModal(false);
-    }, [cleanupBlocks, cleanupOptions.blockquote, cleanupOptions.bold, cleanupOptions.quotes, ctx, onChange, recordHtml, selectedBlocks, tiptapApi, updateCounts]);
+    }, [cleanupBlocks, ctx, onChange, recordHtml, selectedBlocks, tiptapApi, updateCounts]);
 
     const handleRefinePoint = useCallback(async (point: string) => {
         if (!tiptapApi) {
@@ -474,7 +468,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                 <div className="flex items-start justify-between gap-3">
                                     <div>
                                         <h3 className="text-lg font-bold text-gray-800">清理粗體與引號</h3>
-                                        <p className="text-sm text-gray-500">預設全刪，取消勾選的項目會被保留。</p>
+                                        <p className="text-sm text-gray-500">勾選需要清理的段落，會移除粗體、引用區塊與引號。</p>
                                     </div>
                                     <button
                                         onClick={() => setShowCleanupModal(false)}
@@ -486,43 +480,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                 </div>
 
                                 <div className="space-y-3">
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                        <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                            <input
-                                                type="checkbox"
-                                                checked={cleanupOptions.bold}
-                                                onChange={(e) => setCleanupOptions((prev) => ({ ...prev, bold: e.target.checked }))}
-                                                className="mt-1 accent-blue-600"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="text-sm font-semibold text-gray-800">粗體/強調</div>
-                                                <div className="text-xs text-gray-500">{cleanupSummary.boldMarks} 段含粗體</div>
-                                            </div>
-                                        </label>
-                                        <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                            <input
-                                                type="checkbox"
-                                                checked={cleanupOptions.blockquote}
-                                                onChange={(e) => setCleanupOptions((prev) => ({ ...prev, blockquote: e.target.checked }))}
-                                                className="mt-1 accent-blue-600"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="text-sm font-semibold text-gray-800">引用區塊</div>
-                                                <div className="text-xs text-gray-500">{cleanupSummary.blockquotes} 個 blockquote</div>
-                                            </div>
-                                        </label>
-                                        <label className="flex items-start gap-2 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors">
-                                            <input
-                                                type="checkbox"
-                                                checked={cleanupOptions.quotes}
-                                                onChange={(e) => setCleanupOptions((prev) => ({ ...prev, quotes: e.target.checked }))}
-                                                className="mt-1 accent-blue-600"
-                                            />
-                                            <div className="flex-1">
-                                                <div className="text-sm font-semibold text-gray-800">引號字元</div>
-                                                <div className="text-xs text-gray-500">{cleanupSummary.quoteChars} 個「」/“”/\" 字元</div>
-                                            </div>
-                                        </label>
+                                    <div className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-md p-3 leading-relaxed">
+                                        勾選要清理的段落即可，系統會同時清除粗體、引用區塊與引號字元。掃描結果：粗體 {cleanupSummary.boldMarks}、引用 {cleanupSummary.blockquotes}、引號 {cleanupSummary.quoteChars}。
                                     </div>
 
                                     <div className="space-y-2">
@@ -545,7 +504,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                                             }}
                                                             className="mt-1 accent-blue-600"
                                                         />
-                                                        <div className="flex-1 min-w-0">
+                                                        <div className="flex-1 min-w-0 space-y-1">
                                                             <div className="text-sm font-semibold text-gray-800 flex items-center gap-2">
                                                                 <span className="px-2 py-0.5 text-[10px] rounded-full bg-gray-100 text-gray-600 border border-gray-200">
                                                                     {block.type}
@@ -554,7 +513,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                                                     粗體 {block.boldMarks} · 引用 {block.blockquotes} · 引號 {block.quoteChars}
                                                                 </span>
                                                             </div>
-                                                            <div className="text-xs text-gray-600 truncate">{block.text || '（空白段落）'}</div>
+                                                            <div className="text-xs text-gray-700 whitespace-pre-wrap break-words leading-relaxed">{block.text || '（空白段落）'}</div>
                                                         </div>
                                                     </label>
                                                 );

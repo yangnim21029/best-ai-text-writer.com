@@ -96,7 +96,7 @@ export interface ArticleConfig {
   targetAudience: TargetAudience;
   scrapedImages?: ScrapedImage[];
   useRag?: boolean;
-  turboMode?: boolean; // NEW: Enable parallel generation
+  autoImagePlan?: boolean;
 
   productBrief?: ProductBrief; // Structured data (Passed to generator)
   productRawText?: string;     // Raw input (Passed from UI)
@@ -111,9 +111,9 @@ export interface ArticleConfig {
   visualStyle?: string;
 }
 
-export type GenerationStatus = 'idle' | 'analyzing' | 'streaming' | 'completed' | 'error';
+export type GenerationStatus = 'idle' | 'analyzing' | 'analysis_ready' | 'streaming' | 'completed' | 'error';
 
-export type GenerationStep = 'idle' | 'fetching_url' | 'parsing_product' | 'nlp_analysis' | 'extracting_structure' | 'analyzing_visuals' | 'analyzing_authority' | 'planning_keywords' | 'mapping_product' | 'writing_content' | 'refining_headings' | 'finalizing';
+export type GenerationStep = 'idle' | 'fetching_url' | 'parsing_product' | 'nlp_analysis' | 'extracting_structure' | 'analyzing_visuals' | 'analyzing_authority' | 'planning_keywords' | 'mapping_product' | 'writing_content' | 'refining_headings' | 'generating_images' | 'finalizing';
 
 // --- Cost Tracking Types ---
 

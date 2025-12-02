@@ -5,13 +5,16 @@ import { summarizeBrandContent } from '../services/productService';
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
-import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2 } from 'lucide-react';
+import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Image as ImageIcon } from 'lucide-react';
 import { useArticleForm } from '../hooks/useArticleForm';
 import { useSemanticFilter } from '../hooks/useSemanticFilter';
 
 interface InputFormProps {
     onGenerate: (config: ArticleConfig) => void;
+    onGenerateSections?: () => void;
     isGenerating: boolean;
+    isWriting?: boolean;
+    canGenerateSections?: boolean;
     currentStep: GenerationStep;
     onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
     savedProfiles?: SavedProfile[];
@@ -27,7 +30,10 @@ const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
 
 export const InputForm: React.FC<InputFormProps> = ({
     onGenerate,
+    onGenerateSections,
     isGenerating,
+    isWriting = false,
+    canGenerateSections = false,
     currentStep,
     onAddCost,
     savedProfiles = [],
@@ -90,17 +96,17 @@ export const InputForm: React.FC<InputFormProps> = ({
         onGenerate({
             title: data.title,
             referenceContent: data.referenceContent,
-            sampleOutline: data.sampleOutline,
-            authorityTerms: data.authorityTerms,
-            websiteType: data.websiteType,
-            targetAudience: data.targetAudience,
-            useRag: data.useRag,
-            turboMode: data.turboMode,
-            productRawText: data.productRawText,
-            brandKnowledge: undefined,
-            scrapedImages: usableImages
-        });
-    };
+        sampleOutline: data.sampleOutline,
+        authorityTerms: data.authorityTerms,
+        websiteType: data.websiteType,
+        targetAudience: data.targetAudience,
+        useRag: data.useRag,
+        autoImagePlan: data.autoImagePlan,
+        productRawText: data.productRawText,
+        brandKnowledge: undefined,
+        scrapedImages: usableImages
+    });
+};
 
     const handleFetchUrl = async () => {
         await fetchAndPopulate(watchedValues.urlInput || '');
@@ -262,49 +268,80 @@ export const InputForm: React.FC<InputFormProps> = ({
 
                             <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
                                 <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${watchedValues.turboMode ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}>
-                                        <Zap className="w-4 h-4" />
+                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${watchedValues.autoImagePlan ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
+                                        <ImageIcon className="w-4 h-4" />
                                     </div>
                                     <div>
-                                        <p className="text-xs font-bold text-gray-800">Turbo Mode</p>
-                                        <p className="text-[10px] text-gray-500">Parallel generation (Faster, less context)</p>
+                                        <p className="text-xs font-bold text-gray-800">Auto Visual Plan</p>
+                                        <p className="text-[10px] text-gray-500">寫完後自動規劃並生成圖片</p>
                                     </div>
                                 </div>
                                 <button
                                     type="button"
-                                    onClick={() => setValue('turboMode', !watchedValues.turboMode)}
-                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${watchedValues.turboMode ? 'bg-blue-600' : 'bg-gray-200'}`}
+                                    onClick={() => setValue('autoImagePlan', !watchedValues.autoImagePlan)}
+                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${watchedValues.autoImagePlan ? 'bg-emerald-600' : 'bg-gray-200'}`}
                                 >
-                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${watchedValues.turboMode ? 'translate-x-4.5' : 'translate-x-1'}`} />
+                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${watchedValues.autoImagePlan ? 'translate-x-4.5' : 'translate-x-1'}`} />
                                 </button>
                             </div>
+                            <p className="text-[10px] text-gray-500 px-1">
+                                關閉可避免尚未按下圖片生成按鈕時就提前觸發。
+                            </p>
+
                         </div>
                     </div>
 
                 </div>
 
                 <div className="p-4 border-t border-gray-100 bg-white/80 backdrop-blur-sm z-10">
-                    <button
-                        type="submit"
-                        disabled={isGenerating || !isReadyToGenerate}
-                        className={`w-full py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] ${isGenerating
-                            || !isReadyToGenerate
-                            ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                            : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
-                            }`}
-                    >
-                        {isGenerating ? (
-                            <>
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                                <span>{currentStep.replace(/_/g, ' ').toUpperCase()}...</span>
-                            </>
-                        ) : (
-                            <>
-                                <Sparkles className="w-4 h-4" />
-                                <span>Generate Article</span>
-                            </>
-                        )}
-                    </button>
+                    <div className="space-y-2">
+                        <button
+                            type="submit"
+                            disabled={isGenerating || isWriting || !isReadyToGenerate}
+                            className={`w-full py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] ${isGenerating || isWriting || !isReadyToGenerate
+                                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
+                                }`}
+                        >
+                            {isGenerating ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>{currentStep.replace(/_/g, ' ').toUpperCase()}...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Sparkles className="w-4 h-4" />
+                                    <span>Step 1：分析 (供審閱)</span>
+                                </>
+                            )}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={() => onGenerateSections && onGenerateSections()}
+                            disabled={!canGenerateSections || isGenerating || isWriting}
+                            className={`w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] border ${!canGenerateSections || isGenerating || isWriting
+                                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
+                                : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
+                                }`}
+                        >
+                            {isWriting ? (
+                                <>
+                                    <Loader2 className="w-4 h-4 animate-spin" />
+                                    <span>Writing Sections...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Zap className="w-4 h-4" />
+                                    <span>Step 2：生成 Sections</span>
+                                </>
+                            )}
+                        </button>
+
+                        <p className="text-[11px] text-gray-500 text-center">
+                            先完成分析並檢視結果 (側欄) ，確認後再生成內文段落。
+                        </p>
+                    </div>
                 </div>
             </form>
 

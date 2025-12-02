@@ -28,9 +28,10 @@ const App: React.FC = () => {
     const profileStore = useProfileStore();
     const [isUnlocked, setIsUnlocked] = useState(false);
     const restorePromptedRef = useRef(false);
+    const hydratedAnalysisRef = useRef(false);
 
     // Logic Hooks
-    const { generate, stop } = useGeneration();
+    const { generate, startWriting, stop } = useGeneration();
 
     // --- Effects ---
 
@@ -180,6 +181,81 @@ const App: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
+    // Rehydrate generation status when analysis data was restored from localStorage
+    useEffect(() => {
+        if (hydratedAnalysisRef.current) return;
+        if (generationStore.status !== 'idle') return;
+        if (generationStore.analysisResults) return;
+        if (typeof window === 'undefined') return;
+
+        const hasAnalysisState =
+            Boolean(analysisStore.refAnalysis?.structure?.length) ||
+            Boolean(analysisStore.keywordPlans.length) ||
+            Boolean(analysisStore.authAnalysis);
+
+        if (!hasAnalysisState) return;
+
+        const savedRaw = localStorage.getItem('pro_content_writer_inputs_simple_v4');
+        if (!savedRaw) return;
+
+        let saved: any;
+        try {
+            saved = JSON.parse(savedRaw);
+        } catch (e) {
+            return;
+        }
+
+        const title = (saved?.title || analysisStore.articleTitle || '').trim();
+        const referenceContent = (saved?.referenceContent || '').trim();
+        if (!title || !referenceContent) return;
+
+        const restoredConfig = {
+            title,
+            referenceContent,
+            sampleOutline: saved?.sampleOutline || '',
+            authorityTerms: saved?.authorityTerms || '',
+            websiteType: saved?.websiteType || '',
+            targetAudience: saved?.targetAudience || analysisStore.targetAudience || 'zh-TW',
+            useRag: !!saved?.useRag,
+            autoImagePlan: !!saved?.autoImagePlan,
+            productRawText: saved?.productRawText || '',
+            scrapedImages: saved?.scrapedImages || analysisStore.scrapedImages || [],
+            brandKnowledge: analysisStore.brandKnowledge,
+        };
+
+        const needsProductData = Boolean((restoredConfig.productRawText || '').trim());
+        const hasProductBrief = Boolean(analysisStore.activeProductBrief?.productName);
+        if (needsProductData && !hasProductBrief) {
+            // Missing product brief after restore; require fresh analysis instead of marking ready.
+            return;
+        }
+
+        generationStore.setLastConfig(restoredConfig);
+        generationStore.setAnalysisResults({
+            productResult: { brief: analysisStore.activeProductBrief, mapping: analysisStore.productMapping },
+            structureResult: {
+                structRes: { data: analysisStore.refAnalysis },
+                authRes: { data: analysisStore.authAnalysis },
+            }
+        });
+        generationStore.setStatus('analysis_ready');
+        generationStore.setGenerationStep('idle');
+        generationStore.setError(null);
+        hydratedAnalysisRef.current = true;
+    }, [
+        analysisStore.refAnalysis,
+        analysisStore.keywordPlans,
+        analysisStore.authAnalysis,
+        analysisStore.productMapping,
+        analysisStore.activeProductBrief,
+        analysisStore.scrapedImages,
+        analysisStore.articleTitle,
+        analysisStore.targetAudience,
+        analysisStore.brandKnowledge,
+        generationStore.status,
+        generationStore.analysisResults
+    ]);
+
     const handleRemoveScrapedImage = (image: ScrapedImage) => {
         const keyToMatch = image.id || image.url || image.altText;
         if (!keyToMatch) return;
@@ -223,7 +299,10 @@ const App: React.FC = () => {
                     <section className="w-full lg:w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex flex-col overflow-auto z-20 transition-all duration-300">
                         <InputForm
                             onGenerate={generate}
+                            onGenerateSections={startWriting}
                             isGenerating={generationStore.status === 'analyzing' || generationStore.status === 'streaming'}
+                            isWriting={generationStore.status === 'streaming'}
+                            canGenerateSections={generationStore.status === 'analysis_ready'}
                             currentStep={generationStore.generationStep}
                             onAddCost={(cost, usage) => metricsStore.addCost(cost.totalCost, usage.totalTokens)}
                             savedProfiles={profileStore.savedProfiles}

@@ -133,7 +133,8 @@ export const refineHeadings = async (
                                 properties: {
                                     text: { type: Type.STRING },
                                     reason: { type: Type.STRING },
-                                }
+                                },
+                                required: ['text']
                             }
                         },
                         h3: {
@@ -144,16 +145,19 @@ export const refineHeadings = async (
                                     h3_before: { type: Type.STRING },
                                     h3_after: { type: Type.STRING },
                                     h3_reason: { type: Type.STRING },
-                                }
+                                },
+                                required: ['h3_after']
                             }
                         }
-                    }
+                    },
+                    required: ['h2_before', 'h2_after', 'h2_options', 'h3']
                 }
             }
-        }
+        },
+        required: ['headings']
     });
 
-    const list = response.data?.headings || [];
+    const list = Array.isArray(response.data?.headings) ? response.data.headings : [];
     const results: HeadingResult[] = [];
 
     for (let idx = 0; idx < headings.length; idx++) {
@@ -162,15 +166,16 @@ export const refineHeadings = async (
         const match = list.find((h: any) =>
             cleanHeading(h?.h2_before) === before ||
             cleanHeading(h?.before) === before
-        ) || list[idx];
+        ) || list[idx] || {};
 
+        const h2Before = cleanHeading(match?.h2_before || match?.before || beforeRaw) || before;
         const options = normalizeOptions(match?.h2_options);
         const rawAfter = typeof match?.h2_after === 'string'
             ? match.h2_after
             : (typeof match?.after === 'string' ? match.after : beforeRaw);
 
         const { text: picked, optionsWithScores, needsManual } = await pickBestOption(
-            before,
+            h2Before,
             options,
             rawAfter || beforeRaw
         );
@@ -182,8 +187,8 @@ export const refineHeadings = async (
 
         results.push({
             before,
-            after: picked,
-            h2_before: before,
+            after: picked || h2Before,
+            h2_before: h2Before,
             h2_after: picked,
             ...(h2Reason ? { h2_reason: h2Reason } : {}),
             ...(optionsWithScores.length ? { h2_options: optionsWithScores } : {}),

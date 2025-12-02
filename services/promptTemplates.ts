@@ -268,11 +268,18 @@ export const promptTemplates = {
     1) Clarify role: H2 = main section headline; H3 = supporting subpoint under its H2.
     2) Keep it natural in Chinese: do NOT stuff English intent words (how to, vs, guide, tips). Preserve the original intent/angle.
     3) Make it clickable: concise (≤ 60 chars), keyword-aligned, but no empty promises.
-    4) Rewrite:
-       - Provide **3 improved H2 options**; each must NOT be identical to h2_before.
-       - H2_after = your best single pick among those 3 options.
-       - If you invent H3s, they must support the H2 and not repeat its wording.
-    5) Validate: no duplicates, no vague fillers. Reject identical before/after.
+    4) Rewrite H2 with **5 options in this exact order** (all must differ from h2_before):
+       - Option 1: Shorter/tighter version.
+       - Option 2: Longer/richer version.
+       - Option 3: Wording swap (same length, better phrasing).
+       - Option 4: Lifestyle/conversational tone.
+       - Option 5: Pain-point/FOMO-heavy angle.
+       - Use power words, be slightly aggressive/manipulative (marketing sense), create FOMO/secret knowledge vibes, and sound like a mastermind (not a generic AI).
+       - H2_after = your single best pick among those 5 options.
+    5) Rewrite/support H3 (if any exist or if you invent them):
+       - Align with the chosen H2_after, avoid repeating its wording.
+       - Apply the same power/FOMO/mastermind tone to H3 text.
+    6) Validate: no duplicates, no vague fillers. Reject identical before/after.
 
     OUTPUT (JSON only):
     {
@@ -292,6 +299,9 @@ export const promptTemplates = {
         }
       ]
     }
+    - Array length MUST equal the number of ORIGINAL HEADINGS and keep the same order.
+    - Always include every field; set "h3": [] when none.
+    - "h2_before" must exactly match the provided heading text.
     - If no H3s were provided, return "h3": [].
     - If a heading is already good, repeat it in "h2_after".
     `,

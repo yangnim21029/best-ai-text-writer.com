@@ -10,6 +10,8 @@ import { analyzeAuthorityTerms } from '../../services/authorityService';
 import { analyzeImageWithAI, analyzeVisualStyle } from '../../services/imageService';
 import { appendAnalysisLog, summarizeList } from './generationLogger';
 import { getLanguageInstruction } from '../../services/promptService';
+import { refineHeadings } from '../../services/headingRefinerService';
+import { cleanHeadingText } from '../../utils/textUtils';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 const audienceLabel = (aud: ArticleConfig['targetAudience']) => {
@@ -78,6 +80,62 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
 
         analysisStore.setActiveProductBrief(parsedProductBrief);
         return { brief: parsedProductBrief, mapping: generatedMapping };
+    };
+
+    // Task 1.5: Heading refinement for preview (uses extracted structure titles)
+    const headingTask = async (structRes: any) => {
+        const structure = structRes?.data?.structure || [];
+        const headings = structure.map((s: any) => cleanHeadingText(s.title || '')).filter(Boolean);
+        if (headings.length === 0) return;
+        if (isStopped()) return;
+
+        generationStore.setGenerationStep('refining_headings');
+        appendAnalysisLog('Optimizing H2/H3 (preview) ...');
+        try {
+            const refineRes = await refineHeadings(
+                fullConfig.title || 'Article',
+                headings,
+                fullConfig.targetAudience
+            );
+            metricsStore.addCost(refineRes.cost.totalCost, refineRes.usage.totalTokens);
+
+            const normalizedForUi = (refineRes.data || []).map((item: any, idx: number) => {
+                const h2Before = cleanHeadingText(item.h2_before || item.before || headings[idx] || '');
+                const h2After = cleanHeadingText(item.h2_after || item.after || item.before || headings[idx] || '');
+                const h3List = Array.isArray(item.h3) ? item.h3 : [];
+                return {
+                    h2_before: h2Before,
+                    h2_after: h2After,
+                    h2_reason: item.h2_reason || item.reason || '',
+                    h2_options: Array.isArray(item.h2_options)
+                        ? item.h2_options.map((opt: any) => ({
+                            text: cleanHeadingText(opt.text || ''),
+                            reason: opt.reason || '',
+                            score: typeof opt.score === 'number' ? opt.score : undefined
+                        }))
+                        : undefined,
+                    needs_manual: item.needs_manual || false,
+                    h3: h3List
+                        .filter((h: any) => h && (h.h3_before || h.h3_after))
+                        .map((h: any) => ({
+                            h3_before: cleanHeadingText(h.h3_before || h.before || ''),
+                            h3_after: cleanHeadingText(h.h3_after || h.after || h.h3_before || ''),
+                            h3_reason: h.h3_reason || h.reason || '',
+                        }))
+                };
+            });
+
+            analysisStore.setHeadingOptimizations(normalizedForUi);
+            appendAnalysisLog(`H2/H3 options ready (${normalizedForUi.length}).`);
+        } catch (e) {
+            console.warn('Heading refinement during analysis failed', e);
+            appendAnalysisLog('Heading refinement failed (continuing).');
+        } finally {
+            // Reset step indicator if still analyzing
+            if (generationStore.status === 'analyzing') {
+                generationStore.setGenerationStep('idle');
+            }
+        }
     };
 
     // Task 2: NLP & Keyword Planning
@@ -190,14 +248,18 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         productPromise,
         structurePromise
     ]);
+
+    // Kick off heading refinement preview (non-blocking)
+    const headingPromise = structureResult?.structRes
+        ? headingTask(structureResult.structRes).catch((err) => {
+            console.warn('Heading refinement during analysis failed', err);
+            appendAnalysisLog('Heading refinement failed (continuing).');
+        })
+        : Promise.resolve();
     appendAnalysisLog('Analysis stage completed. Preparing to write...');
 
-    if (config.turboMode) {
-        keywordPromise.catch(err => console.warn('Keyword task failed (turbo background)', err));
-        visualPromise.catch(err => console.warn('Visual task failed (turbo background)', err));
-    } else {
-        await Promise.all([keywordPromise, visualPromise]);
-    }
+    keywordPromise.catch(err => console.warn('Keyword task failed (background)', err));
+    visualPromise.catch(err => console.warn('Visual task failed (background)', err));
 
     return {
         productResult,

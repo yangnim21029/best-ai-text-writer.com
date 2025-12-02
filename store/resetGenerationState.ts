@@ -16,4 +16,5 @@ export const resetGenerationState = () => {
     analysis.setProductMapping([]);
     analysis.setActiveProductBrief(undefined);
     analysis.setArticleTitle('');
+    analysis.setHeadingOptimizations([]);
 };

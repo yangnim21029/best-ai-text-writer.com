@@ -8,7 +8,7 @@ export const articleFormSchema = z.object({
     websiteType: z.string().optional(),
     targetAudience: z.enum(['zh-TW', 'zh-HK', 'zh-MY']).default('zh-TW'),
     useRag: z.boolean().default(false),
-    turboMode: z.boolean().default(true),
+    autoImagePlan: z.boolean().default(false),
     productRawText: z.string().optional(),
 
     // UI-only fields that might need validation if used

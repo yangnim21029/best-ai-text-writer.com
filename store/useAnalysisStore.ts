@@ -116,6 +116,8 @@ export const useAnalysisStore = create<AnalysisState>()(
                 articleTitle: state.articleTitle,
                 headingOptimizations: state.headingOptimizations,
                 languageInstruction: state.languageInstruction,
+                productMapping: state.productMapping,
+                activeProductBrief: state.activeProductBrief,
             }),
         }
     )

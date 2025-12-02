@@ -43,7 +43,7 @@ export const useArticleForm = ({
             websiteType: '',
             targetAudience: 'zh-TW',
             useRag: false,
-            turboMode: true,
+            autoImagePlan: false,
             productRawText: '',
             urlInput: '',
             productUrlList: ''
@@ -132,7 +132,6 @@ export const useArticleForm = ({
         reset();
         setScrapedImages([]);
         setValue('targetAudience', 'zh-TW');
-        setValue('turboMode', true);
         clearAll({ reload: true, includeForm: true });
     }, [clearAll, reset, setScrapedImages, setValue]);
 
