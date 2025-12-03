@@ -249,13 +249,15 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         structurePromise
     ]);
 
-    // Kick off heading refinement preview (non-blocking)
-    const headingPromise = structureResult?.structRes
-        ? headingTask(structureResult.structRes).catch((err) => {
+    // Complete heading refinement before allowing writing, so chosen headings are used.
+    if (structureResult?.structRes) {
+        try {
+            await headingTask(structureResult.structRes);
+        } catch (err) {
             console.warn('Heading refinement during analysis failed', err);
             appendAnalysisLog('Heading refinement failed (continuing).');
-        })
-        : Promise.resolve();
+        }
+    }
     appendAnalysisLog('Analysis stage completed. Preparing to write...');
 
     keywordPromise.catch(err => console.warn('Keyword task failed (background)', err));
