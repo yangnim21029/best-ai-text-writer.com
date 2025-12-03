@@ -14,6 +14,7 @@ import { useOptionalEditorContext } from './editor/EditorContext';
 import { useAskAi } from '../hooks/useAskAi';
 import { useEditorAutosave } from '../hooks/useEditorAutosave';
 import { smartInjectPoint } from '../services/contentGenerationService';
+import { useAnalysisStore } from '../store/useAnalysisStore';
 
 type AskAiMode = 'edit' | 'format';
 
@@ -74,6 +75,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const [cleanupBlocks, setCleanupBlocks] = useState<Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }>>([]);
     const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
     const [refiningPoint, setRefiningPoint] = useState<string | null>(null);
+    const [hasAutoCheckedPoints, setHasAutoCheckedPoints] = useState(false);
     const [tiptapApi, setTiptapApi] = useState<{
         getSelectedText: () => string;
         insertHtml: (html: string) => void;
@@ -117,6 +119,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const effectiveProductBrief = productBrief || ctx?.productBrief || null;
     const effectiveOutline = outlineSections.length ? outlineSections : (ctx?.outlineSections || []);
     const { recordHtml, recordMeta, consumeDraft } = useEditorAutosave({ storageKey: 'ai_writer_editor_autosave_v1' });
+    const setCoveredPoints = useAnalysisStore(s => s.setCoveredPoints);
 
     const {
         metaTitle,
@@ -204,6 +207,26 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         recordHtml(htmlValue);
         setShowCleanupModal(false);
     }, [cleanupBlocks, ctx, onChange, recordHtml, selectedBlocks, tiptapApi, updateCounts]);
+
+    const autoCheckKeyPoints = useCallback(() => {
+        if (hasAutoCheckedPoints) return;
+        if (!tiptapApi) return;
+
+        const plain = (tiptapApi.getPlainText ? tiptapApi.getPlainText() : '') || '';
+        if (!plain.trim()) return;
+
+        const normalized = plain.toLowerCase();
+        const candidates = [...effectiveBrandPoints, ...effectiveKeyPoints].filter(Boolean);
+        const matched = candidates.filter(pt => normalized.includes(pt.toLowerCase()));
+        if (matched.length === 0) return;
+
+        setCoveredPoints(prev => {
+            const next = new Set(prev);
+            matched.forEach(m => next.add(m));
+            return Array.from(next);
+        });
+        setHasAutoCheckedPoints(true);
+    }, [effectiveBrandPoints, effectiveKeyPoints, hasAutoCheckedPoints, setCoveredPoints, tiptapApi]);
 
     const handleRefinePoint = useCallback(async (point: string) => {
         if (!tiptapApi) {
@@ -338,6 +361,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }, [effectiveCheckedPoints]);
     const totalPoints = effectiveKeyPoints.length + effectiveBrandPoints.length;
 
+    const autoCheckResetKey = useMemo(
+        () => `${initialHtml}||${effectiveKeyPoints.join('||')}||${effectiveBrandPoints.join('||')}`,
+        [initialHtml, effectiveBrandPoints, effectiveKeyPoints]
+    );
+
     useEffect(() => {
         if (!tiptapApi || hasRestoredDraftRef.current) return;
         const draft = consumeDraft();
@@ -365,59 +393,71 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         });
     }, [articleTitle, ctx?.articleTitle, metaDescription, metaTitle, recordMeta, urlSlug]);
 
+    useEffect(() => {
+        setHasAutoCheckedPoints(false);
+    }, [autoCheckResetKey]);
+
     return (
         <div className="rte-container flex flex-col h-full w-full min-h-0 bg-white overflow-hidden relative">
             <div className="rte-header flex flex-col gap-3 px-4 py-3 border-b border-gray-200 bg-white">
-                <div className="mb-1">
-                    <input
-                        value={articleTitle || ctx?.articleTitle || ''}
-                        onChange={(e) => {
-                            onTitleChange?.(e.target.value);
-                            ctx?.setArticleTitle?.(e.target.value);
-                        }}
-                        className="w-full text-2xl font-bold text-gray-800 placeholder-gray-300 border-none focus:ring-0 focus:outline-none bg-transparent px-0 py-1"
-                        placeholder="Article Title..."
-                    />
-                </div>
-                <div className="flex items-center gap-3">
-                    <div className="flex-1 flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5 border border-transparent focus-within:border-blue-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
-                        <span className="text-gray-400 flex items-center gap-1 select-none">
-                            <span className="text-xs">🔗</span>
-                            <span className="text-xs font-medium">/</span>
-                        </span>
-                        <input
-                            value={urlSlug}
-                            onChange={(e) => setUrlSlug(e.target.value)}
-                            className="flex-1 bg-transparent border-none focus:outline-none text-xs font-mono text-gray-600 placeholder-gray-400"
-                            placeholder="url-slug-goes-here"
-                        />
-                    </div>
-                </div>
-            </div>
-
-            <div className="rte-toolbar-wrapper">
-                <EditorToolbar
-                    onCommand={handleToolbarCommand}
-                    onRemoveBold={handleOpenCleanupModal}
-                    onOpenImageModal={openImageModal}
-                    onDownloadAllImages={downloadImages}
-                    isDownloadingImages={isDownloadingImages}
-                    onToggleKeyPoints={() => { setShowKeyPoints(!showKeyPoints); setShowVisualAssets(false); }}
-                    showKeyPoints={showKeyPoints}
-                    hasKeyPoints={totalPoints > 0}
-                    onToggleVisualAssets={() => { setShowVisualAssets(!showVisualAssets); setShowKeyPoints(false); }}
-                    showVisualAssets={showVisualAssets}
-                    onRebrand={() => { }}
-                    isRebranding={false}
-                    productName={effectiveProductBrief?.productName}
-                    onToggleMetaPanel={() => setShowMetaPanel((v) => !v)}
-                    showMetaPanel={showMetaPanel}
-                    onUndo={() => tiptapApi?.undo()}
-                    onRedo={() => tiptapApi?.redo()}
-                    askAiBadgeSlotRef={askAiBadgeContainerRef}
-                    extraActions={toolbarExtras}
+            <div className="mb-1">
+                <input
+                    value={articleTitle || ctx?.articleTitle || ''}
+                    onChange={(e) => {
+                        onTitleChange?.(e.target.value);
+                        ctx?.setArticleTitle?.(e.target.value);
+                    }}
+                    className="w-full text-2xl font-bold text-gray-800 placeholder-gray-300 border-none focus:ring-0 focus:outline-none bg-transparent px-0 py-1"
+                    placeholder="Article Title..."
                 />
             </div>
+            <div className="flex items-center gap-3 flex-wrap">
+                <div className="flex-1 min-w-[240px] flex items-center gap-2 bg-gray-100 rounded-full px-4 py-1.5 border border-transparent focus-within:border-blue-300 focus-within:bg-white focus-within:ring-2 focus-within:ring-blue-100 transition-all">
+                    <span className="text-gray-400 flex items-center gap-1 select-none">
+                        <span className="text-xs">🔗</span>
+                        <span className="text-xs font-medium">/</span>
+                    </span>
+                    <input
+                        value={urlSlug}
+                        onChange={(e) => setUrlSlug(e.target.value)}
+                        className="flex-1 bg-transparent border-none focus:outline-none text-xs font-mono text-gray-600 placeholder-gray-400"
+                        placeholder="url-slug-goes-here"
+                    />
+                </div>
+                {toolbarExtras && (
+                    <div className="flex items-center gap-2 ml-auto">
+                        {toolbarExtras}
+                    </div>
+                )}
+            </div>
+        </div>
+
+        <div className="rte-toolbar-wrapper">
+            <EditorToolbar
+                onCommand={handleToolbarCommand}
+                onRemoveBold={handleOpenCleanupModal}
+                onOpenImageModal={openImageModal}
+                onDownloadAllImages={downloadImages}
+                isDownloadingImages={isDownloadingImages}
+                onToggleKeyPoints={() => {
+                    if (!showKeyPoints) autoCheckKeyPoints();
+                    setShowKeyPoints(!showKeyPoints);
+                    setShowVisualAssets(false);
+                }}
+                showKeyPoints={showKeyPoints}
+                hasKeyPoints={totalPoints > 0}
+                onToggleVisualAssets={() => { setShowVisualAssets(!showVisualAssets); setShowKeyPoints(false); }}
+                showVisualAssets={showVisualAssets}
+                onRebrand={() => { }}
+                isRebranding={false}
+                productName={effectiveProductBrief?.productName}
+                onToggleMetaPanel={() => setShowMetaPanel((v) => !v)}
+                showMetaPanel={showMetaPanel}
+                onUndo={() => tiptapApi?.undo()}
+                onRedo={() => tiptapApi?.redo()}
+                askAiBadgeSlotRef={askAiBadgeContainerRef}
+            />
+        </div>
 
             <div className="rte-workspace flex-1 flex flex-row min-h-0 overflow-hidden relative">
                 <div className="rte-editor-column flex-1 flex flex-col min-h-0 relative group">
