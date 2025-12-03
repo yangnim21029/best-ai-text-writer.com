@@ -5,12 +5,14 @@ interface UiState {
     showInput: boolean;
     showSidebar: boolean;
     showChangelog: boolean;
+    showPlanModal: boolean;
     inputType: 'text' | 'url';
     displayScale: number;
     toggleInput: () => void;
     toggleSidebar: () => void;
     setShowSidebar: (show: boolean) => void;
     setShowChangelog: (show: boolean) => void;
+    setShowPlanModal: (show: boolean) => void;
     setInputType: (type: 'text' | 'url') => void;
     setDisplayScale: (scale: number) => void;
 }
@@ -21,12 +23,14 @@ export const useUiStore = create<UiState>()(
             showInput: true,
             showSidebar: true,
             showChangelog: false,
+            showPlanModal: false,
             inputType: 'url',
             displayScale: 1.1,
             toggleInput: () => set((state) => ({ showInput: !state.showInput })),
             toggleSidebar: () => set((state) => ({ showSidebar: !state.showSidebar })),
             setShowSidebar: (show) => set({ showSidebar: show }),
             setShowChangelog: (show) => set({ showChangelog: show }),
+            setShowPlanModal: (show) => set({ showPlanModal: show }),
             setInputType: (type) => set({ inputType: type }),
             setDisplayScale: (scale) => set({ displayScale: scale }),
         }),

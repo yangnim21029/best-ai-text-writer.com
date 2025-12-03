@@ -25,6 +25,8 @@ interface InputFormProps {
     inputType: 'text' | 'url';
     setInputType: (type: 'text' | 'url') => void;
     brandKnowledge?: string;
+    onShowPlan?: () => void;
+    hasPlan?: boolean;
 }
 
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
@@ -83,7 +85,9 @@ export const InputForm: React.FC<InputFormProps> = ({
     onSetActiveProfile,
     inputType,
     setInputType,
-    brandKnowledge = ''
+    brandKnowledge = '',
+    onShowPlan,
+    hasPlan = false
 }) => {
     const {
         register,
@@ -395,6 +399,20 @@ export const InputForm: React.FC<InputFormProps> = ({
                                     <span>Step 2：生成 Sections</span>
                                 </>
                             )}
+                        </button>
+
+                        <button
+                            type="button"
+                            onClick={onShowPlan}
+                            disabled={!hasPlan}
+                            className={`w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all border ${
+                                hasPlan
+                                    ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100'
+                                    : 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed'
+                            }`}
+                        >
+                            <LayoutTemplate className="w-4 h-4" />
+                            <span>檢視段落計劃</span>
                         </button>
 
                         <p className="text-[11px] text-gray-500 text-center">

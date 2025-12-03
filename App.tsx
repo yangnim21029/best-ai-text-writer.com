@@ -14,6 +14,7 @@ import { useGenerationStore } from './store/useGenerationStore';
 import { useAnalysisStore } from './store/useAnalysisStore';
 import { useMetricsStore } from './store/useMetricsStore';
 import { useUiStore } from './store/useUiStore';
+import { SectionPlanModal } from './components/SectionPlanModal';
 
 const App: React.FC = () => {
     const passwordHash = useMemo(() => (import.meta.env.VITE_APP_GUARD_HASH as string) || '', []);
@@ -59,6 +60,7 @@ const App: React.FC = () => {
     const [isUnlocked, setIsUnlocked] = useState(false);
     const restorePromptedRef = useRef(false);
     const hydratedAnalysisRef = useRef(false);
+    const planModalShownRef = useRef(false);
 
     // Logic Hooks
     const { generate, startWriting, stop } = useGeneration();
@@ -147,6 +149,20 @@ const App: React.FC = () => {
     useEffect(() => {
         document.body.setAttribute('data-display-scale', uiStore.displayScale.toString());
     }, [uiStore.displayScale]);
+
+    // Auto open plan modal when analysis completes with structure
+    useEffect(() => {
+        const hasStructure = Boolean(analysisStore.refAnalysis?.structure?.length);
+        if (generationStore.status === 'analyzing') {
+            planModalShownRef.current = false;
+            if (uiStore.showPlanModal) uiStore.setShowPlanModal(false);
+            return;
+        }
+        if (generationStore.status === 'analysis_ready' && hasStructure && !planModalShownRef.current) {
+            uiStore.setShowPlanModal(true);
+            planModalShownRef.current = true;
+        }
+    }, [generationStore.status, analysisStore.refAnalysis?.structure, uiStore.showPlanModal, uiStore.setShowPlanModal]);
 
     const handleDisplayScaleChange = (scale: number) => {
         const clamped = Math.min(1.25, Math.max(0.9, Number(scale.toFixed(2))));
@@ -346,6 +362,8 @@ const App: React.FC = () => {
                             inputType={uiStore.inputType}
                             setInputType={uiStore.setInputType}
                             brandKnowledge={analysisStore.brandKnowledge}
+                            onShowPlan={() => uiStore.setShowPlanModal(true)}
+                            hasPlan={Boolean(analysisStore.refAnalysis?.structure?.length)}
                         />
                     </section>
                 )}
@@ -401,6 +419,18 @@ const App: React.FC = () => {
                     </section>
                 )}
             </main>
+
+            <SectionPlanModal
+                open={uiStore.showPlanModal}
+                onClose={() => uiStore.setShowPlanModal(false)}
+                sections={analysisStore.refAnalysis?.structure || []}
+                generalPlan={analysisStore.refAnalysis?.generalPlan}
+                conversionPlan={analysisStore.refAnalysis?.conversionPlan}
+                onStartWriting={() => {
+                    uiStore.setShowPlanModal(false);
+                    startWriting();
+                }}
+            />
         </Layout>
     );
 };
