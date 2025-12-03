@@ -34,6 +34,71 @@ interface PreviewProps {
 
 type ViewMode = 'visual' | 'code';
 
+interface ToolbarActionsProps {
+  viewMode: ViewMode;
+  onChangeView: (mode: ViewMode) => void;
+  onCopyHtml: () => void;
+  onCopyMarkdown: () => void;
+  copied: boolean;
+  variant?: 'light' | 'dark';
+}
+
+const ToolbarActions: React.FC<ToolbarActionsProps> = ({
+  viewMode,
+  onChangeView,
+  onCopyHtml,
+  onCopyMarkdown,
+  copied,
+  variant = 'light',
+}) => {
+  const isDark = variant === 'dark';
+  const toggleBase = isDark ? 'border-gray-700 bg-gray-800 text-gray-200' : 'border-gray-200 bg-white text-gray-700';
+  const toggleActive = isDark ? 'bg-blue-900/40 text-blue-100 border border-blue-500/40' : 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm';
+  const toggleInactive = isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-50';
+  const copyButton = isDark
+    ? 'bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700'
+    : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50';
+
+  return (
+    <div className="flex items-center gap-2 text-xs">
+      <div className={`flex items-center rounded-md overflow-hidden ${toggleBase}`}>
+        <button
+          onClick={() => onChangeView('visual')}
+          className={`flex items-center gap-1 px-3 py-1.5 transition-colors ${viewMode === 'visual' ? toggleActive : toggleInactive}`}
+        >
+          <Eye className="w-3.5 h-3.5" />
+          <span className="font-semibold">Visual Editor</span>
+        </button>
+        <button
+          onClick={() => onChangeView('code')}
+          className={`flex items-center gap-1 px-3 py-1.5 transition-colors ${viewMode === 'code' ? toggleActive : toggleInactive}`}
+        >
+          <Code className="w-3.5 h-3.5" />
+          <span className="font-semibold">HTML Source</span>
+        </button>
+      </div>
+
+      <button
+        onClick={onCopyMarkdown}
+        className={`flex items-center gap-1 px-3 py-1.5 font-medium rounded-md transition-colors ${copyButton}`}
+        title="Copy as Markdown"
+      >
+        <FileDown className="w-4 h-4" />
+        <span>Markdown</span>
+      </button>
+
+      <button
+        onClick={onCopyHtml}
+        className={`flex items-center gap-1 px-3 py-1.5 font-semibold rounded-md transition-colors ${copyButton}`}
+        title="Copy HTML Source"
+      >
+        {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+        <span className={copied ? 'text-green-600' : ''}>{copied ? 'Copied' : 'HTML'}</span>
+      </button>
+    </div>
+  );
+};
+
 export const Preview: React.FC<PreviewProps> = ({
   content,
   status,
@@ -62,6 +127,13 @@ export const Preview: React.FC<PreviewProps> = ({
   const [editorHtml, setEditorHtml] = useState('');
 
   const isAnalyzing = status === 'analyzing';
+
+  // Start every new analysis with a clean editor to avoid showing stale drafts
+  useEffect(() => {
+    if (status === 'analyzing') {
+      setEditorHtml('');
+    }
+  }, [status]);
 
   useEffect(() => {
     if (status === 'completed' && content) {
@@ -133,6 +205,17 @@ export const Preview: React.FC<PreviewProps> = ({
     navigator.clipboard.writeText(md);
     alert("Markdown copied to clipboard!");
   };
+
+  const renderToolbarActions = (variant: 'light' | 'dark' = 'light') => (
+    <ToolbarActions
+      viewMode={viewMode}
+      onChangeView={setViewMode}
+      onCopyHtml={handleCopy}
+      onCopyMarkdown={handleCopyMarkdown}
+      copied={copied}
+      variant={variant}
+    />
+  );
 
   const getStepLabel = (step?: GenerationStep) => {
     switch (step) {

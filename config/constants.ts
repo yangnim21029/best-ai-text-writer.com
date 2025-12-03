@@ -1,11 +1,16 @@
+const env =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env)
+        ? (import.meta as any).env
+        : (process.env as any);
+
 export const MODEL = {
     FLASH: 'gemini-2.5-flash',
     IMAGE_PREVIEW: 'google/gemini-2.5-flash-image',
 };
 
 export const EMBED_MODEL_ID =
-    import.meta.env.VITE_EMBED_MODEL_ID ||
-    import.meta.env.AI_EMBED_MODEL_ID ||
+    env.VITE_EMBED_MODEL_ID ||
+    env.AI_EMBED_MODEL_ID ||
     'gemini-embedding-001';
 
 export const PRICING = {

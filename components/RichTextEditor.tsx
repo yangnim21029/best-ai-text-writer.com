@@ -34,6 +34,7 @@ interface RichTextEditorProps {
     onTitleChange?: (value: string) => void;
     outlineSections?: string[];
     onRemoveScrapedImage?: (img: ScrapedImage) => void;
+    toolbarExtras?: React.ReactNode;
 }
 
 export const RichTextEditor: React.FC<RichTextEditorProps> = ({
@@ -53,6 +54,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     onTitleChange,
     outlineSections = [],
     onRemoveScrapedImage,
+    toolbarExtras,
 }) => {
     const ctx = useOptionalEditorContext();
     const [html, setHtml] = useState(initialHtml);
@@ -413,6 +415,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     onUndo={() => tiptapApi?.undo()}
                     onRedo={() => tiptapApi?.redo()}
                     askAiBadgeSlotRef={askAiBadgeContainerRef}
+                    extraActions={toolbarExtras}
                 />
             </div>
 

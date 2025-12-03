@@ -199,6 +199,13 @@ export const generateSectionContent = async (
 
     // Backend should return an object, but some deployments may only return a JSON string.
     // Parse defensively so the editor doesn't render raw JSON blobs.
+    const unwrapPayload = (value: any) => {
+        if (value && typeof value === 'object' && value.data && typeof value.data === 'object') {
+            return value.data;
+        }
+        return value;
+    };
+
     let parsed = response.object as any;
     if (!parsed && response.text) {
         try {
@@ -208,14 +215,33 @@ export const generateSectionContent = async (
         }
     }
 
+    parsed = unwrapPayload(parsed);
+
     if (!parsed || typeof parsed !== 'object') {
         parsed = { content: response.text || "", usedPoints: [], injectedCount: 0 };
     }
 
+    const payload = unwrapPayload(parsed) || {};
+    const rawContent =
+        (typeof payload.content === 'string' && payload.content.trim().length > 0)
+            ? payload.content
+            : (typeof payload.sectionContent === 'string' ? payload.sectionContent : (response.text || ""));
+    const usedPointsSource =
+        (Array.isArray(payload.usedPoints) && payload.usedPoints) ||
+        (Array.isArray((payload as any).used_points) && (payload as any).used_points) ||
+        (Array.isArray((payload as any).pointsUsed) && (payload as any).pointsUsed) ||
+        (Array.isArray((payload as any).usedFacts) && (payload as any).usedFacts) ||
+        [];
+    const usedPoints = Array.isArray(usedPointsSource)
+        ? usedPointsSource.map(p => (typeof p === 'string' ? p : String(p || '')).trim()).filter(Boolean)
+        : [];
+    const injectedRaw = payload.injectedCount ?? (payload as any).injected_count ?? 0;
+    const injectedCount = typeof injectedRaw === 'number' ? injectedRaw : Number(injectedRaw) || 0;
+
     const data = {
-        content: parsed.content || "",
-        usedPoints: Array.isArray(parsed.usedPoints) ? parsed.usedPoints : [],
-        injectedCount: typeof parsed.injectedCount === 'number' ? parsed.injectedCount : 0
+        content: rawContent,
+        usedPoints,
+        injectedCount
     };
 
     const metrics = calculateCost(response.usageMetadata, 'FLASH');

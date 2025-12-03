@@ -22,8 +22,13 @@ const DEFAULT_RETRY: Required<RetryOptions> = {
 
 const DEFAULT_TIMEOUT = AI_DEFAULTS.TIMEOUT_MS;
 
-const AI_BASE_URL = (import.meta.env.VITE_AI_BASE_URL || import.meta.env.AI_BASE_URL || '').replace(/\/$/, '');
-const AI_PATH = (import.meta.env.VITE_AI_PATH || import.meta.env.AI_PATH || '/ai').replace(/\/$/, '');
+const env =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env)
+        ? (import.meta as any).env
+        : (process.env as any);
+
+const AI_BASE_URL = (env.VITE_AI_BASE_URL || env.AI_BASE_URL || '').replace(/\/$/, '');
+const AI_PATH = (env.VITE_AI_PATH || env.AI_PATH || '/ai').replace(/\/$/, '');
 
 export const buildAiUrl = (path: string) => {
     const prefix = AI_PATH
@@ -72,15 +77,26 @@ const buildPrompt = (contents: any): string => {
     }
 };
 
-const normalizeResponse = (data: any): AIResponse => {
-    const candidates = data?.candidates || data?.response?.candidates;
-    const usageMetadata = data?.usageMetadata || data?.usage || data?.response?.usageMetadata;
+const normalizeResponse = (raw: any): AIResponse => {
+    // Some backends wrap the actual payload under `data`
+    const envelope = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
+    const candidates =
+        envelope?.candidates ||
+        raw?.candidates ||
+        envelope?.response?.candidates ||
+        raw?.response?.candidates;
+    const usageMetadata =
+        envelope?.usageMetadata ||
+        envelope?.usage ||
+        raw?.usageMetadata ||
+        raw?.usage ||
+        envelope?.response?.usageMetadata;
 
     // Check if this is a schema-based response (backend returns 'object' field)
-    if (data?.object !== undefined) {
+    if (envelope?.object !== undefined) {
         return {
-            text: JSON.stringify(data.object),
-            object: data.object,
+            text: typeof envelope.text === 'string' ? envelope.text : JSON.stringify(envelope.object),
+            object: envelope.object,
             usageMetadata,
             candidates
         };
@@ -88,10 +104,12 @@ const normalizeResponse = (data: any): AIResponse => {
 
     // Original text-based response
     const text =
-        data?.text ||
-        data?.response?.text ||
+        envelope?.text ||
+        raw?.text ||
+        envelope?.response?.text ||
+        raw?.response?.text ||
         extractTextFromCandidates(candidates) ||
-        (typeof data === 'string' ? data : '');
+        (typeof envelope === 'string' ? envelope : '');
     return { text, usageMetadata, candidates };
 };
 

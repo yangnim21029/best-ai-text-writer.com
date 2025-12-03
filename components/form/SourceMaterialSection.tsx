@@ -165,7 +165,8 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
 
                             <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto custom-scrollbar p-1">
                                 {visibleImages.map((img, idx) => {
-                                    const key = img.id || img.url || `${idx}-${img.altText}`;
+                                    // Use an index-suffixed key to prevent duplicate keys when the same URL appears multiple times
+                                    const key = img.id || `${img.url || img.altText || 'image'}-${idx}`;
                                     const isIgnored = Boolean(img.ignored);
                                     const clickable = Boolean(onToggleScrapedImage);
                                     return (

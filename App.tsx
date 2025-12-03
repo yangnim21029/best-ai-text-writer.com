@@ -166,7 +166,8 @@ const App: React.FC = () => {
         const persistedKeys = [
             'pro_content_writer_analysis',
             'pro_content_writer_generation',
-            'pro_content_writer_inputs_simple_v4'
+            'pro_content_writer_inputs_simple_v4',
+            'ai_writer_editor_autosave_v1'
         ];
         const hasPersisted = persistedKeys.some(k => localStorage.getItem(k));
 

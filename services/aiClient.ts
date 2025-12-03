@@ -39,8 +39,13 @@ const DEFAULT_TIMEOUT = AI_DEFAULTS.TIMEOUT_MS;
 const DEFAULT_RETRY_ATTEMPTS = AI_DEFAULTS.RETRY_ATTEMPTS;
 const DEFAULT_RETRY_DELAY = AI_DEFAULTS.RETRY_DELAY_MS;
 
-const AI_BASE_URL = (import.meta.env.VITE_AI_BASE_URL || import.meta.env.AI_BASE_URL || '').replace(/\/$/, '');
-const AI_PATH = (import.meta.env.VITE_AI_PATH || import.meta.env.AI_PATH || '/ai').replace(/\/$/, '');
+const env =
+    (typeof import.meta !== 'undefined' && (import.meta as any).env)
+        ? (import.meta as any).env
+        : (process.env as any);
+
+const AI_BASE_URL = (env.VITE_AI_BASE_URL || env.AI_BASE_URL || '').replace(/\/$/, '');
+const AI_PATH = (env.VITE_AI_PATH || env.AI_PATH || '/ai').replace(/\/$/, '');
 
 const buildAiUrl = (path: string) => {
     const prefix = AI_PATH

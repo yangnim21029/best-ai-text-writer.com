@@ -62,7 +62,8 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                     <h5 className="text-[10px] font-bold text-gray-400 uppercase mb-2">Source References</h5>
                     <div className="grid grid-cols-4 gap-2">
                         {scrapedImages.map((img, idx) => {
-                            const key = img.id || img.url || `${idx}-${img.altText}`;
+                            // Add index to avoid duplicate keys when URLs repeat across scraped images
+                            const key = img.id || `${img.url || img.altText || 'image'}-${idx}`;
                             return (
                                 <div
                                     key={key}
