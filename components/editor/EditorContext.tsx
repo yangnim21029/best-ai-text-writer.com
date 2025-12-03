@@ -35,32 +35,50 @@ export const EditorProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const metrics = useMetricsStore();
     const ui = useUiStore();
 
-    const value = useMemo<EditorContextValue>(() => ({
-        content: generation.content,
-        setContent: (val) => generation.setContent(val),
-        status: generation.status,
-        generationStep: generation.generationStep,
-        error: generation.error,
-        targetAudience: analysis.targetAudience,
-        keyPoints: analysis.refAnalysis?.keyInformationPoints || [],
-        brandExclusivePoints: analysis.refAnalysis?.brandExclusivePoints || [],
-        checkedPoints: analysis.coveredPoints,
-        scrapedImages: analysis.scrapedImages,
-        visualStyle: analysis.visualStyle,
-        productBrief: analysis.activeProductBrief,
-        displayScale: ui.displayScale,
-        articleTitle: analysis.articleTitle,
-        outlineSections: analysis.refAnalysis?.structure?.map(s => s.title) || [],
-        onTogglePoint: (point: string) => analysis.setCoveredPoints(prev => prev.includes(point) ? prev.filter(p => p !== point) : [...prev, point]),
-        onRemoveScrapedImage: (img) => analysis.setScrapedImages(analysis.scrapedImages.map(existing => {
-            const key = existing.id || existing.url;
-            const match = img.id || img.url;
-            if (key && key === match) return { ...existing, ignored: !existing.ignored };
-            return existing;
-        })),
-        onAddCost: (cost, usage) => metrics.addCost(cost?.totalCost || 0, usage?.totalTokens || 0),
-        setArticleTitle: analysis.setArticleTitle,
-    }), [analysis, generation, metrics, ui.displayScale]);
+    const value = useMemo<EditorContextValue>(() => {
+        const structure = analysis.refAnalysis?.structure || [];
+        const legacyGeneral = Array.isArray(analysis.refAnalysis?.keyInformationPoints)
+            ? analysis.refAnalysis.keyInformationPoints
+            : [];
+        const legacyBrand = Array.isArray(analysis.refAnalysis?.brandExclusivePoints)
+            ? analysis.refAnalysis.brandExclusivePoints
+            : [];
+        const general = new Set<string>();
+        const brand = new Set<string>();
+        legacyGeneral.forEach((p: string) => p && general.add(p));
+        legacyBrand.forEach((p: string) => p && brand.add(p));
+        structure.forEach((s: any) => {
+            (Array.isArray(s?.keyFacts) ? s.keyFacts : []).forEach((p: string) => p && general.add(p));
+            (Array.isArray(s?.uspNotes) ? s.uspNotes : []).forEach((p: string) => p && brand.add(p));
+        });
+
+        return {
+            content: generation.content,
+            setContent: (val) => generation.setContent(val),
+            status: generation.status,
+            generationStep: generation.generationStep,
+            error: generation.error,
+            targetAudience: analysis.targetAudience,
+            keyPoints: Array.from(general),
+            brandExclusivePoints: Array.from(brand),
+            checkedPoints: analysis.coveredPoints,
+            scrapedImages: analysis.scrapedImages,
+            visualStyle: analysis.visualStyle,
+            productBrief: analysis.activeProductBrief,
+            displayScale: ui.displayScale,
+            articleTitle: analysis.articleTitle,
+            outlineSections: analysis.refAnalysis?.structure?.map(s => s.title) || [],
+            onTogglePoint: (point: string) => analysis.setCoveredPoints(prev => prev.includes(point) ? prev.filter(p => p !== point) : [...prev, point]),
+            onRemoveScrapedImage: (img) => analysis.setScrapedImages(analysis.scrapedImages.map(existing => {
+                const key = existing.id || existing.url;
+                const match = img.id || img.url;
+                if (key && key === match) return { ...existing, ignored: !existing.ignored };
+                return existing;
+            })),
+            onAddCost: (cost, usage) => metrics.addCost(cost?.totalCost || 0, usage?.totalTokens || 0),
+            setArticleTitle: analysis.setArticleTitle,
+        };
+    }, [analysis, generation, metrics, ui.displayScale]);
 
     return <EditorContext.Provider value={value}>{children}</EditorContext.Provider>;
 };
