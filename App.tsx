@@ -346,7 +346,7 @@ const App: React.FC = () => {
                 </section>
 
                 {uiStore.showSidebar && (
-                    <section className="hidden xl:flex w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex-col overflow-auto z-10 transition-all duration-300">
+                    <section className="hidden lg:flex w-[380px] bg-white rounded-2xl shadow-sm border border-gray-200/60 flex-col overflow-auto z-10 transition-all duration-300">
                         <SeoSidebar
                             keywordPlans={analysisStore.keywordPlans}
                             referenceAnalysis={analysisStore.refAnalysis}

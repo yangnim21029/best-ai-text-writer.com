@@ -90,7 +90,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
         };
         const variant = map[value || 'easy'] || map.easy;
         return (
-            <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full border ${variant.bg} ${variant.text} ${variant.border}`}>
+            <span className={`px-2 py-0.5 text-xs font-bold rounded-full border ${variant.bg} ${variant.text} ${variant.border}`}>
                 {variant.label}
             </span>
         );
@@ -163,12 +163,12 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                         <div className="flex items-center gap-2">
                             <Languages className="w-4 h-4 text-indigo-600" />
                             <div className="leading-tight">
-                                <span className="block text-[11px] font-extrabold uppercase tracking-wider text-indigo-800">語言設定</span>
+                                <span className="block text-xs font-extrabold uppercase tracking-wider text-indigo-800">語言設定</span>
                                 <div className="flex items-center gap-2 flex-wrap">
-                                    <span className="text-[11px] font-semibold text-indigo-700 bg-white/70 px-2 py-0.5 rounded-full border border-indigo-100">
+                                    <span className="text-xs font-semibold text-indigo-700 bg-white/70 px-2 py-0.5 rounded-full border border-indigo-100">
                                         {audienceLabel}
                                     </span>
-                                    <span className="text-[10px] text-indigo-500 font-semibold bg-indigo-100/60 px-2 py-0.5 rounded-full border border-indigo-200">
+                                    <span className="text-xs text-indigo-500 font-semibold bg-indigo-100/60 px-2 py-0.5 rounded-full border border-indigo-200">
                                         {targetAudience || '未設定'}
                                     </span>
                                 </div>
@@ -184,13 +184,13 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             </button>
                             <button
                                 onClick={() => setShowLangDetails(v => !v)}
-                                className="h-8 px-3 text-[11px] font-semibold text-indigo-700 rounded-md border border-indigo-100 bg-white hover:bg-indigo-50 active:scale-95 transition"
+                                className="h-8 px-3 text-xs font-semibold text-indigo-700 rounded-md border border-indigo-100 bg-white hover:bg-indigo-50 active:scale-95 transition"
                             >
                                 {showLangDetails ? '收起' : '全文'}
                             </button>
                         </div>
                     </div>
-                    <div className={`p-3 text-[11px] text-gray-700 leading-snug ${showLangDetails ? 'whitespace-pre-line' : ''}`}>
+                    <div className={`p-3 text-sm text-gray-700 leading-snug ${showLangDetails ? 'whitespace-pre-line' : ''}`}>
                         {formatInstruction(languageInstruction || '', showLangDetails)}
                     </div>
                 </div>
@@ -200,42 +200,42 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-emerald-50/80 to-white flex items-center gap-2">
                             <ShoppingBag className="w-3.5 h-3.5 text-emerald-600" />
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Service & Product Strategy</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Service & Product Strategy</h4>
                         </div>
                         <div className="p-3 space-y-3">
                             {/* Product Summary */}
-                            <div className="flex items-center justify-between text-[10px] bg-emerald-50/50 p-2 rounded border border-emerald-100">
+                            <div className="flex flex-col gap-1.5 text-xs bg-emerald-50/50 p-3 rounded border border-emerald-100">
                                 <span className="font-bold text-emerald-700">{productBrief.productName}</span>
-                                <span className="text-emerald-600/70 truncate max-w-[120px]">{productBrief.usp}</span>
+                                <span className="text-emerald-600/70 break-words leading-relaxed">{productBrief.usp}</span>
                             </div>
 
                             {/* Mapping Strategy */}
                             <div className="space-y-2">
-                                <h5 className="text-[9px] font-bold text-gray-400 uppercase">Injection Map</h5>
+                                <h5 className="text-xs font-bold text-gray-400 uppercase">Injection Map</h5>
                                 {productMapping.length === 0 ? (
-                                    <p className="text-[10px] text-gray-400 italic">No specific mappings generated.</p>
+                                    <p className="text-xs text-gray-400 italic">No specific mappings generated.</p>
                                 ) : (
                                     productMapping.map((map, idx) => {
                                         const matchedSections = getMatchingSections(map.relevanceKeywords);
                                         return (
-                                            <div key={idx} className="bg-gray-50 rounded p-2 border border-gray-100 flex flex-col gap-1.5">
+                                            <div key={idx} className="bg-gray-50 rounded p-3 border border-gray-100 flex flex-col gap-2">
                                                 <div className="flex items-start gap-2">
                                                     <div className="mt-0.5 w-1.5 h-1.5 rounded-full bg-red-400 flex-shrink-0" title="Pain Point"></div>
-                                                    <span className="text-[10px] text-gray-700 leading-tight">
+                                                    <span className="text-xs text-gray-700 leading-relaxed break-words">
                                                         {map.painPoint}
                                                     </span>
                                                 </div>
-                                                <div className="flex items-center gap-2 pl-3.5">
-                                                    <ArrowRight className="w-3 h-3 text-gray-300" />
-                                                    <span className="text-[10px] font-bold text-emerald-600 leading-tight">
+                                                <div className="flex items-start gap-2 pl-3.5">
+                                                    <ArrowRight className="w-3 h-3 text-gray-300 flex-shrink-0 mt-0.5" />
+                                                    <span className="text-xs font-bold text-emerald-600 leading-relaxed break-words">
                                                         {map.productFeature}
                                                     </span>
                                                 </div>
                                                 {matchedSections.length > 0 && (
-                                                    <div className="mt-1 pl-3.5 flex flex-wrap gap-1">
+                                                    <div className="mt-1 pl-3.5 flex flex-wrap gap-1.5">
                                                         {matchedSections.map((s, si) => (
-                                                            <span key={si} className="text-[9px] px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded border border-blue-100">
-                                                                📍 {s.substring(0, 15)}...
+                                                            <span key={si} className="text-xs px-2 py-1 bg-blue-50 text-blue-600 rounded border border-blue-100 break-words">
+                                                                📍 {s}
                                                             </span>
                                                         ))}
                                                     </div>
@@ -248,13 +248,13 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
 
                             {/* Replacement Rules */}
                             {referenceAnalysis?.replacementRules && referenceAnalysis.replacementRules.length > 0 && (
-                                <div className="space-y-1 pt-2 border-t border-gray-100">
-                                    <h5 className="text-[9px] font-bold text-gray-400 uppercase">Competitor Terms (To Be Replaced)</h5>
-                                    <ul className="space-y-1">
+                                <div className="space-y-2 pt-3 border-t border-gray-100">
+                                    <h5 className="text-xs font-bold text-gray-400 uppercase">Competitor Terms (To Be Replaced)</h5>
+                                    <ul className="space-y-2">
                                         {referenceAnalysis.replacementRules.map((rule, ri) => (
-                                            <li key={ri} className="text-[10px] text-gray-600 flex items-start gap-1">
-                                                <span className="text-red-400 font-mono text-[9px]">[-]</span>
-                                                {rule}
+                                            <li key={ri} className="text-xs text-gray-600 flex items-start gap-2 leading-relaxed">
+                                                <span className="text-red-400 font-mono text-xs flex-shrink-0">[-]</span>
+                                                <span className="break-words">{rule}</span>
                                             </li>
                                         ))}
                                     </ul>
@@ -271,10 +271,10 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             <div className="w-3.5 h-3.5 text-pink-600 flex items-center justify-center">
                                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"></circle><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"></circle><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"></circle><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"></circle><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.555-2.503 5.555-5.554C21.965 6.012 17.461 2 12 2z"></path></svg>
                             </div>
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Visual Style</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Visual Style</h4>
                         </div>
                         <div className="p-3">
-                            <p className="text-[11px] text-gray-600 leading-relaxed italic">
+                            <p className="text-sm text-gray-600 leading-relaxed italic">
                                 "{visualStyle || "Clean, modern professional photography with natural lighting."}"
                             </p>
                         </div>
@@ -286,14 +286,14 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-purple-50/80 to-white flex items-center gap-2">
                             <Target className="w-3.5 h-3.5 text-purple-600" />
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Voice Strategy</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Voice Strategy</h4>
                         </div>
                         <div className="p-3">
                             <div className="space-y-2">
                                 {referenceAnalysis.generalPlan.map((point, idx) => (
                                     <div key={idx} className="flex gap-2.5 items-start">
                                         <div className="w-1 h-1 mt-2 rounded-full bg-purple-400 flex-shrink-0"></div>
-                                        <p className="text-[11px] text-gray-600 leading-relaxed">{point}</p>
+                                        <p className="text-sm text-gray-600 leading-relaxed">{point}</p>
                                     </div>
                                 ))}
                             </div>
@@ -306,29 +306,29 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-teal-50/80 to-white flex items-center gap-2">
                             <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Authority Signals</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Authority Signals</h4>
                         </div>
                         <div className="p-4 space-y-3">
                             <div className="flex flex-wrap gap-1.5">
                                 {authorityAnalysis.relevantTerms.slice(0, 8).map((term, idx) => (
-                                    <span key={idx} className="px-2 py-1 bg-teal-50 text-teal-700 border border-teal-100 rounded text-[10px] font-semibold">
+                                    <span key={idx} className="px-2 py-1 bg-teal-50 text-teal-700 border border-teal-100 rounded text-xs font-semibold">
                                         {term}
                                     </span>
                                 ))}
                                 {authorityAnalysis.relevantTerms.length > 8 && (
-                                    <span className="px-2 py-1 text-gray-400 text-[10px] font-medium bg-gray-50 rounded border border-gray-100">
+                                    <span className="px-2 py-1 text-gray-400 text-xs font-medium bg-gray-50 rounded border border-gray-100">
                                         +{authorityAnalysis.relevantTerms.length - 8} more
                                     </span>
                                 )}
                             </div>
 
                             <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
-                                <h5 className="text-[9px] font-bold text-gray-400 mb-2 uppercase flex items-center gap-1">
+                                <h5 className="text-xs font-bold text-gray-400 mb-2 uppercase flex items-center gap-1">
                                     <Zap className="w-3 h-3 text-amber-400" /> Integration Plan
                                 </h5>
                                 <ul className="space-y-1.5">
                                     {(authorityAnalysis.combinations || []).map((plan, idx) => (
-                                        <li key={idx} className="text-[10px] text-gray-600 flex items-start gap-1.5 leading-snug">
+                                        <li key={idx} className="text-xs text-gray-600 flex items-start gap-1.5 leading-snug">
                                             <span className="text-teal-400 mt-0.5">•</span>
                                             <span>{plan}</span>
                                         </li>
@@ -344,23 +344,23 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-orange-50/80 to-white flex items-center gap-2">
                             <Database className="w-3.5 h-3.5 text-orange-600" />
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
                         </div>
-                        <div className="p-1">
-                            <div className="space-y-0.5 max-h-48 overflow-y-auto custom-scrollbar p-1">
+                        <div className="p-3">
+                            <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar p-2">
                                 {/* Brand Exclusive Points */}
                                 {referenceAnalysis?.brandExclusivePoints?.map((point, idx) => (
-                                    <div key={`brand-${idx}`} className="flex items-start gap-2.5 p-2 rounded hover:bg-purple-50 transition-colors">
-                                        <Gem className="w-3 h-3 text-purple-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-[10px] text-gray-800 font-medium leading-relaxed">{point}</span>
+                                    <div key={`brand-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-purple-50 transition-colors">
+                                        <Gem className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
+                                        <span className="text-xs text-gray-800 font-medium leading-relaxed break-words">{point}</span>
                                     </div>
                                 ))}
 
                                 {/* General Points */}
                                 {referenceAnalysis?.keyInformationPoints?.map((point, idx) => (
-                                    <div key={`gen-${idx}`} className="flex items-start gap-2.5 p-2 rounded hover:bg-orange-50 transition-colors">
-                                        <div className="w-1 h-1 mt-1.5 rounded-full bg-orange-300 flex-shrink-0"></div>
-                                        <span className="text-[10px] text-gray-600 leading-relaxed">{point}</span>
+                                    <div key={`gen-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-orange-50 transition-colors">
+                                        <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-orange-400 flex-shrink-0"></div>
+                                        <span className="text-xs text-gray-600 leading-relaxed break-words">{point}</span>
                                     </div>
                                 ))}
                             </div>
@@ -373,7 +373,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-blue-50/80 to-white flex items-center gap-2">
                             <Layers className="w-3.5 h-3.5 text-blue-600" />
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Narrative Structure (Outline)</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Narrative Structure (Outline)</h4>
                         </div>
                         <div className="relative py-2">
                             {/* Timeline Line */}
@@ -384,28 +384,28 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                     const mode = section.writingMode || (section.difficulty === 'easy' ? 'direct' : 'multi_solutions');
                                     const angles = section.solutionAngles?.filter(Boolean).slice(0, 2) || [];
                                     return (
-                                        <div key={idx} className="px-4 py-2 pl-10 relative hover:bg-blue-50/30 transition-colors group/item">
-                                            <div className="absolute left-3 top-2.5 w-4 h-4 rounded-full border-2 border-white bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm text-[9px] font-bold z-10 group-hover/item:bg-blue-600 group-hover/item:text-white transition-all">
+                                        <div key={idx} className="px-4 py-3 pl-10 relative hover:bg-blue-50/30 transition-colors group/item">
+                                            <div className="absolute left-3 top-3.5 w-4 h-4 rounded-full border-2 border-white bg-blue-50 text-blue-600 flex items-center justify-center shadow-sm text-xs font-bold z-10 group-hover/item:bg-blue-600 group-hover/item:text-white transition-all">
                                                 {idx + 1}
                                             </div>
-                                            <div className="flex items-start justify-between gap-2 pr-1">
+                                            <div className="flex items-start justify-between gap-3 pr-1">
                                                 <div className="flex-1">
-                                                    <h5 className="text-[11px] font-bold text-gray-800 mb-0.5">{section.title}</h5>
+                                                    <h5 className="text-sm font-bold text-gray-800 mb-1 leading-normal break-words">{section.title}</h5>
                                                     {section.coreQuestion && (
-                                                        <p className="text-[10px] text-gray-500 leading-normal">Q: {section.coreQuestion}</p>
+                                                        <p className="text-xs text-gray-500 leading-relaxed break-words">Q: {section.coreQuestion}</p>
                                                     )}
                                                 </div>
                                                 {difficultyBadge(section.difficulty)}
                                             </div>
                                             {section.narrativePlan && (
-                                                <p className="text-[10px] text-gray-400 leading-normal">
+                                                <p className="text-xs text-gray-400 leading-relaxed mt-1.5 break-words">
                                                     {section.narrativePlan[0]}
                                                 </p>
                                             )}
                                             {mode === 'multi_solutions' && angles.length > 0 && (
-                                                <div className="mt-1 flex flex-wrap gap-1.5">
+                                                <div className="mt-2 flex flex-wrap gap-2">
                                                     {angles.map((angle, aIdx) => (
-                                                        <span key={aIdx} className="text-[9px] px-2 py-0.5 rounded-full border border-blue-100 bg-blue-50 text-blue-700">
+                                                        <span key={aIdx} className="text-xs px-2 py-1 rounded-full border border-blue-100 bg-blue-50 text-blue-700 break-words">
                                                             {angle}
                                                         </span>
                                                     ))}
@@ -424,42 +424,42 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-indigo-50/80 to-white flex items-center gap-2">
                             <BarChart2 className="w-3.5 h-3.5 text-indigo-600" />
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">H2 / H3 Optimizer</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">H2 / H3 Optimizer</h4>
                         </div>
                         <div className="divide-y divide-gray-100">
                             {headingOptimizations.slice(0, 6).map((item, idx) => (
-                                <div key={idx} className="p-3 space-y-2">
-                                    <div className="flex items-start gap-2">
-                                        <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 text-[10px] font-bold flex items-center justify-center border border-white shadow-sm">
+                                <div key={idx} className="p-4 space-y-3">
+                                    <div className="flex items-start gap-3">
+                                        <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold flex items-center justify-center border border-white shadow-sm flex-shrink-0">
                                             {idx + 1}
                                         </div>
-                                        <div className="flex-1 space-y-1">
-                                            <div className="flex items-start gap-1.5">
-                                                <span className="text-[9px] text-gray-400 uppercase">H2</span>
+                                        <div className="flex-1 space-y-2">
+                                            <div className="flex items-start gap-2">
+                                                <span className="text-xs text-gray-400 uppercase flex-shrink-0">H2</span>
                                                 <div className="flex-1">
-                                                    <div className="text-[10px] text-gray-500 line-through decoration-rose-200">{item.h2_before}</div>
-                                                    <div className="text-[11px] font-semibold text-gray-900 flex items-center gap-1">
-                                                        <ArrowRight className="w-3 h-3 text-indigo-400" />
-                                                        {item.h2_after}
+                                                    <div className="text-xs text-gray-500 line-through decoration-rose-200 leading-relaxed break-words">{item.h2_before}</div>
+                                                    <div className="text-sm font-semibold text-gray-900 flex items-start gap-2 mt-1 leading-normal">
+                                                        <ArrowRight className="w-3 h-3 text-indigo-400 flex-shrink-0 mt-1" />
+                                                        <span className="break-words">{item.h2_after}</span>
                                                         {item.needs_manual && (
-                                                            <span className="ml-1 px-1.5 py-0.5 text-[9px] rounded-full bg-amber-50 text-amber-700 border border-amber-100">需要確認</span>
+                                                            <span className="ml-1 px-2 py-0.5 text-xs rounded-full bg-amber-50 text-amber-700 border border-amber-100 flex-shrink-0">需要確認</span>
                                                         )}
                                                     </div>
                                                 </div>
                                             </div>
                                             {item.h2_reason && (
-                                                <p className="text-[10px] text-gray-500 leading-snug">{item.h2_reason}</p>
+                                                <p className="text-xs text-gray-500 leading-relaxed break-words">{item.h2_reason}</p>
                                             )}
                                             {item.h2_options && item.h2_options.length > 0 && (
-                                                <div className="pl-6 flex flex-wrap gap-1">
+                                                <div className="pl-6 flex flex-wrap gap-2">
                                                     {item.h2_options.slice(0, 3).map((opt, optIdx) => (
                                                         <span
                                                             key={optIdx}
-                                                            className="text-[9px] px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100"
+                                                            className="text-xs px-2 py-1 rounded-full bg-indigo-50 text-indigo-700 border border-indigo-100 break-words"
                                                         >
                                                             {opt.text}
                                                             {typeof opt.score === 'number' && (
-                                                                <span className="ml-1 text-[8px] text-indigo-500">({opt.score.toFixed(2)})</span>
+                                                                <span className="ml-1 text-[10px] text-indigo-500">({opt.score.toFixed(2)})</span>
                                                             )}
                                                         </span>
                                                     ))}
@@ -469,14 +469,14 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                         {difficultyBadge(item.h3 && item.h3.length > 0 ? 'medium' : 'easy')}
                                     </div>
                                     {item.h3 && item.h3.length > 0 && (
-                                        <div className="pl-7 flex flex-wrap gap-1.5">
+                                        <div className="pl-8 flex flex-wrap gap-2">
                                             {item.h3.slice(0, 3).map((h3item, hIdx) => (
-                                                <div key={hIdx} className="px-2 py-1 bg-indigo-50 border border-indigo-100 rounded-lg flex flex-col gap-0.5 max-w-full">
-                                                    <span className="text-[9px] text-indigo-700 font-semibold truncate">H3</span>
-                                                    <span className="text-[10px] text-gray-500 line-through decoration-rose-200 truncate">{h3item.h3_before}</span>
-                                                    <span className="text-[10px] text-gray-800 font-medium truncate">{h3item.h3_after}</span>
+                                                <div key={hIdx} className="px-3 py-2 bg-indigo-50 border border-indigo-100 rounded-lg flex flex-col gap-1 max-w-full">
+                                                    <span className="text-xs text-indigo-700 font-semibold">H3</span>
+                                                    <span className="text-xs text-gray-500 line-through decoration-rose-200 leading-relaxed break-words">{h3item.h3_before}</span>
+                                                    <span className="text-xs text-gray-800 font-medium leading-relaxed break-words">{h3item.h3_after}</span>
                                                     {h3item.h3_reason && (
-                                                        <span className="text-[9px] text-gray-500 line-clamp-2">{h3item.h3_reason}</span>
+                                                        <span className="text-xs text-gray-500 line-clamp-3 leading-relaxed break-words">{h3item.h3_reason}</span>
                                                     )}
                                                 </div>
                                             ))}
@@ -485,7 +485,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 </div>
                             ))}
                             {headingOptimizations.length > 6 && (
-                                <div className="p-2 text-[10px] text-gray-400 text-center">+{headingOptimizations.length - 6} more</div>
+                                <div className="p-2 text-xs text-gray-400 text-center">+{headingOptimizations.length - 6} more</div>
                             )}
                         </div>
                     </div>
@@ -496,7 +496,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-indigo-50/80 to-white flex items-center gap-2">
                             <ListChecks className="w-3.5 h-3.5 text-indigo-600" />
-                            <h4 className="text-[11px] font-extrabold text-gray-700 uppercase tracking-wider">Semantic Keywords</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Semantic Keywords</h4>
                         </div>
                         <div className="p-3 space-y-3">
                             {keywordPlans.map((item, idx) => (
@@ -504,14 +504,14 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                     <div className="flex items-center justify-between mb-1.5">
                                         <div className="flex items-center gap-1.5">
                                             <Hash className="w-3 h-3 text-indigo-300" />
-                                            <span className="text-[11px] font-bold text-gray-800">
+                                            <span className="text-sm font-bold text-gray-800">
                                                 {item.word}
                                             </span>
                                         </div>
                                     </div>
                                     <div className="space-y-1">
                                         {item.plan.map((rule, rIdx) => (
-                                            <div key={rIdx} className="text-[10px] text-gray-600 flex items-start gap-1.5">
+                                            <div key={rIdx} className="text-xs text-gray-600 flex items-start gap-1.5">
                                                 <span className="text-indigo-300 mt-px">•</span>
                                                 <span className="leading-snug opacity-90">{rule}</span>
                                             </div>
@@ -618,11 +618,11 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="flex items-center gap-2">
                         <div className="flex items-center gap-1.5 px-2 py-1 bg-indigo-50 text-indigo-600 rounded-md border border-indigo-100">
                             <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse" />
-                            <span className="text-[10px] font-bold uppercase tracking-wide">Analyzing...</span>
+                            <span className="text-xs font-bold uppercase tracking-wide">Analyzing...</span>
                         </div>
                         <button
                             onClick={onStop}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors active:scale-95 whitespace-nowrap"
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-red-600 bg-red-50 border border-red-100 rounded-lg hover:bg-red-100 transition-colors active:scale-95 whitespace-nowrap"
                             title="停止分析"
                         >
                             <Square className="w-3.5 h-3.5" />
