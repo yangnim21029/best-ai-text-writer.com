@@ -9,8 +9,9 @@ export const MODEL = {
 };
 
 export const EMBED_MODEL_ID =
-    env.VITE_EMBED_MODEL_ID ||
-    env.AI_EMBED_MODEL_ID ||
+    env?.VITE_EMBED_MODEL_ID ||
+    env?.VITE_AI_EMBED_MODEL_ID ||
+    env?.AI_EMBED_MODEL_ID ||
     'gemini-embedding-001';
 
 export const PRICING = {
