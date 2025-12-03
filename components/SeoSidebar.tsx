@@ -306,29 +306,29 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-teal-50/80 to-white flex items-center gap-2">
                             <ShieldCheck className="w-3.5 h-3.5 text-teal-600" />
-                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Authority Signals</h4>
+                            <h4 className="text-sm font-extrabold text-gray-700 uppercase tracking-wider">Authority Signals</h4>
                         </div>
                         <div className="p-4 space-y-3">
                             <div className="flex flex-wrap gap-1.5">
                                 {authorityAnalysis.relevantTerms.slice(0, 8).map((term, idx) => (
-                                    <span key={idx} className="px-2 py-1 bg-teal-50 text-teal-700 border border-teal-100 rounded text-xs font-semibold">
+                                    <span key={idx} className="px-2 py-1 bg-teal-50 text-teal-700 border border-teal-100 rounded text-sm font-semibold">
                                         {term}
                                     </span>
                                 ))}
                                 {authorityAnalysis.relevantTerms.length > 8 && (
-                                    <span className="px-2 py-1 text-gray-400 text-xs font-medium bg-gray-50 rounded border border-gray-100">
+                                    <span className="px-2 py-1 text-gray-400 text-sm font-medium bg-gray-50 rounded border border-gray-100">
                                         +{authorityAnalysis.relevantTerms.length - 8} more
                                     </span>
                                 )}
                             </div>
 
                             <div className="bg-gray-50 rounded-lg p-2.5 border border-gray-100">
-                                <h5 className="text-xs font-bold text-gray-400 mb-2 uppercase flex items-center gap-1">
+                                <h5 className="text-sm font-bold text-gray-400 mb-2 uppercase flex items-center gap-1">
                                     <Zap className="w-3 h-3 text-amber-400" /> Integration Plan
                                 </h5>
                                 <ul className="space-y-1.5">
                                     {(authorityAnalysis.combinations || []).map((plan, idx) => (
-                                        <li key={idx} className="text-xs text-gray-600 flex items-start gap-1.5 leading-snug">
+                                        <li key={idx} className="text-sm text-gray-600 flex items-start gap-1.5 leading-snug">
                                             <span className="text-teal-400 mt-0.5">•</span>
                                             <span>{plan}</span>
                                         </li>
@@ -344,7 +344,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-orange-50/80 to-white flex items-center gap-2">
                             <Database className="w-3.5 h-3.5 text-orange-600" />
-                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
+                            <h4 className="text-sm font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
                         </div>
                         <div className="p-3">
                             <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar p-2">
@@ -352,7 +352,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 {referenceAnalysis?.brandExclusivePoints?.map((point, idx) => (
                                     <div key={`brand-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-purple-50 transition-colors">
                                         <Gem className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-xs text-gray-800 font-medium leading-relaxed break-words">{point}</span>
+                                        <span className="text-sm text-gray-800 font-medium leading-relaxed break-words">{point}</span>
                                     </div>
                                 ))}
 
@@ -360,7 +360,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 {referenceAnalysis?.keyInformationPoints?.map((point, idx) => (
                                     <div key={`gen-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-orange-50 transition-colors">
                                         <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-orange-400 flex-shrink-0"></div>
-                                        <span className="text-xs text-gray-600 leading-relaxed break-words">{point}</span>
+                                        <span className="text-sm text-gray-600 leading-relaxed break-words">{point}</span>
                                     </div>
                                 ))}
                             </div>
