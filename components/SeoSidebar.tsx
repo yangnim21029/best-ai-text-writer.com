@@ -1,6 +1,6 @@
 
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useAnalysisStore } from '../store/useAnalysisStore';
 import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, X, ShoppingBag, ArrowRight, Gem, Square, Languages, Copy, Check } from 'lucide-react';
 import { GenerationStatus, KeywordActionPlan, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief, TargetAudience } from '../types';
@@ -51,6 +51,16 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     const [activeTab, setActiveTab] = useState<Tab>('analysis');
     const [showLangDetails, setShowLangDetails] = useState(false);
     const [copied, setCopied] = useState(false);
+    const filteredKeywordPlans = useMemo(() => {
+        const MAGIC_MAX_WORDS = 3;
+        const MAGIC_MAX_LENGTH = 15;
+        return keywordPlans.filter(plan => {
+            const keyword = (plan.word || '').trim();
+            if (!keyword) return false;
+            const wordCount = keyword.split(/\s+/).filter(Boolean).length;
+            return wordCount <= MAGIC_MAX_WORDS && keyword.length <= MAGIC_MAX_LENGTH;
+        });
+    }, [keywordPlans]);
 
     const audienceLabelMap: Record<TargetAudience, string> = {
         'zh-TW': '繁體中文（台灣）',
@@ -79,7 +89,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
         return compact.length > 220 ? `${compact.slice(0, 220)}…` : compact;
     };
 
-    const hasData = keywordPlans.length > 0 || referenceAnalysis !== null || authorityAnalysis !== null || productMapping.length > 0;
+    const hasData = filteredKeywordPlans.length > 0 || referenceAnalysis !== null || authorityAnalysis !== null || productMapping.length > 0;
     const hasKnowledge = brandKnowledge && brandKnowledge.trim().length > 0;
 
     const difficultyBadge = (value?: string) => {
@@ -344,7 +354,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-orange-50/80 to-white flex items-center gap-2">
                             <Database className="w-3.5 h-3.5 text-orange-600" />
-                            <h4 className="text-sm font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
+                            <h4 className="text-base font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
                         </div>
                         <div className="p-3">
                             <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar p-2">
@@ -352,7 +362,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 {referenceAnalysis?.brandExclusivePoints?.map((point, idx) => (
                                     <div key={`brand-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-purple-50 transition-colors">
                                         <Gem className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-sm text-gray-800 font-medium leading-relaxed break-words">{point}</span>
+                                        <span className="text-base text-gray-800 font-medium leading-snug break-words">{point}</span>
                                     </div>
                                 ))}
 
@@ -360,7 +370,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 {referenceAnalysis?.keyInformationPoints?.map((point, idx) => (
                                     <div key={`gen-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-orange-50 transition-colors">
                                         <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-orange-400 flex-shrink-0"></div>
-                                        <span className="text-sm text-gray-600 leading-relaxed break-words">{point}</span>
+                                        <span className="text-base text-gray-600 leading-snug break-words">{point}</span>
                                     </div>
                                 ))}
                             </div>
@@ -436,8 +446,8 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             <BarChart2 className="w-3.5 h-3.5 text-indigo-600" />
                             <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">H2 / H3 Optimizer</h4>
                         </div>
-                        <div className="divide-y divide-gray-100">
-                            {headingOptimizations.slice(0, 6).map((item, idx) => (
+                        <div className="divide-y divide-gray-100 max-h-96 overflow-y-auto custom-scrollbar">
+                            {headingOptimizations.map((item, idx) => (
                                 <div key={idx} className="p-4 space-y-3">
                                     <div className="flex items-start gap-3">
                                         <div className="w-5 h-5 rounded-full bg-indigo-50 text-indigo-600 text-xs font-bold flex items-center justify-center border border-white shadow-sm flex-shrink-0">
@@ -494,22 +504,19 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                     )}
                                 </div>
                             ))}
-                            {headingOptimizations.length > 6 && (
-                                <div className="p-2 text-xs text-gray-400 text-center">+{headingOptimizations.length - 6} more</div>
-                            )}
                         </div>
                     </div>
                 )}
 
                 {/* Card 5: NLP Keywords */}
-                {keywordPlans.length > 0 && (
+                {filteredKeywordPlans.length > 0 && (
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-indigo-50/80 to-white flex items-center gap-2">
                             <ListChecks className="w-3.5 h-3.5 text-indigo-600" />
                             <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Semantic Keywords</h4>
                         </div>
                         <div className="p-3 space-y-3">
-                            {keywordPlans.map((item, idx) => (
+                            {filteredKeywordPlans.map((item, idx) => (
                                 <div key={idx} className="bg-gray-50/50 rounded-lg p-2.5 border border-gray-100">
                                     <div className="flex items-center justify-between mb-1.5">
                                         <div className="flex items-center gap-1.5">
