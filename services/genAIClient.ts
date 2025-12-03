@@ -153,6 +153,11 @@ const consumeEventStream = async (body: ReadableStream<Uint8Array>): Promise<AIR
     let usageMetadata: any;
 
     const processBuffer = () => {
+        // Normalize CRLF to LF so we can reliably find blank-line delimiters
+        if (buffer.includes('\r\n')) {
+            buffer = buffer.replace(/\r\n/g, '\n');
+        }
+
         let idx;
         while ((idx = buffer.indexOf('\n\n')) !== -1) {
             const raw = buffer.slice(0, idx).trim();

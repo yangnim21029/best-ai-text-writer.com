@@ -240,7 +240,10 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
 
         const payload = isJson ? await response.json() : { image: await response.text() };
         const imageData = extractImagePayload(payload);
-        const metrics = calculateCost(payload.usageMetadata || payload.usage, 'IMAGE_GEN');
+        const metrics = calculateCost(
+            payload.totalUsage || payload.usageMetadata || payload.usage,
+            'IMAGE_GEN'
+        );
 
         return {
             data: imageData,
