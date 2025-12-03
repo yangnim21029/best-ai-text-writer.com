@@ -89,6 +89,43 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
         return compact.length > 220 ? `${compact.slice(0, 220)}…` : compact;
     };
 
+    const getKeywordLocationTags = (word: string, snippets: string[] = []) => {
+        const normalized = (word || '').trim().toLowerCase();
+        if (!normalized) return [{ label: 'Unknown', variant: 'unknown' as const }];
+
+        const sections = referenceAnalysis?.structure || [];
+        let headingHits = 0;
+        sections.forEach(section => {
+            if ((section.title || '').toLowerCase().includes(normalized)) headingHits++;
+            (section.subheadings || []).forEach(sub => {
+                if ((sub || '').toLowerCase().includes(normalized)) headingHits++;
+            });
+        });
+
+        const bodyHits = snippets.length;
+        const tags: { label: string; variant: 'heading' | 'body' | 'unknown' }[] = [];
+
+        if (headingHits > 0) {
+            tags.push({
+                label: headingHits >= bodyHits ? 'Heading-heavy' : 'Heading',
+                variant: 'heading'
+            });
+        }
+
+        if (bodyHits > 0) {
+            tags.push({
+                label: bodyHits > headingHits ? 'Body-heavy' : 'Body',
+                variant: 'body'
+            });
+        }
+
+        if (tags.length === 0) {
+            tags.push({ label: 'Unknown', variant: 'unknown' });
+        }
+
+        return tags.slice(0, 2);
+    };
+
     const hasData = filteredKeywordPlans.length > 0 || referenceAnalysis !== null || authorityAnalysis !== null || productMapping.length > 0;
     const hasKnowledge = brandKnowledge && brandKnowledge.trim().length > 0;
 
@@ -349,36 +386,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     </div>
                 )}
 
-                {/* Card 3: Information Density */}
-                {(referenceAnalysis?.keyInformationPoints?.length > 0 || referenceAnalysis?.brandExclusivePoints?.length > 0) && (
-                    <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
-                        <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-orange-50/80 to-white flex items-center gap-2">
-                            <Database className="w-3.5 h-3.5 text-orange-600" />
-                            <h4 className="text-base font-extrabold text-gray-700 uppercase tracking-wider">Key Facts & USP</h4>
-                        </div>
-                        <div className="p-3">
-                            <div className="space-y-1 max-h-64 overflow-y-auto custom-scrollbar p-2">
-                                {/* Brand Exclusive Points */}
-                                {referenceAnalysis?.brandExclusivePoints?.map((point, idx) => (
-                                    <div key={`brand-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-purple-50 transition-colors">
-                                        <Gem className="w-3.5 h-3.5 text-purple-500 mt-0.5 flex-shrink-0" />
-                                        <span className="text-base text-gray-800 font-medium leading-snug break-words">{point}</span>
-                                    </div>
-                                ))}
-
-                                {/* General Points */}
-                                {referenceAnalysis?.keyInformationPoints?.map((point, idx) => (
-                                    <div key={`gen-${idx}`} className="flex items-start gap-3 p-3 rounded hover:bg-orange-50 transition-colors">
-                                        <div className="w-1.5 h-1.5 mt-1.5 rounded-full bg-orange-400 flex-shrink-0"></div>
-                                        <span className="text-base text-gray-600 leading-snug break-words">{point}</span>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Card 4: Structure Map */}
+                {/* Card 3: Structure Map */}
                 {referenceAnalysis && referenceAnalysis.structure.length > 0 && (
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-blue-50/80 to-white flex items-center gap-2">
@@ -407,11 +415,31 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                                 </div>
                                                 {difficultyBadge(section.difficulty)}
                                             </div>
-                                            {section.narrativePlan && (
+                                            {section.narrativePlan && section.narrativePlan.length > 0 && (
                                                 <p className="text-xs text-gray-400 leading-relaxed mt-1.5 break-words">
                                                     {section.narrativePlan[0]}
                                                 </p>
                                             )}
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                {section.isChecklist && (
+                                                    <span className="text-[10px] px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100">Checklist</span>
+                                                )}
+                                                {section.uspNotes && section.uspNotes.slice(0, 2).map((usp, uIdx) => (
+                                                    <span key={`usp-${uIdx}`} className="text-[10px] px-2 py-1 rounded-full bg-purple-50 text-purple-700 border border-purple-100 break-words">
+                                                        USP: {usp}
+                                                    </span>
+                                                ))}
+                                                {section.augment && section.augment.slice(0, 2).map((aug, aIdx) => (
+                                                    <span key={`aug-${aIdx}`} className="text-[10px] px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100 break-words">
+                                                        + {aug}
+                                                    </span>
+                                                ))}
+                                                {section.suppress && section.suppress.slice(0, 2).map((sup, sIdx) => (
+                                                    <span key={`sup-${sIdx}`} className="text-[10px] px-2 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 break-words">
+                                                        - {sup}
+                                                    </span>
+                                                ))}
+                                            </div>
                                             {Array.isArray(section.subheadings) && section.subheadings.length > 0 && (
                                                 <div className="mt-2 pl-6 border-l border-blue-100 space-y-1">
                                                     {section.subheadings.map((sub, subIdx) => (
@@ -429,6 +457,45 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                                             {angle}
                                                         </span>
                                                     ))}
+                                                </div>
+                                            )}
+                                            {(section.uspNotes && section.uspNotes.length > 0) && (
+                                                <div className="mt-2 pl-6 border-l border-purple-100 space-y-1">
+                                                    {section.uspNotes.map((usp, uIdx) => (
+                                                        <div key={`usp-list-${uIdx}`} className="flex items-start gap-1.5 text-[11px] text-purple-700 leading-snug break-words">
+                                                            <span className="text-purple-300 mt-0.5">★</span>
+                                                            <span>{usp}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {section.keyFacts && section.keyFacts.length > 0 && (
+                                                <div className="mt-2 pl-6 border-l border-gray-100 space-y-1">
+                                                    {section.keyFacts.map((fact, fIdx) => (
+                                                        <div key={fIdx} className="flex items-start gap-1.5 text-[11px] text-gray-700 leading-snug break-words">
+                                                            <span className="text-gray-400 mt-0.5">•</span>
+                                                            <span>{fact}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {section.shiftPlan && section.shiftPlan.length > 0 && (
+                                                <div className="mt-2 pl-6 border-l border-amber-100 space-y-1">
+                                                    {section.shiftPlan.slice(0, 3).map((sp: any, sIdx: number) => {
+                                                        const from = sp?.from ? `from: ${sp.from}` : '';
+                                                        const to = sp?.to ? `to: ${sp.to}` : '';
+                                                        const reason = sp?.reason ? `why: ${sp.reason}` : '';
+                                                        const parts = [from, to, reason].filter(Boolean).join(' | ');
+                                                        return (
+                                                            <div key={sIdx} className="flex items-start gap-1.5 text-[11px] text-amber-700 leading-snug break-words">
+                                                                <span className="text-amber-400 mt-0.5">↺</span>
+                                                                <span>{parts || 'Rearrange per outline'}</span>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    {section.shiftPlan.length > 3 && (
+                                                        <div className="text-[10px] text-amber-400 pl-5">+{section.shiftPlan.length - 3} more</div>
+                                                    )}
                                                 </div>
                                             )}
                                         </div>
@@ -518,12 +585,27 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                         <div className="p-3 space-y-3">
                             {filteredKeywordPlans.map((item, idx) => (
                                 <div key={idx} className="bg-gray-50/50 rounded-lg p-2.5 border border-gray-100">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between mb-1.5 gap-2 flex-wrap">
                                         <div className="flex items-center gap-1.5">
                                             <Hash className="w-3 h-3 text-indigo-300" />
                                             <span className="text-sm font-bold text-gray-800">
                                                 {item.word}
                                             </span>
+                                        </div>
+                                        <div className="flex items-center gap-1">
+                                            {getKeywordLocationTags(item.word, item.snippets).map((tag, tagIdx) => {
+                                                const base = "px-2 py-0.5 rounded-full border text-[10px] font-semibold flex items-center gap-1";
+                                                const styles = tag.variant === 'heading'
+                                                    ? 'bg-blue-50 text-blue-700 border-blue-100'
+                                                    : tag.variant === 'body'
+                                                        ? 'bg-slate-50 text-slate-700 border-slate-200'
+                                                        : 'bg-gray-50 text-gray-500 border-gray-200';
+                                                return (
+                                                    <span key={tagIdx} className={`${base} ${styles}`}>
+                                                        {tag.label}
+                                                    </span>
+                                                );
+                                            })}
                                         </div>
                                     </div>
                                     <div className="space-y-1">

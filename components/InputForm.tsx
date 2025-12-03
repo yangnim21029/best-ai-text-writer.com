@@ -8,6 +8,7 @@ import { SourceMaterialSection } from './form/SourceMaterialSection';
 import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Image as ImageIcon } from 'lucide-react';
 import { useArticleForm } from '../hooks/useArticleForm';
 import { useSemanticFilter } from '../hooks/useSemanticFilter';
+import { EMBED_MODEL_ID } from '../config/constants';
 
 interface InputFormProps {
     onGenerate: (config: ArticleConfig) => void;
@@ -471,8 +472,14 @@ export const InputForm: React.FC<InputFormProps> = ({
                                 <div>
                                     使用標題向量比對每個段落，低於 {semanticThresholdLabel} 的會被移除；手動通過的段落會強制保留。{isScoringChunks ? ' (計算中...)' : ''}
                                 </div>
-                                <label className="flex items-center gap-2 text-gray-700 font-semibold">
-                                    <span className="text-[10px] uppercase tracking-wide">閾值</span>
+                                <label className="flex flex-wrap items-center gap-2 text-gray-700 font-semibold">
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[10px] uppercase tracking-wide">閾值</span>
+                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full shadow-sm text-[10px] font-semibold">
+                                            <Zap className="w-3 h-3" />
+                                            <span>{EMBED_MODEL_ID}</span>
+                                        </span>
+                                    </div>
                                     <ThresholdInput
                                         value={semanticThresholdInput}
                                         onChange={setSemanticThresholdInput}

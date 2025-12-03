@@ -22,6 +22,10 @@ export const promptTemplates = {
     writingMode,
     solutionAngles,
     avoidContent,
+    renderMode,
+    shiftPlan,
+    suppressHints,
+    augmentHints,
   }: {
     sectionTitle: string;
     languageInstruction: string;
@@ -40,6 +44,10 @@ export const promptTemplates = {
     writingMode?: 'direct' | 'multi_solutions';
     solutionAngles?: string[];
     avoidContent?: string[];
+    renderMode?: 'checklist' | 'normal';
+    shiftPlan?: string[];
+    suppressHints?: string[];
+    augmentHints?: string[];
   }) => {
     const resolvedDifficulty = difficulty || 'easy';
     const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
@@ -67,6 +75,18 @@ export const promptTemplates = {
         ? `- Provide 2-3 distinct, non-overlapping solution paths before the final synthesized answer.`
         : `- Lead with a concise, direct answer to the core question.`}
 
+    ${renderMode === 'checklist'
+        ? '- OUTPUT FORMAT: Use checklist/bulleted list. Include every provided Key Fact; do not drop items.'
+        : '- OUTPUT FORMAT: Narrative with Markdown as needed.'}
+
+    ${shiftPlan && shiftPlan.length > 0
+        ? `SHIFT PLAN (rearrange/borrow/omit): ${shiftPlan.join(' | ')}`
+        : ''}
+
+    ${augmentHints && augmentHints.length > 0
+        ? `AUGMENT (must add/borrow): ${augmentHints.join(' | ')}`
+        : ''}
+
     SOLUTION ANGLES (use if multi_solutions):
     ${mode === 'multi_solutions'
         ? (solutionAngles && solutionAngles.length > 0 ? solutionAngles.join("; ") : "None provided; create 2 distinct angles.")
@@ -77,10 +97,15 @@ export const promptTemplates = {
     - Keywords to Weave: ${keywordPlans.map((k: any) => k.word).join(", ")}
     - Authority Terms: ${relevantAuthTerms.slice(0, 5).join(", ")}
 
-    **KEY FACTS TO INCLUDE (Pick 1-3 most relevant):**
+    **KEY FACTS TO INCLUDE (Use all relevant; keep concise):**
     ${points.length > 0 ? points.join("; ") : "(No new key points needed for this section, focus on narrative)"}
-    
+
     ${injectionPlan}
+
+    ${suppressHints && suppressHints.length > 0 ? `
+    ⛔ SUPPRESS IN THIS SECTION:
+    ${suppressHints.map(c => `- ${c}`).join('\n')}
+    ` : ''}
 
     ${avoidContent && avoidContent.length > 0 ? `
     ⛔ NEGATIVE CONSTRAINTS (DO NOT WRITE ABOUT):
@@ -268,15 +293,15 @@ export const promptTemplates = {
 
     STEP BY STEP:
     1) Clarify role: H2 = main section headline; H3 = supporting subpoint under its H2.
-    2) Keep it natural in Chinese: do NOT stuff English intent words (how to, vs, guide, tips). Preserve the original intent/angle.
-    3) Make the H2 clickable: concise (≤ 60 chars), keyword-aligned, but no empty promises.
+    2) Keep it natural, concise, and engaging. Preserve the original intent/angle. Use everyday, conversational wording (生活化) instead of stiff or academic phrasing.
+    3) Make the H2 clickable: concise (≤ 60 chars).
     4) Rewrite H2 with **5 options in this exact order** (all must differ from h2_before):
-       - Option 1: Shorter/tighter version.
-       - Option 2: Longer/richer version.
-       - Option 3: Wording swap (same length, better phrasing).
-       - Option 4: Lifestyle/conversational tone.
-       - Option 5: Pain-point/FOMO-heavy angle.
-       - Use power words, be slightly aggressive/manipulative (marketing sense), create FOMO/secret knowledge vibes, and sound like a mastermind (not a generic AI).
+       - Option 1: Writer version.
+       - Option 2: Editor version.
+       - Option 3: Editor version with power words.
+       - Option 4: Editor version with pain-point/FOMO angle.
+       - Option 5: Editor version with lifestyle/conversational tone.
+       - Use power words, create FOMO/secret knowledge vibes, and sound like a mastermind (not a generic AI).
        - H2_after = your single best pick among those 5 options.
     5) Rewrite/support H3 (if any exist or if you invent them):
        - Keep H3 ultra-compact: product/feature name or a 2-6 word keyword fragment; no clickbait verbs or promises.
@@ -415,6 +440,7 @@ export const promptTemplates = {
     3) Key information points to preserve.
     4) Brand-exclusive points that must NOT apply to competitors.
     5) Competitor brand & product names to suppress/avoid.
+    6) Per-section Key Facts/USP and rearrange (shift) suggestions.
     
     TARGET AUDIENCE: ${targetAudience}
     ${languageInstruction}
@@ -438,7 +464,15 @@ export const promptTemplates = {
           "coreQuestion": "Main question/problem",
           "difficulty": "easy | medium | unclear",
           "writingMode": "direct | multi_solutions",
-          "solutionAngles": ["Angle A", "Angle B"]
+          "solutionAngles": ["Angle A", "Angle B"],
+          "keyFacts": ["Atomic fact 1", "Atomic fact 2", "..."],       // checklist-ready; no paraphrase/drop
+          "uspNotes": ["USP/brand angle 1", "..."],                    // if available; else []
+          "isChecklist": true,                                         // true if this section is a listicle/checklist
+          "shiftPlan": [                                               // optional rearrange guidance
+            { "from": "Which part to borrow/omit", "to": "Target section", "reason": "why" }
+          ],
+          "suppress": ["Do NOT cover X here; move elsewhere"],         // to avoid repetition in this section
+          "augment": ["Add/borrow Y into this section"]                // must-add points for this section
         }
       ],
       "generalPlan": ["Overall voice guidelines"],

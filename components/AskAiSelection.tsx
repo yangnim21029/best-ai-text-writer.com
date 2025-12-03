@@ -479,10 +479,10 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     const renderPreview = () => {
         if (!isPreviewOpen) return null;
         return (
-            <div data-askai-ui="true" className="fixed inset-0 z-40 flex items-start justify-center">
+            <div data-askai-ui="true" className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-3 py-6">
                 <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" />
                 <div
-                    className="relative mt-12 w-[min(780px,92vw)] bg-white shadow-2xl border border-gray-200 rounded-2xl p-4"
+                    className="relative w-[min(780px,92vw)] bg-white shadow-2xl border border-gray-200 rounded-2xl p-4 max-h-[80vh] flex flex-col overflow-hidden"
                     ref={previewRef}
                 >
                     <div className="flex items-center justify-between mb-3">
@@ -519,98 +519,100 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                         </div>
                     )}
 
-                    <div className="grid md:grid-cols-2 gap-3 mb-4">
-                        <div className="border border-gray-100 rounded-xl p-3 bg-gray-50">
-                            <div className="text-xs font-semibold text-gray-500 mb-2">Before</div>
-                            <div className="text-sm text-gray-800 whitespace-pre-wrap">{activeTask?.selectionText || taskSelectionText || selectionText}</div>
+                    <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
+                        <div className="grid md:grid-cols-2 gap-3">
+                            <div className="border border-gray-100 rounded-xl p-3 bg-gray-50 max-h-64 overflow-y-auto custom-scrollbar">
+                                <div className="text-xs font-semibold text-gray-500 mb-2">Before</div>
+                                <div className="text-sm text-gray-800 whitespace-pre-wrap">{activeTask?.selectionText || taskSelectionText || selectionText}</div>
+                            </div>
+                            <div className="border border-purple-100 rounded-xl p-3 bg-purple-50/60 min-h-[140px] max-h-64 overflow-y-auto custom-scrollbar">
+                                <div className="text-xs font-semibold text-purple-600 mb-2">After</div>
+                                <div
+                                    className="text-sm text-gray-900 leading-relaxed"
+                                    dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400">等待生成...</p>' }}
+                                />
+                            </div>
                         </div>
-                        <div className="border border-purple-100 rounded-xl p-3 bg-purple-50/60 min-h-[140px]">
-                            <div className="text-xs font-semibold text-purple-600 mb-2">After</div>
-                            <div
-                                className="text-sm text-gray-900 leading-relaxed"
-                                dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400">等待生成...</p>' }}
-                            />
+
+                        <div className="flex flex-col gap-3">
+                            {mode === 'edit' && (
+                                <div className="flex flex-col gap-2">
+                                    <textarea
+                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[96px] resize-y"
+                                        placeholder="在這裡輸入更長的提示，或貼上具體的修改說明"
+                                        value={customPrompt}
+                                        onChange={e => setCustomPrompt(e.target.value)}
+                                        onKeyDown={e => {
+                                            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+                                                e.preventDefault();
+                                                handleRunCustomPrompt();
+                                            }
+                                        }}
+                                    />
+                                    <div className="flex flex-wrap items-center gap-2">
+                                        <button
+                                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
+                                            onClick={handleRunCustomPrompt}
+                                            disabled={!customPrompt.trim() || isActiveLoading}
+                                        >
+                                            Generate
+                                        </button>
+                                        <select
+                                            className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                            onChange={e => {
+                                                const preset = e.target.value as PresetId;
+                                                if (!preset) return;
+                                                runAction({ mode: 'edit', preset, selectedText: activeTask?.selectionText || taskSelectionText || selectionText });
+                                                e.currentTarget.value = '';
+                                            }}
+                                            defaultValue=""
+                                        >
+                                            <option value="" disabled>
+                                                Quick refine
+                                            </option>
+                                            {editPresets.map(p => (
+                                                <option key={p.id} value={p.id}>
+                                                    {p.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     </div>
-
-                    <div className="flex flex-col gap-3">
-                        {mode === 'edit' && (
-                            <div className="flex flex-col gap-2">
-                                <textarea
-                                    className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[96px] resize-y"
-                                    placeholder="在這裡輸入更長的提示，或貼上具體的修改說明"
-                                    value={customPrompt}
-                                    onChange={e => setCustomPrompt(e.target.value)}
-                                    onKeyDown={e => {
-                                        if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
-                                            e.preventDefault();
-                                            handleRunCustomPrompt();
-                                        }
-                                    }}
-                                />
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <button
-                                        className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                                        onClick={handleRunCustomPrompt}
-                                        disabled={!customPrompt.trim() || isActiveLoading}
-                                    >
-                                        Generate
-                                    </button>
-                                    <select
-                                        className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                        onChange={e => {
-                                            const preset = e.target.value as PresetId;
-                                            if (!preset) return;
-                                            runAction({ mode: 'edit', preset, selectedText: activeTask?.selectionText || taskSelectionText || selectionText });
-                                            e.currentTarget.value = '';
-                                        }}
-                                        defaultValue=""
-                                    >
-                                        <option value="" disabled>
-                                            Quick refine
-                                        </option>
-                                        {editPresets.map(p => (
-                                            <option key={p.id} value={p.id}>
-                                                {p.label}
-                                            </option>
-                                        ))}
-                                    </select>
-                                </div>
-                            </div>
-                        )}
-                        <div className="flex items-center gap-2 justify-end flex-wrap">
-                            {mode !== 'edit' && (
-                                <select
-                                    className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                    onChange={e => {
-                                        const preset = e.target.value as PresetId;
-                                        if (!preset) return;
-                                        runAction({ mode: 'edit', preset, selectedText: activeTask?.selectionText || taskSelectionText || selectionText });
-                                        e.currentTarget.value = '';
-                                    }}
-                                    defaultValue=""
-                                >
-                                    <option value="" disabled>
-                                        Refine
+                    <div className="mt-3 flex items-center gap-2 justify-end flex-wrap border-t border-gray-100 pt-3 bg-white">
+                        {mode !== 'edit' && (
+                            <select
+                                className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                                onChange={e => {
+                                    const preset = e.target.value as PresetId;
+                                    if (!preset) return;
+                                    runAction({ mode: 'edit', preset, selectedText: activeTask?.selectionText || taskSelectionText || selectionText });
+                                    e.currentTarget.value = '';
+                                }}
+                                defaultValue=""
+                            >
+                                <option value="" disabled>
+                                    Refine
+                                </option>
+                                {editPresets.map(p => (
+                                    <option key={p.id} value={p.id}>
+                                        {p.label}
                                     </option>
-                                    {editPresets.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.label}
-                                        </option>
-                                    ))}
-                                </select>
-                            )}
-                            {!isActiveLoading && (
-                                <button
-                                    className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    onClick={handleInsert}
-                                    disabled={!previewHtml}
-                                >
-                                    Replace
-                                    <ArrowRight className="w-4 h-4" />
-                                </button>
-                            )}
-                        </div>
+                                ))}
+                            </select>
+                        )}
+                        {!isActiveLoading && (
+                            <button
+                                className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                                onClick={handleInsert}
+                                disabled={!previewHtml}
+                            >
+                                Replace
+                                <ArrowRight className="w-4 h-4" />
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>

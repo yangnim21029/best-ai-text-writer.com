@@ -19,6 +19,12 @@ export interface SectionAnalysis {
   writingMode?: 'direct' | 'multi_solutions'; // Derived from difficulty (easy => direct; others => multi solutions)
   solutionAngles?: string[]; // Distinct solution paths for medium/unclear
   subheadings?: string[]; // Exact H3s (if any) under this H2 from the reference text
+  keyFacts?: string[]; // Checklist-ready atomic facts for this section
+  uspNotes?: string[]; // USP/賣點提示
+  isChecklist?: boolean; // Should render as checklist/listicle
+  shiftPlan?: { from?: string; to?: string; reason?: string; suppress?: string[]; augment?: string[] }[]; // Suggested rearrange/omit/add
+  suppress?: string[]; // Points to avoid in this section
+  augment?: string[]; // Points to add/borrow into this section
 }
 
 export interface ReferenceAnalysis {

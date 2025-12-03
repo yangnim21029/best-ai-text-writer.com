@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
     Heading2,
     Heading3,
@@ -83,6 +83,97 @@ const ToolbarButton = ({
     </button>
 );
 
+const accentBase = 'flex items-center gap-1.5 rounded-md text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-200';
+const accentDefault = 'bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100';
+const accentActive = 'bg-indigo-600 text-white border border-indigo-600 shadow-sm';
+const accentDisabled = 'bg-indigo-50 text-indigo-300 border border-indigo-100 cursor-not-allowed';
+const accentGhost = 'text-indigo-700 hover:text-indigo-900 border-none bg-transparent';
+const accentGhostActive = 'text-indigo-900 border-none bg-transparent';
+const accentGhostDisabled = 'text-indigo-300 border-none bg-transparent cursor-not-allowed';
+
+const AccentButton = ({
+    icon: Icon,
+    label,
+    onClick,
+    active,
+    disabled,
+    loading,
+    iconOnly = false,
+    variant = 'solid',
+}: {
+    icon: React.ElementType;
+    label: string;
+    onClick: () => void;
+    active?: boolean;
+    disabled?: boolean;
+    loading?: boolean;
+    iconOnly?: boolean;
+    variant?: 'solid' | 'ghost';
+}) => {
+    const [showTooltip, setShowTooltip] = useState(false);
+    const hoverTimer = useRef<number | null>(null);
+    const delayMs = 2000;
+
+    const handleEnter = () => {
+        if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+        hoverTimer.current = window.setTimeout(() => setShowTooltip(true), delayMs);
+    };
+
+    const handleLeave = () => {
+        if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+        hoverTimer.current = null;
+        setShowTooltip(false);
+    };
+
+    useEffect(() => () => {
+        if (hoverTimer.current) window.clearTimeout(hoverTimer.current);
+    }, []);
+
+    return (
+        <div className="relative flex items-center">
+            <button
+                type="button"
+                onClick={(e) => {
+                    e.preventDefault();
+                    if (disabled) return;
+                    onClick();
+                }}
+                onMouseEnter={handleEnter}
+                onMouseLeave={handleLeave}
+                onFocus={handleEnter}
+                onBlur={handleLeave}
+                disabled={disabled || loading}
+                aria-label={label}
+                className={cn(
+                    accentBase,
+                    'justify-center',
+                    iconOnly ? 'px-2.5 py-2' : 'px-3 py-1.5',
+                    variant === 'ghost'
+                        ? disabled || loading
+                            ? accentGhostDisabled
+                            : active
+                                ? accentGhostActive
+                                : accentGhost
+                        : disabled || loading
+                            ? accentDisabled
+                            : active
+                                ? accentActive
+                                : accentDefault
+                )}
+            >
+                <Icon className={cn('w-3.5 h-3.5', loading ? 'animate-spin' : '')} />
+                {!iconOnly && <span>{label}</span>}
+                {iconOnly && <span className="sr-only">{label}</span>}
+            </button>
+            {showTooltip && (
+                <div className="absolute left-1/2 top-full mt-2 -translate-x-1/2 whitespace-nowrap rounded bg-gray-900 px-2 py-1 text-[11px] font-medium text-white shadow-lg z-50">
+                    {label}
+                </div>
+            )}
+        </div>
+    );
+};
+
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     onCommand,
     onRemoveBold,
@@ -106,6 +197,52 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
 }) => {
     return (
         <div className="flex items-center gap-2 p-2 border-b border-gray-200 bg-gray-50 flex-shrink-0 z-20 overflow-x-auto whitespace-nowrap [scrollbar-width:thin] custom-scrollbar">
+            <div className="flex items-center gap-2 pr-3 mr-1 border-r border-gray-300 flex-shrink-0">
+                {hasKeyPoints && (
+                    <AccentButton
+                        icon={ListTodo}
+                        onClick={onToggleKeyPoints}
+                        label="Key Points"
+                        active={showKeyPoints}
+                        iconOnly
+                        variant="ghost"
+                    />
+                )}
+                <AccentButton
+                    icon={GalleryHorizontalEnd}
+                    onClick={onToggleVisualAssets}
+                    label="Visual Assets"
+                    active={showVisualAssets}
+                    iconOnly
+                    variant="ghost"
+                />
+                <AccentButton
+                    icon={ImageIcon}
+                    onClick={onOpenImageModal}
+                    label="AI Image"
+                    iconOnly
+                    variant="ghost"
+                />
+                <AccentButton
+                    icon={Gem}
+                    onClick={onRebrand}
+                    label="Rebrand"
+                    disabled={isRebranding || !productName}
+                    loading={isRebranding}
+                    iconOnly
+                    variant="ghost"
+                />
+                <AccentButton
+                    icon={Sparkles}
+                    onClick={onToggleMetaPanel}
+                    label="SEO Meta"
+                    active={showMetaPanel}
+                    iconOnly
+                    variant="ghost"
+                />
+                <div ref={askAiBadgeSlotRef} className="flex items-center pl-1" />
+            </div>
+
             <div className="flex items-center gap-1 flex-nowrap flex-shrink-0">
                 <div className="flex items-center space-x-1 pr-2 border-r border-gray-300 flex-shrink-0">
                     <ToolbarButton icon={Heading2} command="formatBlock" value="<h2>" label="Heading 2" onCommand={onCommand} />
@@ -138,7 +275,6 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 </div>
 
                 <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
-                    <ToolbarButton icon={ImageIcon} onClick={onOpenImageModal} label="AI 圖像生成" onCommand={onCommand} />
                     <ToolbarButton
                         icon={isDownloadingImages ? Loader2 : Download}
                         onClick={onDownloadAllImages}
@@ -170,60 +306,6 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                     >
                         <Redo className="w-4 h-4" />
                     </button>
-                </div>
-
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
-                    {hasKeyPoints && (
-                        <ToolbarButton
-                            icon={ListTodo}
-                            onClick={onToggleKeyPoints}
-                            label="Toggle Key Points Checklist"
-                            active={showKeyPoints}
-                            onCommand={onCommand}
-                        />
-                    )}
-                    <ToolbarButton
-                        icon={GalleryHorizontalEnd}
-                        onClick={onToggleVisualAssets}
-                        label="Toggle Visual Assets Manager"
-                        active={showVisualAssets}
-                        onCommand={onCommand}
-                    />
-                </div>
-
-                <div className="flex items-center space-x-1 px-2 flex-shrink-0">
-                    <button
-                        onClick={(e) => {
-                            e.preventDefault();
-                            onRebrand();
-                        }}
-                        disabled={isRebranding || !productName}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-bold transition-all ${
-                            isRebranding ? 'bg-purple-50 text-purple-400 cursor-not-allowed' : 'bg-white border border-purple-200 text-purple-600 hover:bg-purple-50 shadow-sm'
-                        }`}
-                        title={productName ? `Inject brand: ${productName}` : 'No Product Profile Active'}
-                    >
-                        {isRebranding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Gem className="w-3.5 h-3.5" />}
-                        <span>Rebrand</span>
-                    </button>
-                </div>
-
-                <div className="flex items-center space-x-2 px-2 flex-shrink-0">
-                    <button
-                        type="button"
-                        onClick={(e) => {
-                            e.preventDefault();
-                            onToggleMetaPanel();
-                        }}
-                        className={`flex items-center space-x-1 px-3 py-1.5 rounded-md text-xs font-bold transition-all border ${
-                            showMetaPanel ? 'bg-purple-50 text-purple-700 border-purple-200' : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
-                        }`}
-                        title="SEO Meta Settings"
-                    >
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>SEO Meta</span>
-                    </button>
-                    <div ref={askAiBadgeSlotRef} className="flex items-center" />
                 </div>
             </div>
             {extraActions && (

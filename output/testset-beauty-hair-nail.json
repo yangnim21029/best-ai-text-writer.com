@@ -1,0 +1,722 @@
+{
+  "schema_version": "1.0.0",
+  "dataset_id": "beauty-hair-nail-mini-v1",
+  "name": "Beauty/Hair/Nail Mini Test Set",
+  "description": "Small zh-Hant-heavy test set of beauty, hair, nail, Olive Young shopping, and wellness URLs.",
+  "created_at": "2025-12-03T09:13:05.459Z",
+  "locale": [
+    "zh-Hant"
+  ],
+  "total_cases": 38,
+  "bucket_summary": [
+    {
+      "bucket": "wellness",
+      "count": 1
+    },
+    {
+      "bucket": "hair",
+      "count": 11
+    },
+    {
+      "bucket": "travel-lifestyle",
+      "count": 1
+    },
+    {
+      "bucket": "product-guide",
+      "count": 7
+    },
+    {
+      "bucket": "nail",
+      "count": 9
+    },
+    {
+      "bucket": "health",
+      "count": 4
+    },
+    {
+      "bucket": "beauty-general",
+      "count": 2
+    },
+    {
+      "bucket": "visual-reference",
+      "count": 1
+    },
+    {
+      "bucket": "face-shape",
+      "count": 2
+    }
+  ],
+  "cases": [
+    {
+      "id": "case-001",
+      "url": "https://www.cosmopolitan.com.hk/cosmobody/partridge-soup-recipe-recommendations",
+      "domain": "www.cosmopolitan.com.hk",
+      "title": "Partridge soup recipe recommendations",
+      "topic": "soup recipe roundup",
+      "bucket": "wellness",
+      "use_case": "recipe-summary",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-HK",
+      "region": "HK",
+      "tags": [
+        "soup",
+        "wellness",
+        "body-care"
+      ]
+    },
+    {
+      "id": "case-002",
+      "url": "https://www.womenshealthmag.com/tw/beauty/hair/g62835899/2025-girl-hairstyle/",
+      "domain": "www.womenshealthmag.com",
+      "title": "2025 girl hairstyle roundup",
+      "topic": "hair trend 2025",
+      "bucket": "hair",
+      "use_case": "style-trend",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "trend",
+        "2025"
+      ]
+    },
+    {
+      "id": "case-003",
+      "url": "https://pandafishtravel.tw/world_travel/archives/6839/",
+      "domain": "pandafishtravel.tw",
+      "title": "Travel article (pandafishtravel)",
+      "topic": "travel lifestyle",
+      "bucket": "travel-lifestyle",
+      "use_case": "travel-summary",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "travel",
+        "lifestyle"
+      ]
+    },
+    {
+      "id": "case-004",
+      "url": "https://www.harpersbazaar.com/tw/beauty/hair/g62040390/2025-hair-styles/",
+      "domain": "www.harpersbazaar.com",
+      "title": "2025 hair styles",
+      "topic": "hair trend 2025",
+      "bucket": "hair",
+      "use_case": "style-trend",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "trend",
+        "2025"
+      ]
+    },
+    {
+      "id": "case-005",
+      "url": "https://www.elle.com/tw/beauty/news/g65456238/olive-young-2025-top15-new/",
+      "domain": "www.elle.com",
+      "title": "Olive Young 2025 top 15 new items",
+      "topic": "olive young product picks",
+      "bucket": "product-guide",
+      "use_case": "shopping-guide",
+      "intent": "product-roundup",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "olive-young",
+        "shopping",
+        "product-list"
+      ]
+    },
+    {
+      "id": "case-006",
+      "url": "https://www.round2hairsalon.com.tw/news-detail/5-wolf-tail-hairstyles/",
+      "domain": "www.round2hairsalon.com.tw",
+      "title": "5 wolf tail hairstyles",
+      "topic": "wolf cut variants",
+      "bucket": "hair",
+      "use_case": "style-howto",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "wolf-cut",
+        "tutorial"
+      ]
+    },
+    {
+      "id": "case-007",
+      "url": "https://www.marieclaire.com.tw/beauty/perfume-and-nails/88121",
+      "domain": "www.marieclaire.com.tw",
+      "title": "Perfume and nail feature (88121)",
+      "topic": "nail and scent roundup",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "nail",
+        "perfume",
+        "beauty"
+      ]
+    },
+    {
+      "id": "case-008",
+      "url": "https://allaspect.tw/article/2025-man-hair-top10",
+      "domain": "allaspect.tw",
+      "title": "2025 men hair top 10",
+      "topic": "men hair trend",
+      "bucket": "hair",
+      "use_case": "style-trend",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "men",
+        "trend"
+      ]
+    },
+    {
+      "id": "case-009",
+      "url": "https://www.vogue.com.tw/beauty/article/%E5%85%89%E7%99%82%E7%BE%8E%E7%94%B2%E6%8C%87%E7%94%B2%E6%B2%9B%E5%BF%85%E7%9F%A5%E7%9A%84%E7%A7%98%E8%A8%A3",
+      "domain": "www.vogue.com.tw",
+      "title": "Gel nail basics (Vogue TW)",
+      "topic": "gel nail how-to",
+      "bucket": "nail",
+      "use_case": "howto",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "nail",
+        "gel",
+        "howto"
+      ]
+    },
+    {
+      "id": "case-010",
+      "url": "https://www.perfectcorp.com/zh-tw/consumer/blog/hair/hairstyles-for-round-face-shape",
+      "domain": "www.perfectcorp.com",
+      "title": "Hairstyles for round face shape",
+      "topic": "hair by face shape",
+      "bucket": "hair",
+      "use_case": "style-guide",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "face-shape",
+        "guide"
+      ]
+    },
+    {
+      "id": "case-011",
+      "url": "https://rakuraku-jp.com/blogs/news/whitening-tablets",
+      "domain": "rakuraku-jp.com",
+      "title": "Whitening tablets guide",
+      "topic": "supplement overview",
+      "bucket": "health",
+      "use_case": "product-explainer",
+      "intent": "safety-check",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "supplement",
+        "whitening",
+        "health"
+      ]
+    },
+    {
+      "id": "case-012",
+      "url": "https://www.commonhealth.com.tw/article/88999",
+      "domain": "www.commonhealth.com.tw",
+      "title": "CommonHealth article 88999",
+      "topic": "health explainer (id 88999)",
+      "bucket": "health",
+      "use_case": "health-summary",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "health"
+      ]
+    },
+    {
+      "id": "case-013",
+      "url": "https://www.commonhealth.com.tw/article/87720",
+      "domain": "www.commonhealth.com.tw",
+      "title": "CommonHealth article 87720",
+      "topic": "health explainer (id 87720)",
+      "bucket": "health",
+      "use_case": "health-summary",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "health"
+      ]
+    },
+    {
+      "id": "case-014",
+      "url": "https://www.marieclaire.com.tw/beauty/hair/84130",
+      "domain": "www.marieclaire.com.tw",
+      "title": "Marie Claire hair feature (84130)",
+      "topic": "hair feature",
+      "bucket": "hair",
+      "use_case": "style-guide",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "feature"
+      ]
+    },
+    {
+      "id": "case-015",
+      "url": "https://www.beauty321.com/post/66710",
+      "domain": "www.beauty321.com",
+      "title": "Beauty321 feature (66710)",
+      "topic": "beauty feature",
+      "bucket": "beauty-general",
+      "use_case": "general-beauty",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "beauty"
+      ]
+    },
+    {
+      "id": "case-016",
+      "url": "https://www.harpersbazaar.com/tw/beauty/nail-design/g33989797/french-nail-collection/",
+      "domain": "www.harpersbazaar.com",
+      "title": "French nail collection",
+      "topic": "french nail designs",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "nail",
+        "french",
+        "design"
+      ]
+    },
+    {
+      "id": "case-017",
+      "url": "https://www.cosmopolitan.com.hk/beauty/gel-nail-hot-trends",
+      "domain": "www.cosmopolitan.com.hk",
+      "title": "Gel nail hot trends",
+      "topic": "gel nail trends",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-HK",
+      "region": "HK",
+      "tags": [
+        "nail",
+        "gel",
+        "trend"
+      ]
+    },
+    {
+      "id": "case-018",
+      "url": "https://www.elle.com/tw/beauty/hair/g36495209/korean-hairstyle-for-mid-length-hair/",
+      "domain": "www.elle.com",
+      "title": "Korean hairstyle for mid-length hair",
+      "topic": "korean mid-length styles",
+      "bucket": "hair",
+      "use_case": "style-guide",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "korean",
+        "mid-length"
+      ]
+    },
+    {
+      "id": "case-019",
+      "url": "https://www.elle.com.hk/beauty_and_health/10-style-tips-for-trendy-princess-cut-hairstyles-updated",
+      "domain": "www.elle.com.hk",
+      "title": "Princess cut hairstyle tips",
+      "topic": "princess cut tips",
+      "bucket": "hair",
+      "use_case": "style-howto",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-HK",
+      "region": "HK",
+      "tags": [
+        "hair",
+        "princess-cut",
+        "tips"
+      ]
+    },
+    {
+      "id": "case-020",
+      "url": "https://www.cosmopolitan.com/tw/beauty/make-up/g64708927/2025-feet-nail/",
+      "domain": "www.cosmopolitan.com",
+      "title": "2025 toe nail ideas",
+      "topic": "toe nail trends",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "nail",
+        "toe",
+        "trend"
+      ]
+    },
+    {
+      "id": "case-021",
+      "url": "https://www.pinterest.com/pin/1121537113433744041/",
+      "domain": "www.pinterest.com",
+      "title": "Pinterest pin 1121537113433744041",
+      "topic": "visual reference",
+      "bucket": "visual-reference",
+      "use_case": "visual-reference",
+      "intent": "image-grounding",
+      "content_type": "article",
+      "language": "en",
+      "region": "global",
+      "tags": [
+        "visual",
+        "inspiration"
+      ]
+    },
+    {
+      "id": "case-022",
+      "url": "https://www.beauty321.com/post/65398",
+      "domain": "www.beauty321.com",
+      "title": "Beauty321 feature (65398)",
+      "topic": "beauty feature",
+      "bucket": "beauty-general",
+      "use_case": "general-beauty",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "beauty"
+      ]
+    },
+    {
+      "id": "case-023",
+      "url": "https://wandou.tw/olive-young/",
+      "domain": "wandou.tw",
+      "title": "Olive Young shopping (wandou)",
+      "topic": "olive young shopping",
+      "bucket": "product-guide",
+      "use_case": "shopping-guide",
+      "intent": "product-roundup",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "olive-young",
+        "shopping"
+      ]
+    },
+    {
+      "id": "case-024",
+      "url": "https://www.elle.com.hk/beauty_and_health/top-25-products-from-olive-young-new",
+      "domain": "www.elle.com.hk",
+      "title": "Top 25 products from Olive Young",
+      "topic": "olive young product picks",
+      "bucket": "product-guide",
+      "use_case": "shopping-guide",
+      "intent": "product-roundup",
+      "content_type": "article",
+      "language": "zh-HK",
+      "region": "HK",
+      "tags": [
+        "olive-young",
+        "shopping",
+        "top-list"
+      ]
+    },
+    {
+      "id": "case-025",
+      "url": "https://www.vogue.com.tw/article/%E7%84%A6%E7%B3%96%E6%A3%95%E7%BE%8E%E7%94%B2",
+      "domain": "www.vogue.com.tw",
+      "title": "Caramel maple nail look",
+      "topic": "nail color trend",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "nail",
+        "color",
+        "trend"
+      ]
+    },
+    {
+      "id": "case-026",
+      "url": "https://www.elle.com.hk/beauty_and_health/top-10-skin-whitening-pills-and-drinks-update",
+      "domain": "www.elle.com.hk",
+      "title": "Top 10 skin whitening pills/drinks",
+      "topic": "whitening supplements",
+      "bucket": "health",
+      "use_case": "product-roundup",
+      "intent": "safety-check",
+      "content_type": "article",
+      "language": "zh-HK",
+      "region": "HK",
+      "tags": [
+        "whitening",
+        "supplement",
+        "product"
+      ]
+    },
+    {
+      "id": "case-027",
+      "url": "https://www.womenshealthmag.com/tw/beauty/g64118435/nailart/",
+      "domain": "www.womenshealthmag.com",
+      "title": "Nail art ideas (WH TW)",
+      "topic": "nail art inspiration",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "rewrite-and-structure",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "nail",
+        "art",
+        "trend"
+      ]
+    },
+    {
+      "id": "case-028",
+      "url": "https://tw.cyberlink.com/blog/photo-editing-tips/3187/women-hairstyle",
+      "domain": "tw.cyberlink.com",
+      "title": "Women hairstyle (CyberLink)",
+      "topic": "hair photo/guide",
+      "bucket": "hair",
+      "use_case": "style-guide",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "guide"
+      ]
+    },
+    {
+      "id": "case-029",
+      "url": "https://www.funliday.com/posts/oliveyoung-essence-serum/",
+      "domain": "www.funliday.com",
+      "title": "OliveYoung essence serum picks",
+      "topic": "essence/serum roundup",
+      "bucket": "product-guide",
+      "use_case": "shopping-guide",
+      "intent": "product-roundup",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "olive-young",
+        "serum",
+        "skincare"
+      ]
+    },
+    {
+      "id": "case-030",
+      "url": "https://canals.hair/article/wolf-cut-hairstyle-for-woman",
+      "domain": "canals.hair",
+      "title": "Wolf cut hairstyle for woman",
+      "topic": "wolf cut guide",
+      "bucket": "hair",
+      "use_case": "style-howto",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "hair",
+        "wolf-cut",
+        "guide"
+      ]
+    },
+    {
+      "id": "case-031",
+      "url": "https://www.followheart.com.tw/news/bulbous-nose/",
+      "domain": "www.followheart.com.tw",
+      "title": "Bulbous nose explainer",
+      "topic": "nose shape/beauty",
+      "bucket": "face-shape",
+      "use_case": "face-shape-advice",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "face",
+        "nose-shape",
+        "beauty"
+      ]
+    },
+    {
+      "id": "case-032",
+      "url": "https://www.cosmopolitan.com.hk/beauty/french-nail-trend-styles-ideas",
+      "domain": "www.cosmopolitan.com.hk",
+      "title": "French nail trend styles",
+      "topic": "french nail ideas",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-HK",
+      "region": "HK",
+      "tags": [
+        "nail",
+        "french",
+        "trend"
+      ]
+    },
+    {
+      "id": "case-033",
+      "url": "https://www.renunderwear.com/blogs/news/wireless-bra-brand",
+      "domain": "www.renunderwear.com",
+      "title": "Wireless bra brand roundup",
+      "topic": "intimates product guide",
+      "bucket": "product-guide",
+      "use_case": "shopping-guide",
+      "intent": "product-roundup",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "intimates",
+        "product",
+        "bra"
+      ]
+    },
+    {
+      "id": "case-034",
+      "url": "https://www.marieclaire.com.tw/beauty/perfume-and-nails/82700",
+      "domain": "www.marieclaire.com.tw",
+      "title": "Perfume and nail feature (82700)",
+      "topic": "nail + perfume feature",
+      "bucket": "nail",
+      "use_case": "trend-roundup",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "nail",
+        "perfume",
+        "beauty"
+      ]
+    },
+    {
+      "id": "case-035",
+      "url": "https://www.elle.com.hk/beauty_and_health/problem-of-hair-loss-and-best-foods-for-hair",
+      "domain": "www.elle.com.hk",
+      "title": "Hair loss and best foods",
+      "topic": "hair loss care",
+      "bucket": "hair",
+      "use_case": "care-advice",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-HK",
+      "region": "HK",
+      "tags": [
+        "hair",
+        "hair-loss",
+        "nutrition"
+      ]
+    },
+    {
+      "id": "case-036",
+      "url": "http://www.yusoo.com.tw/?dir=Physiognomy&web=type&e_class=eye",
+      "domain": "www.yusoo.com.tw",
+      "title": "Physiognomy eye types",
+      "topic": "face/eye reading",
+      "bucket": "face-shape",
+      "use_case": "face-shape-advice",
+      "intent": "summarization",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "face",
+        "physiognomy",
+        "eye"
+      ]
+    },
+    {
+      "id": "case-037",
+      "url": "https://www.harpersbazaar.com/tw/beauty/makeup/g62326800/olive-young-must-buy/",
+      "domain": "www.harpersbazaar.com",
+      "title": "Olive Young must buy list",
+      "topic": "olive young shopping",
+      "bucket": "product-guide",
+      "use_case": "shopping-guide",
+      "intent": "product-roundup",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "olive-young",
+        "shopping",
+        "makeup"
+      ]
+    },
+    {
+      "id": "case-038",
+      "url": "https://www.klook.com/zh-TW/blog/must-buy-products-from-olive-young/",
+      "domain": "www.klook.com",
+      "title": "Klook must-buy products from Olive Young",
+      "topic": "olive young shopping (klook)",
+      "bucket": "product-guide",
+      "use_case": "shopping-guide",
+      "intent": "product-roundup",
+      "content_type": "article",
+      "language": "zh-TW",
+      "region": "TW",
+      "tags": [
+        "olive-young",
+        "shopping",
+        "travel"
+      ]
+    }
+  ]
+}

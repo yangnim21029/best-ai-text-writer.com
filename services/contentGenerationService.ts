@@ -132,17 +132,18 @@ export const generateSectionContent = async (
         config.targetAudience
     );
 
-    const relevantKeyPoints = contextFilter.data.filteredPoints;
+    const sectionKeyFacts = Array.isArray((sectionMeta as any).keyFacts) ? (sectionMeta as any).keyFacts : [];
+    const augmentFacts = Array.isArray((sectionMeta as any).augment) ? (sectionMeta as any).augment : [];
+    const relevantKeyPoints = Array.from(new Set([
+        ...sectionKeyFacts,
+        ...augmentFacts,
+        ...contextFilter.data.filteredPoints
+    ]));
     const relevantAuthTerms = contextFilter.data.filteredAuthTerms;
     const kbInsights = contextFilter.data.knowledgeInsights;
 
-    // --- FREQUENCY CAP LOGIC ---
-    const MAX_USAGE_LIMIT = 2;
-
-    const pointsAvailableForThisSection = relevantKeyPoints.filter(point => {
-        const usageCount = currentCoveredPointsHistory.filter(p => p === point).length;
-        return usageCount < MAX_USAGE_LIMIT;
-    });
+    // Use all relevant points; no frequency cap so checklists can stay intact.
+    const pointsAvailableForThisSection = relevantKeyPoints;
 
     const { coreQuestion, difficulty, writingMode, solutionAngles } = sectionMeta || {};
 
@@ -157,6 +158,17 @@ export const generateSectionContent = async (
     );
 
     const languageInstruction = getLanguageInstruction(config.targetAudience);
+    const suppressHints = Array.isArray((sectionMeta as any).suppress) ? (sectionMeta as any).suppress : [];
+    const shiftPlanHints = Array.isArray((sectionMeta as any).shiftPlan)
+        ? (sectionMeta as any).shiftPlan.map((p: any) => {
+            const from = typeof p?.from === 'string' ? p.from : '';
+            const to = typeof p?.to === 'string' ? p.to : '';
+            const reason = typeof p?.reason === 'string' ? p.reason : '';
+            return [from && `from: ${from}`, to && `to: ${to}`, reason && `why: ${reason}`].filter(Boolean).join(' | ');
+        }).filter(Boolean)
+        : [];
+    const renderMode = (sectionMeta as any).isChecklist ? 'checklist' : undefined;
+    const augmentHints = Array.isArray((sectionMeta as any).augment) ? (sectionMeta as any).augment : [];
 
     const prompt = promptRegistry.build('sectionContent', {
         sectionTitle,
@@ -175,10 +187,15 @@ export const generateSectionContent = async (
         difficulty,
         writingMode,
         solutionAngles,
+        renderMode,
+        shiftPlan: shiftPlanHints,
+        suppressHints,
+        augmentHints,
         avoidContent: [
             ...futureSections,
             ...previousSections,
-            ...relevantKeyPoints.filter(p => !pointsAvailableForThisSection.includes(p))
+            ...relevantKeyPoints.filter(p => !pointsAvailableForThisSection.includes(p)),
+            ...suppressHints
         ]
     });
 

@@ -56,7 +56,25 @@ export const analyzeReferenceStructure = async (
                             difficulty: { type: Type.STRING, description: "easy | medium | unclear" },
                             writingMode: { type: Type.STRING, description: "direct | multi_solutions" },
                             solutionAngles: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            subheadings: { type: Type.ARRAY, items: { type: Type.STRING } }
+                            subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            isChecklist: { type: Type.BOOLEAN },
+                            shiftPlan: {
+                                type: Type.ARRAY,
+                                items: {
+                                    type: Type.OBJECT,
+                                    properties: {
+                                        from: { type: Type.STRING },
+                                        to: { type: Type.STRING },
+                                        reason: { type: Type.STRING },
+                                        suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                        augment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                    }
+                                }
+                            },
+                            suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            augment: { type: Type.ARRAY, items: { type: Type.STRING } },
                         }
                     }
                 },
@@ -73,7 +91,12 @@ export const analyzeReferenceStructure = async (
 
         const normalizedStructure = (data.structure || []).map((item: any) => ({
             ...item,
-            subheadings: Array.isArray(item.subheadings) ? item.subheadings : []
+            subheadings: Array.isArray(item.subheadings) ? item.subheadings : [],
+            keyFacts: Array.isArray(item.keyFacts) ? item.keyFacts : [],
+            uspNotes: Array.isArray(item.uspNotes) ? item.uspNotes : [],
+            shiftPlan: Array.isArray(item.shiftPlan) ? item.shiftPlan : [],
+            suppress: Array.isArray(item.suppress) ? item.suppress : [],
+            augment: Array.isArray(item.augment) ? item.augment : [],
         }));
 
         const combinedRules = [
