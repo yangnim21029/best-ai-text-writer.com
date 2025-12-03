@@ -9,7 +9,7 @@ import { PasswordGate } from './components/PasswordGate';
 import { useProfileStore } from './store/useProfileStore';
 import { useGeneration } from './hooks/useGeneration';
 import { parseProductContext } from './services/productService';
-import { SavedProfile, ScrapedImage } from './types';
+import { SavedProfile, ScrapedImage, SectionAnalysis } from './types';
 import { useGenerationStore } from './store/useGenerationStore';
 import { useAnalysisStore } from './store/useAnalysisStore';
 import { useMetricsStore } from './store/useMetricsStore';
@@ -145,6 +145,28 @@ const App: React.FC = () => {
     ]);
 
     // --- Handlers ---
+
+    const syncPlanToGenerationStore = (updatedStructure: SectionAnalysis[]) => {
+        const analysisResults = generationStore.analysisResults;
+        const structRes = analysisResults?.structureResult?.structRes;
+        if (!structRes?.data) return;
+
+        const nextStructureResult = {
+            ...analysisResults!.structureResult,
+            structRes: {
+                ...structRes,
+                data: {
+                    ...structRes.data,
+                    structure: updatedStructure,
+                }
+            }
+        };
+
+        generationStore.setAnalysisResults({
+            ...analysisResults!,
+            structureResult: nextStructureResult
+        });
+    };
 
     useEffect(() => {
         document.body.setAttribute('data-display-scale', uiStore.displayScale.toString());
@@ -426,7 +448,18 @@ const App: React.FC = () => {
                 sections={analysisStore.refAnalysis?.structure || []}
                 generalPlan={analysisStore.refAnalysis?.generalPlan}
                 conversionPlan={analysisStore.refAnalysis?.conversionPlan}
-                onStartWriting={() => {
+                onSavePlan={(updated) => {
+                    const current = analysisStore.refAnalysis;
+                    if (!current) return;
+                    analysisStore.setRefAnalysis({ ...current, structure: updated });
+                    syncPlanToGenerationStore(updated);
+                }}
+                onStartWriting={(selected) => {
+                    const current = analysisStore.refAnalysis;
+                    if (current) {
+                        analysisStore.setRefAnalysis({ ...current, structure: selected });
+                        syncPlanToGenerationStore(selected);
+                    }
                     uiStore.setShowPlanModal(false);
                     startWriting();
                 }}
