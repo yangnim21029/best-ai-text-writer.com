@@ -1,4 +1,5 @@
 import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience } from '../types';
+import { SEMANTIC_KEYWORD_LIMIT } from '../config/constants';
 import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from './promptService';
 import { promptRegistry } from './promptRegistry';
 import { aiClient } from './aiClient';
@@ -12,8 +13,8 @@ export const extractKeywordActionPlans = async (
 ): Promise<ServiceResponse<KeywordActionPlan[]>> => {
     const startTs = Date.now();
 
-    // Take top keywords to avoid token limits
-    const topTokens = keywords.slice(0, 12);
+    // Take top keywords to avoid token limits (magic number tuned for speed/cost)
+    const topTokens = keywords.slice(0, SEMANTIC_KEYWORD_LIMIT);
 
     const truncateSnippet = (text: string, maxLen: number = 160) =>
         text.length > maxLen ? `${text.slice(0, maxLen - 3)}...` : text;

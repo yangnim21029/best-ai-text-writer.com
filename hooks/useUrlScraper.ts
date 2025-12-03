@@ -5,6 +5,7 @@ import { fetchUrlContent } from '../services/webScraper';
 import { extractWebsiteTypeAndTerm } from '../services/referenceAnalysisService';
 import { ArticleFormValues } from '../schemas/formSchema';
 import { CostBreakdown, ScrapedImage, TokenUsage } from '../types';
+import { dedupeScrapedImages } from '../utils/scrapedImages';
 
 interface UseUrlScraperParams {
     setValue: UseFormSetValue<ArticleFormValues>;
@@ -26,7 +27,7 @@ export const useUrlScraper = ({
         },
         onSuccess: async ({ title, content, images }) => {
             setValue('referenceContent', content);
-            setScrapedImages(images);
+            setScrapedImages(dedupeScrapedImages(images));
             if (title) setValue('title', title);
 
             try {

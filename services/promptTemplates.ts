@@ -269,7 +269,7 @@ export const promptTemplates = {
     STEP BY STEP:
     1) Clarify role: H2 = main section headline; H3 = supporting subpoint under its H2.
     2) Keep it natural in Chinese: do NOT stuff English intent words (how to, vs, guide, tips). Preserve the original intent/angle.
-    3) Make it clickable: concise (≤ 60 chars), keyword-aligned, but no empty promises.
+    3) Make the H2 clickable: concise (≤ 60 chars), keyword-aligned, but no empty promises.
     4) Rewrite H2 with **5 options in this exact order** (all must differ from h2_before):
        - Option 1: Shorter/tighter version.
        - Option 2: Longer/richer version.
@@ -279,8 +279,8 @@ export const promptTemplates = {
        - Use power words, be slightly aggressive/manipulative (marketing sense), create FOMO/secret knowledge vibes, and sound like a mastermind (not a generic AI).
        - H2_after = your single best pick among those 5 options.
     5) Rewrite/support H3 (if any exist or if you invent them):
-       - Align with the chosen H2_after, avoid repeating its wording.
-       - Apply the same power/FOMO/mastermind tone to H3 text.
+       - Keep H3 ultra-compact: product/feature name or a 2-6 word keyword fragment; no clickbait verbs or promises.
+       - Align with the chosen H2_after without repeating it; keep the tone neutral/informative (skip FOMO/power wording for H3).
     6) Validate: no duplicates, no vague fillers. Reject identical before/after.
 
     OUTPUT (JSON only):

@@ -34,3 +34,6 @@ export const AI_DEFAULTS = {
     // Longer timeout to accommodate heavy multimodal/long-context calls
     TIMEOUT_MS: 120000,
 };
+
+// Magic number tuned to balance keyword coverage with AI speed/cost
+export const SEMANTIC_KEYWORD_LIMIT = 15;

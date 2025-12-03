@@ -264,58 +264,6 @@ export const Preview: React.FC<PreviewProps> = ({
 
   return (
     <div className="flex flex-col h-full w-full">
-      <div className="flex-shrink-0 px-6 py-3 border-b border-gray-200 bg-white flex justify-between items-center z-30 shadow-[0_1px_2px_rgba(0,0,0,0.03)]">
-        <div className="flex items-center space-x-4">
-          <div className="flex bg-gray-100 p-1 rounded-lg">
-            <button
-              onClick={() => setViewMode('visual')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center space-x-2 transition-all ${viewMode === 'visual' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span>Visual Editor</span>
-            </button>
-            <button
-              onClick={() => setViewMode('code')}
-              className={`px-3 py-1.5 text-xs font-medium rounded-md flex items-center space-x-2 transition-all ${viewMode === 'code' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'
-                }`}
-            >
-              <Code className="w-3.5 h-3.5" />
-              <span>HTML Source</span>
-            </button>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <button
-            onClick={handleCopyMarkdown}
-            className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-600 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors active:bg-gray-100"
-            title="Copy as Markdown"
-          >
-            <FileDown className="w-4 h-4" />
-            <span>Copy Markdown</span>
-          </button>
-
-          <button
-            onClick={handleCopy}
-            className="flex items-center space-x-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors active:bg-gray-100"
-            title="Copy HTML Source"
-          >
-            {copied ? (
-              <>
-                <Check className="w-4 h-4 text-green-600" />
-                <span className="text-green-600">Copied</span>
-              </>
-            ) : (
-              <>
-                <Copy className="w-4 h-4" />
-                <span>Copy Code</span>
-              </>
-            )}
-          </button>
-        </div>
-      </div>
-
       <div className="flex-1 overflow-hidden bg-white relative w-full h-full min-h-0">
         <div className="w-full h-full min-h-0 transition-opacity duration-300">
           {viewMode === 'visual' ? (
@@ -326,16 +274,18 @@ export const Preview: React.FC<PreviewProps> = ({
                 displayScale={displayScale}
                 articleTitle={articleTitle}
                 onTitleChange={onTitleChange}
+                toolbarExtras={renderToolbarActions('light')}
               />
             </EditorProvider>
           ) : (
             <div className="h-full w-full bg-gray-900 flex flex-col">
-              <div className="bg-gray-800 text-gray-400 px-4 py-2 text-xs font-mono flex items-center justify-between border-b border-gray-700">
-                <div className="flex items-center space-x-2">
+              <div className="bg-gray-800 text-gray-200 px-4 py-2 text-xs font-mono flex flex-wrap items-center justify-between gap-3 border-b border-gray-700">
+                <div className="flex items-center gap-2">
                   <Terminal className="w-3 h-3" />
                   <span>source.html</span>
+                  <span className="text-[11px] text-gray-400">{editorHtml.length} chars</span>
                 </div>
-                <span>{editorHtml.length} chars</span>
+                {renderToolbarActions('dark')}
               </div>
               <textarea
                 className="flex-1 w-full p-6 font-mono text-sm bg-gray-900 text-gray-100 focus:outline-none resize-none custom-scrollbar leading-relaxed"

@@ -3,6 +3,7 @@ import { UseFormRegister } from 'react-hook-form';
 import { ArticleFormValues } from '../../schemas/formSchema';
 import { ScrapedImage } from '../../types';
 import { Download, FileText, Filter, ImageIcon, Link2, Loader2 } from 'lucide-react';
+import { dedupeScrapedImages } from '../../utils/scrapedImages';
 
 interface SourceMaterialSectionProps {
     register: UseFormRegister<ArticleFormValues>;
@@ -37,8 +38,22 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
 }) => {
     const [showAllExtracted, setShowAllExtracted] = React.useState(false);
     const MAX_PREVIEW_IMAGES = 24;
-    const visibleImages = showAllExtracted ? scrapedImages : scrapedImages.slice(0, MAX_PREVIEW_IMAGES);
-    const hiddenCount = scrapedImages.length - visibleImages.length;
+    const dedupedImages = React.useMemo(() => dedupeScrapedImages(scrapedImages), [scrapedImages]);
+    const orderedImages = React.useMemo(
+        () =>
+            dedupedImages
+                .map((img, idx) => ({ img, idx }))
+                .sort((a, b) => {
+                    const aIgnored = Boolean(a.img.ignored);
+                    const bIgnored = Boolean(b.img.ignored);
+                    if (aIgnored === bIgnored) return a.idx - b.idx;
+                    return aIgnored ? 1 : -1; // ignored images go last
+                })
+                .map(({ img }) => img),
+        [dedupedImages]
+    );
+    const visibleImages = showAllExtracted ? orderedImages : orderedImages.slice(0, MAX_PREVIEW_IMAGES);
+    const hiddenCount = orderedImages.length - visibleImages.length;
 
     const handleFetch = async () => {
         await onFetchUrl();
@@ -65,9 +80,9 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                     <div className="flex justify-between items-center">
                         <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
                             Reference Content
-                            {scrapedImages.length > 0 && (
+                            {dedupedImages.length > 0 && (
                                 <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100 text-[9px] flex items-center gap-1">
-                                    <ImageIcon className="w-3 h-3" /> {scrapedImages.length} Images
+                                    <ImageIcon className="w-3 h-3" /> {dedupedImages.length} Images
                                 </span>
                             )}
                             <span className="text-amber-500 bg-amber-50 px-1 rounded text-[9px] ml-auto border border-amber-100">Required</span>
@@ -141,20 +156,20 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                         </div>
                     )}
 
-                    {scrapedImages.length > 0 && (
+                    {dedupedImages.length > 0 && (
                         <div className="mt-3 bg-gray-50 rounded-lg p-2 border border-gray-100">
                             <div className="flex items-center justify-between mb-2">
                                 <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
                                     <ImageIcon className="w-3 h-3" /> Extracted Visuals
                                 </h5>
                                 <div className="flex items-center gap-2">
-                                    {scrapedImages.length > MAX_PREVIEW_IMAGES && (
+                                    {orderedImages.length > MAX_PREVIEW_IMAGES && (
                                         <button
                                             type="button"
                                             onClick={() => setShowAllExtracted((prev) => !prev)}
                                             className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
                                         >
-                                            {showAllExtracted ? 'Collapse' : `Show All (${scrapedImages.length})`}
+                                            {showAllExtracted ? 'Collapse' : `Show All (${orderedImages.length})`}
                                         </button>
                                     )}
                                     <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">
@@ -176,6 +191,20 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                                             onClick={() => onToggleScrapedImage?.(img)}
                                             title={isIgnored ? 'Click to include again' : 'Click to ignore this image'}
                                         >
+                                            <div className="absolute top-1 right-1 z-10">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={!isIgnored}
+                                                    readOnly={!onToggleScrapedImage}
+                                                    onChange={(e) => {
+                                                        e.stopPropagation();
+                                                        onToggleScrapedImage?.(img);
+                                                    }}
+                                                    onClick={(e) => e.stopPropagation()}
+                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                    aria-label={isIgnored ? 'Include image' : 'Exclude image'}
+                                                />
+                                            </div>
                                             {img.url ? (
                                                 <img
                                                     src={img.url}

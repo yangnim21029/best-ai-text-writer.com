@@ -6,6 +6,7 @@ import { SavedProfile, ScrapedImage } from '../types';
 import { useUrlScraper } from './useUrlScraper';
 import { useProfileManager } from './useProfileManager';
 import { useStorageReset } from './useStorageReset';
+import { dedupeScrapedImages } from '../utils/scrapedImages';
 
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
 
@@ -94,7 +95,7 @@ export const useArticleForm = ({
                     // @ts-ignore
                     setValue(key, parsed[key]);
                 });
-                if (parsed.scrapedImages) setScrapedImages(parsed.scrapedImages);
+                if (parsed.scrapedImages) setScrapedImages(dedupeScrapedImages(parsed.scrapedImages));
             } catch (e) {
                 console.warn('Failed to restore persisted form', e);
             }

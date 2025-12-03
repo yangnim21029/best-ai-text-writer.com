@@ -385,7 +385,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             <Layers className="w-3.5 h-3.5 text-blue-600" />
                             <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Narrative Structure (Outline)</h4>
                         </div>
-                        <div className="relative py-2">
+                        <div className="relative py-2 max-h-96 overflow-y-auto custom-scrollbar">
                             {/* Timeline Line */}
                             <div className="absolute left-5 top-4 bottom-4 w-px bg-gray-100"></div>
 

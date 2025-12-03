@@ -2,7 +2,7 @@ import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, T
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { filterSectionContext } from './contextFilterService';
 import { promptRegistry } from './promptRegistry';
-import { MODEL } from '../config/constants';
+import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../config/constants';
 import { getAiProvider } from './aiProvider';
 import { generateContent } from './ai';
 import { Type } from './schemaTypes';
@@ -121,6 +121,7 @@ export const generateSectionContent = async (
 
     const startTs = Date.now();
     const isLastSections = futureSections.length <= 1;
+    const keywordPlansForPrompt = keywordPlans.slice(0, SEMANTIC_KEYWORD_LIMIT);
 
     // RAG: Filter context to reduce token usage
     const contextFilter = await filterSectionContext(
@@ -165,7 +166,7 @@ export const generateSectionContent = async (
         generalPlan,
         specificPlan,
         kbInsights,
-        keywordPlans,
+        keywordPlans: keywordPlansForPrompt,
         relevantAuthTerms,
         points: pointsAvailableForThisSection,
         injectionPlan,

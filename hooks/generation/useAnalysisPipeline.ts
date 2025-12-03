@@ -5,6 +5,7 @@ import { useMetricsStore } from '../../store/useMetricsStore';
 import { parseProductContext, generateProblemProductMapping } from '../../services/productService';
 import { analyzeText } from '../../services/nlpService';
 import { extractKeywordActionPlans } from '../../services/keywordAnalysisService';
+import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { analyzeReferenceStructure } from '../../services/referenceAnalysisService';
 import { analyzeAuthorityTerms } from '../../services/authorityService';
 import { analyzeImageWithAI, analyzeVisualStyle } from '../../services/imageService';
@@ -144,14 +145,15 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         generationStore.setGenerationStep('nlp_analysis');
         appendAnalysisLog('Running NLP keyword scan...');
         const keywords = await analyzeText(fullConfig.referenceContent);
-        const topTokens = summarizeList(keywords.map(k => k.token), 6);
-        appendAnalysisLog(`NLP scan found ${keywords.length} keywords. Top: ${topTokens}`);
+        const keywordPlanCandidates = keywords.slice(0, SEMANTIC_KEYWORD_LIMIT);
+        const topTokens = summarizeList(keywordPlanCandidates.map(k => k.token), 6);
+        appendAnalysisLog(`NLP scan found ${keywords.length} keywords. Using top ${keywordPlanCandidates.length}: ${topTokens}`);
 
-        if (keywords.length > 0 && !isStopped()) {
+        if (keywordPlanCandidates.length > 0 && !isStopped()) {
             generationStore.setGenerationStep('planning_keywords');
             try {
-                appendAnalysisLog('Planning keyword strategy...');
-                const planRes = await extractKeywordActionPlans(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
+                appendAnalysisLog(`Planning keyword strategy (top ${keywordPlanCandidates.length})...`);
+                const planRes = await extractKeywordActionPlans(fullConfig.referenceContent, keywordPlanCandidates, fullConfig.targetAudience);
                 console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
                 analysisStore.setKeywordPlans(planRes.data);
                 const planWords = summarizeList(planRes.data.map(p => p.word), 6);

@@ -105,39 +105,39 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     extraActions,
 }) => {
     return (
-        <div className="flex flex-wrap items-center gap-2 p-2 border-b border-gray-200 bg-gray-50 flex-shrink-0 z-20">
-            <div className="flex flex-wrap items-center gap-1 flex-1 min-w-0">
-                <div className="flex items-center space-x-1 pr-2 border-r border-gray-300">
+        <div className="flex items-center gap-2 p-2 border-b border-gray-200 bg-gray-50 flex-shrink-0 z-20 overflow-x-auto whitespace-nowrap [scrollbar-width:thin] custom-scrollbar">
+            <div className="flex items-center gap-1 flex-nowrap flex-shrink-0">
+                <div className="flex items-center space-x-1 pr-2 border-r border-gray-300 flex-shrink-0">
                     <ToolbarButton icon={Heading2} command="formatBlock" value="<h2>" label="Heading 2" onCommand={onCommand} />
                     <ToolbarButton icon={Heading3} command="formatBlock" value="<h3>" label="Heading 3" onCommand={onCommand} />
                     <ToolbarButton icon={Type} command="formatBlock" value="<p>" label="Paragraph" onCommand={onCommand} />
                 </div>
 
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
                     <ToolbarButton icon={Bold} command="bold" label="Bold" onCommand={onCommand} />
                     <ToolbarButton icon={Italic} command="italic" label="Italic" onCommand={onCommand} />
                     <ToolbarButton icon={Underline} command="underline" label="Underline" onCommand={onCommand} />
                     <ToolbarButton icon={Eraser} onClick={onRemoveBold} label="Remove All Bold Formatting & Quotes" onCommand={onCommand} />
                 </div>
 
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
                     <ToolbarButton icon={List} command="insertUnorderedList" label="Bullet List" onCommand={onCommand} />
                     <ToolbarButton icon={ListOrdered} command="insertOrderedList" label="Numbered List" onCommand={onCommand} />
                     <ToolbarButton icon={Quote} command="formatBlock" value="<blockquote>" label="Quote" onCommand={onCommand} />
                 </div>
 
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
                     <ToolbarButton icon={AlignLeft} command="alignLeft" label="Align Left" onCommand={onCommand} />
                     <ToolbarButton icon={AlignCenter} command="alignCenter" label="Align Center" onCommand={onCommand} />
                     <ToolbarButton icon={AlignRight} command="alignRight" label="Align Right" onCommand={onCommand} />
                 </div>
 
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
                     <ToolbarButton icon={LinkIcon} onClick={() => onCommand('link')} label="Insert Link" onCommand={onCommand} />
                     <ToolbarButton icon={Link2Off} onClick={() => onCommand('unlink')} label="Remove Link" onCommand={onCommand} />
                 </div>
 
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
                     <ToolbarButton icon={ImageIcon} onClick={onOpenImageModal} label="AI 圖像生成" onCommand={onCommand} />
                     <ToolbarButton
                         icon={isDownloadingImages ? Loader2 : Download}
@@ -147,7 +147,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                     />
                 </div>
 
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
                     <button
                         type="button"
                         onClick={(e) => {
@@ -172,7 +172,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                     </button>
                 </div>
 
-                <div className="flex items-center space-x-1 px-2 border-r border-gray-300">
+                <div className="flex items-center space-x-1 px-2 border-r border-gray-300 flex-shrink-0">
                     {hasKeyPoints && (
                         <ToolbarButton
                             icon={ListTodo}
@@ -191,7 +191,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                     />
                 </div>
 
-                <div className="flex items-center space-x-1 px-2">
+                <div className="flex items-center space-x-1 px-2 flex-shrink-0">
                     <button
                         onClick={(e) => {
                             e.preventDefault();
@@ -208,7 +208,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                     </button>
                 </div>
 
-                <div className="flex items-center space-x-2 px-2">
+                <div className="flex items-center space-x-2 px-2 flex-shrink-0">
                     <button
                         type="button"
                         onClick={(e) => {
@@ -227,7 +227,7 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                 </div>
             </div>
             {extraActions && (
-                <div className="flex items-center gap-2 ml-auto">
+                <div className="flex items-center gap-2 pl-3 ml-auto flex-shrink-0">
                     {extraActions}
                 </div>
             )}
