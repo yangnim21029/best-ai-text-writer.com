@@ -84,7 +84,17 @@ export const runContentGeneration = async (
 
     const sectionBodies: string[] = new Array(sectionsToGenerate.length).fill("");
     const sectionHeadings: string[] = sectionsToGenerate.map((s) => resolveHeadingFromOptimizer(s.title));
-    const allKeyPoints = refAnalysisData?.keyInformationPoints || [];
+    const legacyKeyPoints = [
+        ...(Array.isArray(refAnalysisData?.keyInformationPoints) ? refAnalysisData.keyInformationPoints : []),
+        ...(Array.isArray(refAnalysisData?.brandExclusivePoints) ? refAnalysisData.brandExclusivePoints : [])
+    ];
+
+    const structuredKeyPoints = (refAnalysisData?.structure || []).flatMap((s: any) => [
+        ...(Array.isArray(s?.keyFacts) ? s.keyFacts : []),
+        ...(Array.isArray(s?.uspNotes) ? s.uspNotes : [])
+    ]).filter(Boolean);
+
+    const allKeyPoints = Array.from(new Set([...structuredKeyPoints, ...legacyKeyPoints])).filter(Boolean);
 
     const generatorConfig = {
         ...config,
@@ -129,6 +139,14 @@ export const runContentGeneration = async (
         const futureTitles = allTitles.slice(i + 1);
         const analysisPlan = refAnalysisData?.structure.find((s: any) => s.title === section.title)?.narrativePlan;
         const specificPlan = section.specificPlan || analysisPlan;
+        const sectionData = refAnalysisData?.structure.find((s: any) => s.title === section.title);
+        const sectionPoints = Array.from(new Set([
+            ...(Array.isArray(section.keyFacts) ? section.keyFacts : []),
+            ...(Array.isArray(section.uspNotes) ? section.uspNotes : []),
+            ...(Array.isArray(sectionData?.keyFacts) ? sectionData.keyFacts : []),
+            ...(Array.isArray(sectionData?.uspNotes) ? sectionData.uspNotes : []),
+            ...allKeyPoints
+        ])).filter(Boolean);
 
         const loopConfig = { ...generatorConfig, productMapping: productMappingData };
         const dummyPreviousContent = i > 0 ? [`[Preceding Section: ${allTitles[i - 1]}]`] : [];
@@ -143,7 +161,7 @@ export const runContentGeneration = async (
                 dummyPreviousContent,
                 futureTitles,
                 authAnalysisData,
-                allKeyPoints,
+                sectionPoints,
                 [],
                 0,
                 section

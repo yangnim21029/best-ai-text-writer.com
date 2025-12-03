@@ -26,6 +26,36 @@ const App: React.FC = () => {
     const metricsStore = useMetricsStore();
     const uiStore = useUiStore();
     const profileStore = useProfileStore();
+    const structurePoints = useMemo(() => {
+        const structure = analysisStore.refAnalysis?.structure || [];
+        const general = new Set<string>();
+        const brand = new Set<string>();
+        const legacyGeneral = Array.isArray(analysisStore.refAnalysis?.keyInformationPoints)
+            ? analysisStore.refAnalysis?.keyInformationPoints
+            : [];
+        const legacyBrand = Array.isArray(analysisStore.refAnalysis?.brandExclusivePoints)
+            ? analysisStore.refAnalysis?.brandExclusivePoints
+            : [];
+
+        legacyGeneral.forEach(p => {
+            if (p) general.add(p);
+        });
+        legacyBrand.forEach(p => {
+            if (p) brand.add(p);
+        });
+        structure.forEach((s: any) => {
+            (Array.isArray(s?.keyFacts) ? s.keyFacts : []).forEach((p: string) => {
+                if (p) general.add(p);
+            });
+            (Array.isArray(s?.uspNotes) ? s.uspNotes : []).forEach((p: string) => {
+                if (p) brand.add(p);
+            });
+        });
+        return {
+            general: Array.from(general),
+            brand: Array.from(brand),
+        };
+    }, [analysisStore.refAnalysis]);
     const [isUnlocked, setIsUnlocked] = useState(false);
     const restorePromptedRef = useRef(false);
     const hydratedAnalysisRef = useRef(false);
@@ -61,15 +91,17 @@ const App: React.FC = () => {
 
         // Factor 1: Keyword Usage (50 points)
         if (analysisStore.keywordPlans.length > 0) {
-            const usedKeywords = analysisStore.keywordPlans.filter(k => generationStore.content.toLowerCase().includes(k.word.toLowerCase()));
+            const contentLower = (generationStore.content || '').toLowerCase();
+            const usedKeywords = analysisStore.keywordPlans.filter(k => k.word && contentLower.includes(k.word.toLowerCase()));
             const keywordRatio = usedKeywords.length / analysisStore.keywordPlans.length;
             score += keywordRatio * 50;
             totalFactors++;
         }
 
-        // Factor 2: Key Points Coverage (50 points)
-        if (analysisStore.refAnalysis?.keyInformationPoints && analysisStore.refAnalysis.keyInformationPoints.length > 0) {
-            const pointRatio = analysisStore.coveredPoints.length / analysisStore.refAnalysis.keyInformationPoints.length;
+        // Factor 2: Key Points Coverage (50 points) - based on outline keyFacts/uspNotes
+        const totalPointCount = structurePoints.general.length + structurePoints.brand.length;
+        if (totalPointCount > 0) {
+            const pointRatio = analysisStore.coveredPoints.length / totalPointCount;
             score += pointRatio * 50;
             totalFactors++;
         } else {
@@ -105,6 +137,7 @@ const App: React.FC = () => {
         analysisStore.keywordPlans,
         analysisStore.coveredPoints,
         analysisStore.refAnalysis,
+        structurePoints,
         generationStore.status,
         metricsStore.contentScore
     ]);
@@ -323,7 +356,6 @@ const App: React.FC = () => {
                         status={generationStore.status}
                         error={generationStore.error}
                         generationStep={generationStore.generationStep}
-                        keyInformationPoints={analysisStore.refAnalysis?.keyInformationPoints || []}
                         coveredPoints={analysisStore.coveredPoints}
                         targetAudience={analysisStore.targetAudience}
                         scrapedImages={analysisStore.scrapedImages}
@@ -343,6 +375,8 @@ const App: React.FC = () => {
                         articleTitle={analysisStore.articleTitle}
                         onTitleChange={analysisStore.setArticleTitle}
                         outlineSections={analysisStore.refAnalysis?.structure?.map(s => s.title) || []}
+                        keyInformationPoints={structurePoints.general}
+                        brandExclusivePoints={structurePoints.brand}
                     />
                 </section>
 
