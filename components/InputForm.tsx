@@ -28,6 +28,46 @@ interface InputFormProps {
 
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
 
+const ThresholdInput: React.FC<{
+    value: string;
+    onChange: (val: string) => void;
+    onCommit: (val?: string) => void;
+}> = ({ value, onChange, onCommit }) => {
+    const [localValue, setLocalValue] = React.useState(value);
+
+    React.useEffect(() => {
+        setLocalValue(value);
+    }, [value]);
+
+    const handleCommit = () => {
+        onCommit(localValue);
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleCommit();
+        }
+    };
+
+    return (
+        <input
+            type="number"
+            min="0"
+            max="1"
+            step="0.01"
+            value={localValue}
+            onChange={(e) => {
+                setLocalValue(e.target.value);
+                onChange(e.target.value);
+            }}
+            onBlur={handleCommit}
+            onKeyDown={handleKeyDown}
+            className="w-24 px-2 py-1 text-[11px] border border-gray-200 rounded-lg text-gray-800 shadow-inner"
+        />
+    );
+};
+
 export const InputForm: React.FC<InputFormProps> = ({
     onGenerate,
     onGenerateSections,
@@ -88,25 +128,41 @@ export const InputForm: React.FC<InputFormProps> = ({
         setManualKeep,
         openFilterModal,
         applyFilter,
-        SEMANTIC_THRESHOLD
+        semanticThreshold,
+        semanticThresholdInput,
+        setSemanticThresholdInput,
+        commitSemanticThreshold
     } = useSemanticFilter();
+
+    const semanticThresholdValue = useMemo(() => {
+        const parsed = parseFloat(semanticThresholdInput);
+        if (!Number.isNaN(parsed)) {
+            return Math.min(1, Math.max(0, parsed));
+        }
+        return semanticThreshold;
+    }, [semanticThresholdInput, semanticThreshold]);
+
+    const semanticThresholdLabel = useMemo(
+        () => semanticThresholdValue.toFixed(2),
+        [semanticThresholdValue]
+    );
 
     const onSubmit = (data: ArticleFormValues) => {
         const usableImages = scrapedImages.filter(img => !img.ignored);
         onGenerate({
             title: data.title,
             referenceContent: data.referenceContent,
-        sampleOutline: data.sampleOutline,
-        authorityTerms: data.authorityTerms,
-        websiteType: data.websiteType,
-        targetAudience: data.targetAudience,
-        useRag: data.useRag,
-        autoImagePlan: data.autoImagePlan,
-        productRawText: data.productRawText,
-        brandKnowledge: undefined,
-        scrapedImages: usableImages
-    });
-};
+            sampleOutline: data.sampleOutline,
+            authorityTerms: data.authorityTerms,
+            websiteType: data.websiteType,
+            targetAudience: data.targetAudience,
+            useRag: data.useRag,
+            autoImagePlan: data.autoImagePlan,
+            productRawText: data.productRawText,
+            brandKnowledge: undefined,
+            scrapedImages: usableImages
+        });
+    };
 
     const handleFetchUrl = async () => {
         await fetchAndPopulate(watchedValues.urlInput || '');
@@ -165,6 +221,8 @@ export const InputForm: React.FC<InputFormProps> = ({
     const handleRunSemanticFilter = async () => {
         const content = (watchedValues.referenceContent || '').trim();
         const title = (watchedValues.title || '').trim();
+
+        commitSemanticThreshold();
 
         const filteredContent = await applyFilter(content, title);
         if (filteredContent !== null && filteredContent !== undefined) {
@@ -351,7 +409,7 @@ export const InputForm: React.FC<InputFormProps> = ({
                         <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
                             <div>
                                 <p className="text-sm font-bold text-gray-900">語意過濾分段確認</p>
-                                <p className="text-[11px] text-gray-500 mt-0.5">以空白行分段，顯示與標題的語意相似度 (閾值 {SEMANTIC_THRESHOLD}).</p>
+                                <p className="text-[11px] text-gray-500 mt-0.5">以空白行分段，顯示與標題的語意相似度 (閾值 {semanticThresholdLabel}).</p>
                             </div>
                             <button
                                 type="button"
@@ -373,14 +431,14 @@ export const InputForm: React.FC<InputFormProps> = ({
                                                 type="button"
                                                 onClick={() => setManualKeep(prev => ({ ...prev, [idx]: !prev[idx] }))}
                                                 className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${manualKeep[idx]
-                                                        ? 'border-blue-200 bg-blue-50 text-blue-700'
-                                                        : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
+                                                    ? 'border-blue-200 bg-blue-50 text-blue-700'
+                                                    : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
                                                     }`}
                                             >
                                                 {manualKeep[idx] ? '手動通過' : '手動通過？'}
                                             </button>
                                             {typeof chunkScores[idx] === 'number' && !Number.isNaN(chunkScores[idx]) ? (
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] ${chunkScores[idx] >= SEMANTIC_THRESHOLD
+                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] ${chunkScores[idx] >= semanticThresholdValue
                                                     ? 'border-green-200 text-green-700 bg-green-50'
                                                     : 'border-amber-200 text-amber-700 bg-amber-50'
                                                     }`}>
@@ -408,9 +466,19 @@ export const InputForm: React.FC<InputFormProps> = ({
                             </div>
                         )}
 
-                        <div className="px-5 py-4 border-t border-gray-100 flex items-center justify-between gap-2">
-                            <div className="text-[11px] text-gray-500">
-                                使用標題向量比對每個段落，低於 {SEMANTIC_THRESHOLD} 的會被移除；手動通過的段落會強制保留。{isScoringChunks ? ' (計算中...)' : ''}
+                        <div className="px-5 py-4 border-t border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div className="flex flex-col gap-2 text-[11px] text-gray-500">
+                                <div>
+                                    使用標題向量比對每個段落，低於 {semanticThresholdLabel} 的會被移除；手動通過的段落會強制保留。{isScoringChunks ? ' (計算中...)' : ''}
+                                </div>
+                                <label className="flex items-center gap-2 text-gray-700 font-semibold">
+                                    <span className="text-[10px] uppercase tracking-wide">閾值</span>
+                                    <ThresholdInput
+                                        value={semanticThresholdInput}
+                                        onChange={setSemanticThresholdInput}
+                                        onCommit={commitSemanticThreshold}
+                                    />
+                                </label>
                             </div>
                             <div className="flex gap-2">
                                 <button

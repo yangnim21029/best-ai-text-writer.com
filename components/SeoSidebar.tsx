@@ -88,7 +88,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
             medium: { label: 'Medium', bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100' },
             unclear: { label: 'Unclear', bg: 'bg-rose-50', text: 'text-rose-700', border: 'border-rose-100' },
         };
-        const variant = map[value || 'easy'];
+        const variant = map[value || 'easy'] || map.easy;
         return (
             <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full border ${variant.bg} ${variant.text} ${variant.border}`}>
                 {variant.label}

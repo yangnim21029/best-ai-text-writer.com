@@ -2,6 +2,7 @@ import { useCallback } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import { ArticleConfig } from '../types';
 import { useGenerationStore } from '../store/useGenerationStore';
+import { useAnalysisStore } from '../store/useAnalysisStore';
 import { resetGenerationState } from '../store/resetGenerationState';
 import { runAnalysisPipeline } from './generation/useAnalysisPipeline';
 import { runContentGeneration } from './generation/useContentGenerator';
@@ -41,6 +42,25 @@ const runWritingPhase = async () => {
         generationStore.setError('尚未完成分析，無法生成段落。請先執行分析。');
         generationStore.setStatus('error');
         return;
+    }
+
+    // Check for accumulated analysis errors
+    const missingData: string[] = [];
+    if (!analysisResults.structureResult?.structRes?.data?.structure?.length) missingData.push('文章架構 (Structure)');
+    if (!analysisResults.structureResult?.authRes?.data) missingData.push('權威分析 (Authority)');
+    if (!useAnalysisStore.getState().keywordPlans?.length) missingData.push('關鍵字規劃 (Keywords)');
+
+    if (missingData.length > 0) {
+        const confirmMsg = `偵測到部分分析資料缺失：\n${missingData.map(s => `- ${s}`).join('\n')}\n\n是否仍要嘗試生成？(選擇「取消」將重新執行分析)`;
+        if (!window.confirm(confirmMsg)) {
+            // User chose to retry analysis
+            // We need to trigger analysis again. Since we can't easily call the mutation from here without passing it in,
+            // we'll throw a special error or handle it in the component.
+            // Ideally, we should just return here and let the user click "Generate" again, 
+            // but to be helpful we can reset the status so they can click "Generate" immediately.
+            generationStore.setStatus('idle');
+            return;
+        }
     }
 
     generationStore.setError(null);

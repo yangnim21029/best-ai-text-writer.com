@@ -50,10 +50,10 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                     onClick={handleAutoPlan}
                     disabled={isPlanning || (useTiptap && !isTiptapReady)}
                     className="text-[10px] bg-white border border-blue-200 text-blue-600 px-2 py-1 rounded hover:bg-blue-50 transition-colors flex items-center gap-1"
-                    title="AI 圖像規劃維護中"
+                    title="讓 AI 根據內容自動規劃插圖位置與提示"
                 >
                     {isPlanning ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
-                    Auto-Plan（維護中）
+                    Auto-Plan
                 </button>
             </div>
 
@@ -94,10 +94,10 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                                 onClick={onBatchProcess}
                                 disabled={isBatchProcessing}
                                 className="text-[10px] bg-blue-600 text-white px-2 py-1 rounded hover:bg-blue-700 flex items-center gap-1 disabled:opacity-50"
-                                title="AI 圖像規劃維護中"
+                                title="一次生成所有尚未產出的圖像"
                             >
                                 {isBatchProcessing ? <Loader2 className="w-3 h-3 animate-spin" /> : <PlayCircle className="w-3 h-3" />}
-                                Generate All（維護中）
+                                Generate All
                             </button>
                         </div>
 
@@ -123,21 +123,21 @@ export const VisualAssetsPanel: React.FC<VisualAssetsPanelProps> = ({
                                                 </div>
                                             ) : (
                                                 <button
-                                                    onClick={() => onGenerateSinglePlan(plan)}
-                                                    disabled={plan.status === 'generating'}
-                                                    className="p-1.5 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded border border-gray-200 transition-colors"
-                                                    title="AI 圖像規劃維護中"
-                                                >
-                                                    {plan.status === 'generating' ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> : <RefreshCw className="w-4 h-4" />}
-                                                </button>
+                                                onClick={() => onGenerateSinglePlan(plan)}
+                                                disabled={plan.status === 'generating'}
+                                                className="p-1.5 bg-gray-50 hover:bg-blue-50 text-gray-500 hover:text-blue-600 rounded border border-gray-200 transition-colors"
+                                                title="生成此圖像"
+                                            >
+                                                {plan.status === 'generating' ? <Loader2 className="w-4 h-4 animate-spin text-blue-500" /> : <RefreshCw className="w-4 h-4" />}
+                                            </button>
                                             )}
                                     </div>
                                 </div>
 
                                 <div className="bg-gray-50 p-1.5 rounded text-[10px] text-gray-500 flex items-center gap-1.5">
                                     <Map className="w-3 h-3 text-gray-400" />
-                                    <span className="truncate flex-1" title={plan.insertAfter}>
-                                        After: "{plan.insertAfter.substring(0, 25)}..."
+                                    <span className="truncate flex-1" title={plan.insertAfter || 'No anchor detected'}>
+                                        After: "{(plan.insertAfter || 'N/A').substring(0, 25)}..."
                                     </span>
                                 </div>
 

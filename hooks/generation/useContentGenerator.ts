@@ -54,8 +54,36 @@ export const runContentGeneration = async (
     generationStore.setGenerationStep('writing_content');
     generationStore.setContent('');
 
+    const headingOptimizations = analysisStore.headingOptimizations || [];
+    const shouldUseHeadingAnalysis = !isUsingCustomOutline && headingOptimizations.length > 0;
+
+    const resolveHeadingFromOptimizer = (title: string): string => {
+        const normalizedTitle = cleanHeadingText(title);
+        if (!shouldUseHeadingAnalysis) return normalizedTitle;
+
+        const candidate = headingOptimizations.find(opt => {
+            const before = cleanHeadingText(opt.h2_before);
+            const after = cleanHeadingText(opt.h2_after);
+            return before === normalizedTitle || after === normalizedTitle;
+        });
+
+        if (!candidate) return normalizedTitle;
+
+        // Pick the highest scoring option from the optimizer; fallback to the suggested H2.
+        const scoredOptions = (candidate.h2_options || [])
+            .map(opt => ({
+                text: cleanHeadingText(opt.text || ''),
+                score: typeof opt.score === 'number' ? opt.score : undefined
+            }))
+            .filter(opt => opt.text && typeof opt.score === 'number')
+            .sort((a, b) => (b.score ?? -Infinity) - (a.score ?? -Infinity));
+
+        const fallback = cleanHeadingText(candidate.h2_after || candidate.h2_before || normalizedTitle);
+        return cleanHeadingText(scoredOptions[0]?.text || fallback || normalizedTitle);
+    };
+
     const sectionBodies: string[] = new Array(sectionsToGenerate.length).fill("");
-    const sectionHeadings: string[] = sectionsToGenerate.map((s) => cleanHeadingText(s.title));
+    const sectionHeadings: string[] = sectionsToGenerate.map((s) => resolveHeadingFromOptimizer(s.title));
     const allKeyPoints = refAnalysisData?.keyInformationPoints || [];
 
     const generatorConfig = {
@@ -146,7 +174,9 @@ export const runContentGeneration = async (
 
     if (!isStopped()) {
         generationStore.setContent(renderProgressSections());
-        await refineAllHeadings(sectionHeadings, sectionsToGenerate, config, renderProgressSections);
+        if (!shouldUseHeadingAnalysis) {
+            await refineAllHeadings(sectionHeadings, sectionsToGenerate, config, renderProgressSections);
+        }
     }
 
     if (!isStopped()) {

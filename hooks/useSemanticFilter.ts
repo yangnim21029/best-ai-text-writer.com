@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { embedTexts, cosineSimilarity } from '../services/embeddingService';
 
-const SEMANTIC_THRESHOLD = 0.79;
+const DEFAULT_SEMANTIC_THRESHOLD = 0.79;
 
 const splitIntoBlankLineChunks = (content: string): string[] =>
     content
@@ -17,6 +17,28 @@ export const useSemanticFilter = () => {
     const [chunkScores, setChunkScores] = useState<number[]>([]);
     const [isScoringChunks, setIsScoringChunks] = useState(false);
     const [manualKeep, setManualKeep] = useState<Record<number, boolean>>({});
+    const [semanticThreshold, setSemanticThreshold] = useState<number>(DEFAULT_SEMANTIC_THRESHOLD);
+    const [semanticThresholdInput, setSemanticThresholdInput] = useState<string>(DEFAULT_SEMANTIC_THRESHOLD.toString());
+
+    const commitSemanticThreshold = useCallback((raw?: string) => {
+        const candidate = (typeof raw === 'string' ? raw : semanticThresholdInput).trim();
+        if (candidate === '') {
+            setSemanticThresholdInput(semanticThreshold.toString());
+            return semanticThreshold;
+        }
+
+        const parsed = parseFloat(candidate);
+        if (Number.isNaN(parsed)) {
+            setSemanticThresholdInput(semanticThreshold.toString());
+            return semanticThreshold;
+        }
+
+        const clamped = Math.min(1, Math.max(0, parsed));
+        const normalized = Math.round(clamped * 100) / 100;
+        setSemanticThreshold(normalized);
+        setSemanticThresholdInput(normalized.toString());
+        return normalized;
+    }, [semanticThresholdInput, semanticThreshold]);
 
     const scoreChunks = useCallback(async (chunks: string[], title: string) => {
         if (!title) {
@@ -91,7 +113,7 @@ export const useSemanticFilter = () => {
             const keptChunks = chunks.filter((chunk, idx) => {
                 const similarity = computedScores[idx] ?? 1;
                 const forcedKeep = manualKeep[idx];
-                return forcedKeep || similarity >= SEMANTIC_THRESHOLD;
+                return forcedKeep || similarity >= semanticThreshold;
             });
 
             const filteredContent = keptChunks.join('\n\n').trim();
@@ -103,7 +125,7 @@ export const useSemanticFilter = () => {
         } finally {
             setIsFilteringChunks(false);
         }
-    }, [chunkPreview, chunkScores, manualKeep, scoreChunks]);
+    }, [chunkPreview, chunkScores, manualKeep, scoreChunks, semanticThreshold]);
 
     return {
         isChunkModalOpen,
@@ -117,6 +139,10 @@ export const useSemanticFilter = () => {
         setManualKeep,
         openFilterModal,
         applyFilter,
-        SEMANTIC_THRESHOLD
+        semanticThreshold,
+        semanticThresholdInput,
+        setSemanticThresholdInput,
+        commitSemanticThreshold,
+        DEFAULT_SEMANTIC_THRESHOLD
     };
 };

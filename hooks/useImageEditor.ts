@@ -7,6 +7,8 @@ interface UseImageEditorParams {
     tiptapApi?: {
         insertImage: (src: string, alt?: string) => void;
         getPlainText?: () => string;
+        getHtml?: () => string;
+        setHtml?: (html: string) => void;
     };
     imageContainerRef?: React.RefObject<HTMLElement>;
     targetAudience: TargetAudience;
@@ -159,38 +161,64 @@ export const useImageEditor = ({
 
     const injectImageIntoEditor = useCallback((plan: ImageAssetPlan, method: 'auto' | 'cursor' = 'auto') => {
         if (!plan.url) return;
-        
+
         const imgHtml = `<img src="${plan.url}" alt="${plan.generatedPrompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 24px 0; display: block; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);" />`;
+        const anchorText = plan.insertAfter?.trim() || '';
+        const tryInjectByAnchor = (html: string, replaceFn: (nextHtml: string) => void) => {
+            const insertAt = (target: string) => {
+                if (!target || !html.includes(target)) return false;
+                replaceFn(html.replace(target, `${target}<br/>${imgHtml}`));
+                return true;
+            };
+
+            if (insertAt(anchorText)) return true;
+
+            const chunks = anchorText
+                .split(/[，,。.\n\t\s、：:]+/)
+                .filter((c) => c.length >= 4)
+                .sort((a, b) => b.length - a.length);
+
+            for (const chunk of chunks) {
+                if (insertAt(chunk)) return true;
+            }
+            return false;
+        };
 
         if (tiptapApi) {
-            tiptapApi.insertImage(plan.url, plan.generatedPrompt);
+            const insertAtSelection = () => tiptapApi.insertImage(plan.url!, plan.generatedPrompt);
+
+            if (method === 'cursor' || !anchorText || !tiptapApi.getHtml || !tiptapApi.setHtml) {
+                insertAtSelection();
+                return;
+            }
+
+            const html = tiptapApi.getHtml();
+            const injected = tryInjectByAnchor(html, (nextHtml) => tiptapApi.setHtml!(nextHtml));
+            if (!injected) {
+                insertAtSelection();
+            }
             return;
         }
 
         if (!editorRef.current) return;
 
-        const anchorText = plan.insertAfter || '';
-        const currentHtml = editorRef.current.innerHTML;
-        if (anchorText && currentHtml.includes(anchorText)) {
-            const newHtml = currentHtml.replace(anchorText, `${anchorText}<br/>${imgHtml}`);
-            editorRef.current.innerHTML = newHtml;
+        if (method === 'cursor') {
+            restoreSelection();
+            document.execCommand('insertHTML', false, imgHtml);
             handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
             return;
         }
 
-        const chunks = anchorText.split(/[，,。.\n\t\s、：:]+/).filter((c) => c.length >= 4);
-        chunks.sort((a, b) => b.length - a.length);
-        for (const chunk of chunks) {
-            if (currentHtml.includes(chunk)) {
-                const newHtml = currentHtml.replace(chunk, `${chunk}<br/>${imgHtml}`);
-                editorRef.current.innerHTML = newHtml;
-                handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
-                return;
-            }
-        }
+        const currentHtml = editorRef.current.innerHTML;
+        const injected = tryInjectByAnchor(currentHtml, (nextHtml) => {
+            editorRef.current!.innerHTML = nextHtml;
+            handleInput({ currentTarget: editorRef.current! } as React.FormEvent<HTMLDivElement>);
+        });
 
-        alert(`Could not find anchor: "...${anchorText.substring(0, 15)}...". \n\nPlease place your cursor in the text and click the "Cursor" button to insert manually.`);
-    }, [editorRef, handleInput]);
+        if (!injected) {
+            alert(`Could not find anchor: "...${anchorText.substring(0, 15)}...". \n\nPlease place your cursor in the text and click the "Cursor" button to insert manually.`);
+        }
+    }, [editorRef, handleInput, restoreSelection, tiptapApi]);
 
     const generateSinglePlan = useCallback(async (plan: ImageAssetPlan) => {
         if (plan.status === 'generating') return;

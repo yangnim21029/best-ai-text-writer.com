@@ -94,6 +94,8 @@ export const promptTemplates = {
     - Do NOT repeat the H2 Title "${sectionTitle}".
     - Ensure smooth transitions from the previous section.
     - If writing mode is "multi_solutions", list the solution paths clearly, then close with a synthesized recommendation.
+    - **IMPORTANT**: You must populate the "usedPoints" array with the exact strings of any Key Facts you included in the content.
+    - **IMPORTANT**: You must populate "injectedCount" with the number of times you explicitly mentioned the Product Name or Brand Name.
     `;
   },
 

@@ -53,49 +53,43 @@ const normalizeOptions = (input: any): HeadingOption[] => {
     return options;
 };
 
-const pickBestOption = async (
-    before: string,
+const calculateBestOption = (
+    h2Before: string,
     options: HeadingOption[],
-    fallback: string
-): Promise<{ text: string; optionsWithScores: HeadingOption[]; needsManual: boolean }> => {
-    const beforeClean = cleanHeading(before);
+    fallback: string,
+    baseEmbedding: number[] | undefined,
+    optionEmbeddings: (number[] | undefined)[]
+): { text: string; optionsWithScores: HeadingOption[]; needsManual: boolean } => {
+    const beforeClean = cleanHeading(h2Before);
     const fallbackClean = cleanHeading(fallback) || beforeClean;
+
     if (!options.length) {
         return { text: fallbackClean, optionsWithScores: [], needsManual: true };
     }
 
-    try {
-        const texts = [beforeClean, ...options.map(o => o.text)];
-        const embeddings = await embedTexts(texts);
-        const base = embeddings[0];
-        const scored = options.map((opt, idx) => {
-            const vec = embeddings[idx + 1];
-            const score = (base && vec) ? cosineSimilarity(base, vec) : undefined;
-            return { ...opt, score };
-        });
+    const scored = options.map((opt, idx) => {
+        const vec = optionEmbeddings[idx];
+        const score = (baseEmbedding && vec) ? cosineSimilarity(baseEmbedding, vec) : undefined;
+        return { ...opt, score };
+    });
 
-        const valid = scored.filter(opt =>
-            opt.text &&
-            opt.text.toLowerCase() !== beforeClean.toLowerCase()
-        );
+    const valid = scored.filter(opt =>
+        opt.text &&
+        opt.text.toLowerCase() !== beforeClean.toLowerCase()
+    );
 
-        const best = valid.reduce<HeadingOption | null>((acc, cur) => {
-            const currentScore = cur.score ?? -1;
-            const accScore = acc?.score ?? -1;
-            return currentScore > accScore ? cur : acc;
-        }, null);
+    const best = valid.reduce<HeadingOption | null>((acc, cur) => {
+        const currentScore = cur.score ?? -1;
+        const accScore = acc?.score ?? -1;
+        return currentScore > accScore ? cur : acc;
+    }, null);
 
-        if (!best) {
-            return { text: fallbackClean, optionsWithScores: scored, needsManual: true };
-        }
-
-        const needsManual = (best.score ?? 0) > 0.995 || best.text.toLowerCase() === beforeClean.toLowerCase();
-        return { text: best.text || fallbackClean, optionsWithScores: scored, needsManual };
-    } catch (err) {
-        logger.warn('refining_headings', 'Embedding selection failed, using first option', err);
-        const first = options[0];
-        return { text: first?.text || fallbackClean, optionsWithScores: options, needsManual: true };
+    if (!best) {
+        return { text: fallbackClean, optionsWithScores: scored, needsManual: true };
     }
+
+    const needsManual = (best.score ?? 0) > 0.995 || best.text.toLowerCase() === beforeClean.toLowerCase();
+    return { text: best.text || fallbackClean, optionsWithScores: scored, needsManual };
 };
 
 const toCost = (cost: any): CostBreakdown => ({
@@ -158,7 +152,10 @@ export const refineHeadings = async (
     });
 
     const list = Array.isArray(response.data?.headings) ? response.data.headings : [];
-    const results: HeadingResult[] = [];
+
+    // 1. Prepare for Batch Embedding
+    const allTextsToEmbed: string[] = [];
+    const preparedItems: any[] = [];
 
     for (let idx = 0; idx < headings.length; idx++) {
         const beforeRaw = headings[idx] || '';
@@ -174,18 +171,60 @@ export const refineHeadings = async (
             ? match.h2_after
             : (typeof match?.after === 'string' ? match.after : beforeRaw);
 
-        const { text: picked, optionsWithScores, needsManual } = await pickBestOption(
-            h2Before,
-            options,
-            rawAfter || beforeRaw
-        );
-
         const h3 = normalizeH3(Array.isArray(match?.h3) ? match.h3 : []);
         const h2Reason = typeof match?.h2_reason === 'string'
             ? match.h2_reason
             : (typeof match?.reason === 'string' ? match.reason : '');
 
-        results.push({
+        // Record indices for embedding
+        const baseIndex = allTextsToEmbed.length;
+        allTextsToEmbed.push(h2Before);
+
+        const optionIndices = options.map(opt => {
+            const index = allTextsToEmbed.length;
+            allTextsToEmbed.push(opt.text);
+            return index;
+        });
+
+        preparedItems.push({
+            before,
+            h2Before,
+            options,
+            rawAfter,
+            h3,
+            h2Reason,
+            baseIndex,
+            optionIndices
+        });
+    }
+
+    // 2. Execute Batch Embedding
+    let allEmbeddings: number[][] = [];
+    if (allTextsToEmbed.length > 0) {
+        try {
+            logger.log('refining_headings', `Batch embedding ${allTextsToEmbed.length} texts...`);
+            allEmbeddings = await embedTexts(allTextsToEmbed);
+        } catch (err) {
+            logger.warn('refining_headings', 'Batch embedding failed', err);
+        }
+    }
+
+    // 3. Process Results with Embeddings
+    const results: HeadingResult[] = preparedItems.map(item => {
+        const { before, h2Before, options, rawAfter, h3, h2Reason, baseIndex, optionIndices } = item;
+
+        const baseEmbedding = allEmbeddings[baseIndex];
+        const optionEmbeddings = optionIndices.map((idx: number) => allEmbeddings[idx]);
+
+        const { text: picked, optionsWithScores, needsManual } = calculateBestOption(
+            h2Before,
+            options,
+            rawAfter || before,
+            baseEmbedding,
+            optionEmbeddings
+        );
+
+        return {
             before,
             after: picked || h2Before,
             h2_before: h2Before,
@@ -194,8 +233,8 @@ export const refineHeadings = async (
             ...(optionsWithScores.length ? { h2_options: optionsWithScores } : {}),
             ...(h3 ? { h3 } : {}),
             ...(needsManual ? { needs_manual: true } : {})
-        });
-    }
+        };
+    });
 
     return {
         data: results,
