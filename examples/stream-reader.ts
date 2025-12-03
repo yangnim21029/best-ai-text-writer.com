@@ -63,7 +63,7 @@ const handleSchemaStream = async (res: Response) => {
   let buf = '';
   let text = '';
   let usage: any;
-  let object: any;
+  let latestObject: any;
 
   while (true) {
     const { value, done } = await reader.read();
@@ -109,13 +109,13 @@ const handleSchemaStream = async (res: Response) => {
       }
       if (evt.type === 'object') {
         if (evt.object !== undefined) {
-          object = evt.object;
+          latestObject = evt.object;
         }
       }
       if (evt.type === 'finish') {
         usage = evt.usage || evt.totalUsage || usage;
         if (evt.object !== undefined) {
-          object = evt.object;
+          latestObject = evt.object;
         }
       }
     }
@@ -123,7 +123,7 @@ const handleSchemaStream = async (res: Response) => {
   }
 
   console.log('\n---\nText:', text || '(empty)');
-  console.log('Object:', object !== undefined ? JSON.stringify(object, null, 2) : '(none)');
+  console.log('Object:', latestObject !== undefined ? JSON.stringify(latestObject, null, 2) : '(none)');
   console.log('Usage:', usage ?? 'n/a');
 };
 
