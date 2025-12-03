@@ -77,6 +77,142 @@ const buildPrompt = (contents: any): string => {
     }
 };
 
+const extractTextFromUIMessage = (message: any): string => {
+    const content = message?.content;
+    if (!content) return '';
+    if (typeof content === 'string') return content;
+    if (Array.isArray(content)) {
+        return content
+            .map((part: any) => {
+                if (typeof part === 'string') return part;
+                if (typeof part?.text === 'string') return part.text;
+                if (typeof part?.value === 'string') return part.value;
+                if (typeof part?.data?.text === 'string') return part.data.text;
+                return '';
+            })
+            .filter(Boolean)
+            .join('');
+    }
+    return '';
+};
+
+const parseSseTextContent = (raw: string): { text: string; usageMetadata?: any; object?: any } | null => {
+    if (typeof raw !== 'string') return null;
+    if (!raw.includes('data:')) return null;
+
+    const chunks = raw.split(/data:\s*/).slice(1);
+    if (chunks.length === 0) return null;
+
+    let text = '';
+    let usageMetadata: any;
+    let object: any;
+
+    for (const chunk of chunks) {
+        const line = chunk.split(/\n/)[0].trim();
+        if (!line || line === '[DONE]') continue;
+
+        let evt: any;
+        try {
+            evt = JSON.parse(line);
+        } catch {
+            continue;
+        }
+
+        const type = evt.type || evt.event || evt.kind;
+        if (type === 'text-delta') {
+            const delta = evt.textDelta ?? evt.delta ?? evt.text;
+            if (typeof delta === 'string') text += delta;
+        } else if (type === 'message') {
+            const msgText = extractTextFromUIMessage(evt.message);
+            if (msgText) text += msgText;
+            usageMetadata = evt.message?.metadata?.totalUsage || evt.message?.metadata?.usage || usageMetadata;
+        } else if (type === 'object') {
+            object = evt.object ?? object;
+        } else if (type === 'finish') {
+            usageMetadata = evt.message?.metadata?.totalUsage ||
+                evt.message?.metadata?.usage ||
+                evt.usage ||
+                evt.totalUsage ||
+                usageMetadata;
+            if (evt.object !== undefined) object = evt.object;
+        } else if (typeof evt.text === 'string' && !type) {
+            text += evt.text;
+        }
+    }
+
+    const cleaned = text.trim() || raw.trim();
+    return { text: cleaned, usageMetadata, object };
+};
+
+const consumeEventStream = async (body: ReadableStream<Uint8Array>): Promise<AIResponse> => {
+    const reader = body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    let text = '';
+    let object: any;
+    let usageMetadata: any;
+
+    const processBuffer = () => {
+        let idx;
+        while ((idx = buffer.indexOf('\n\n')) !== -1) {
+            const raw = buffer.slice(0, idx).trim();
+            buffer = buffer.slice(idx + 2);
+
+            if (!raw) continue;
+
+            // Support standard SSE blocks that include an optional `event:` line before `data:`
+            let eventName = '';
+            const dataLines: string[] = [];
+            for (const line of raw.split('\n')) {
+                const trimmed = line.trim();
+                if (!trimmed) continue;
+                if (trimmed.startsWith(':')) continue; // comment line
+                if (trimmed.startsWith('event:')) {
+                    eventName = trimmed.slice('event:'.length).trim();
+                } else if (trimmed.startsWith('data:')) {
+                    dataLines.push(trimmed.slice('data:'.length).trim());
+                }
+            }
+
+            const payload = dataLines.join('\n').trim();
+            if (!payload) continue;
+
+            let evt: any;
+            try {
+                evt = JSON.parse(payload);
+            } catch {
+                continue;
+            }
+            const type = evt.type || evt.event || evt.kind || eventName;
+            if (type === 'text-delta') {
+                const delta = evt.textDelta ?? evt.delta ?? evt.text;
+                if (typeof delta === 'string') text += delta;
+            } else if (type === 'message') {
+                const msgText = extractTextFromUIMessage(evt.message);
+                if (msgText) text += msgText;
+                usageMetadata = evt.message?.metadata?.totalUsage || evt.message?.metadata?.usage || usageMetadata;
+            } else if (type === 'object') {
+                object = evt.object ?? object;
+            } else if (type === 'finish') {
+                usageMetadata = evt.message?.metadata?.totalUsage || evt.message?.metadata?.usage || evt.usage || evt.totalUsage || usageMetadata;
+                if (evt.object !== undefined) object = evt.object;
+            } else if (typeof evt.text === 'string') {
+                text += evt.text;
+            }
+        }
+    };
+
+    while (true) {
+        const { value, done } = await reader.read();
+        buffer += decoder.decode(value || new Uint8Array(), { stream: !done });
+        processBuffer();
+        if (done) break;
+    }
+    processBuffer();
+
+    return { text, object, usageMetadata };
+};
+
 const normalizeResponse = (raw: any): AIResponse => {
     // Some backends wrap the actual payload under `data`
     const envelope = raw?.data && typeof raw.data === 'object' ? raw.data : raw;
@@ -86,11 +222,15 @@ const normalizeResponse = (raw: any): AIResponse => {
         envelope?.response?.candidates ||
         raw?.response?.candidates;
     const usageMetadata =
+        envelope?.totalUsage ||
         envelope?.usageMetadata ||
         envelope?.usage ||
+        raw?.totalUsage ||
         raw?.usageMetadata ||
         raw?.usage ||
+        envelope?.response?.totalUsage ||
         envelope?.response?.usageMetadata;
+    let object = envelope?.object;
 
     // Check if this is a schema-based response (backend returns 'object' field)
     if (envelope?.object !== undefined) {
@@ -103,14 +243,22 @@ const normalizeResponse = (raw: any): AIResponse => {
     }
 
     // Original text-based response
-    const text =
+    let text =
         envelope?.text ||
         raw?.text ||
         envelope?.response?.text ||
         raw?.response?.text ||
         extractTextFromCandidates(candidates) ||
         (typeof envelope === 'string' ? envelope : '');
-    return { text, usageMetadata, candidates };
+
+    const parsedStream = parseSseTextContent(text);
+    if (parsedStream) {
+        text = parsedStream.text;
+        object = object ?? parsedStream.object;
+        usageMetadata = usageMetadata ?? parsedStream.usageMetadata;
+    }
+
+    return { text, usageMetadata, candidates, object };
 };
 
 export class GenAIClient {
@@ -148,7 +296,6 @@ export class GenAIClient {
         }
 
         let lastError: unknown = null;
-        let useGeneratePath = false;
         for (let attempt = 0; attempt < attempts; attempt++) {
             const timer = setTimeout(
                 () => {
@@ -158,31 +305,37 @@ export class GenAIClient {
                 timeoutMs || DEFAULT_TIMEOUT
             );
             try {
-                const path = useGeneratePath ? '/generate' : '/stream';
-                const response = await fetch(buildAiUrl(path), {
+                const doRequest = async (path: string) => fetch(buildAiUrl(path), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(payload),
                     signal: combinedSignal,
                 });
 
+                let response = await doRequest('/generate');
+
+                // Backward compatibility: try /stream if /generate is missing
+                if (response.status === 404) {
+                    response = await doRequest('/stream');
+                }
+
                 const contentType = response.headers.get('content-type') || '';
                 const isJson = contentType.includes('application/json');
+                const isEventStream = contentType.includes('text/event-stream');
 
                 if (!response.ok) {
                     const errorData = isJson ? await response.json() : await response.text();
                     const detail = typeof errorData === 'string'
                         ? errorData
                         : (errorData.error || JSON.stringify(errorData));
-
-                    // Some backends do not expose /ai/stream; automatically fall back to /ai/generate on 404.
-                    if (response.status === 404 && !useGeneratePath) {
-                        useGeneratePath = true;
-                        clearTimeout(timer);
-                        continue;
-                    }
-
                     throw new Error(`Failed to generate content (HTTP ${response.status}): ${detail}`);
+                }
+
+                if (isEventStream) {
+                    if (!response.body) throw new Error('Stream response missing body');
+                    const streamed = await consumeEventStream(response.body);
+                    clearTimeout(timer);
+                    return streamed;
                 }
 
                 const data = isJson ? await response.json() : { text: await response.text() };

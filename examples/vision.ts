@@ -15,6 +15,7 @@ async function main() {
     const urlResult = await postJson<{
         text: string;
         usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+        totalUsage?: unknown;
         finishReason: string;
     }>('/ai/vision', {
         prompt: 'Describe this image in detail.',
@@ -22,22 +23,27 @@ async function main() {
         model: 'gemini-2.5-flash',
     });
 
+    const urlUsage = urlResult.totalUsage || urlResult.usage;
     console.log('Response:', urlResult.text);
-    console.log('Tokens:', urlResult.usage.totalTokens, '\n');
+    console.log('Tokens:', urlResult.usage.totalTokens);
+    console.log('Usage payload:', urlUsage ?? 'n/a', '\n');
 
     // Example 2: Analyze base64 image (1x1 red pixel)
     console.log('2️⃣  Analyzing base64 image...');
     const base64Result = await postJson<{
         text: string;
         usage: { inputTokens: number; outputTokens: number; totalTokens: number };
+        totalUsage?: unknown;
     }>('/ai/vision', {
         prompt: 'What color is this image?',
         image: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
         model: 'gemini-2.5-flash',
     });
 
+    const base64Usage = base64Result.totalUsage || base64Result.usage;
     console.log('Response:', base64Result.text);
-    console.log('Tokens:', base64Result.usage.totalTokens, '\n');
+    console.log('Tokens:', base64Result.usage.totalTokens);
+    console.log('Usage payload:', base64Usage ?? 'n/a', '\n');
 
     // Example 3: SEO use case - Generate alt text
     console.log('3️⃣  Generating SEO alt text...');
@@ -48,7 +54,9 @@ async function main() {
         image: 'https://upload.wikimedia.org/wikipedia/commons/thumb/3/3a/Cat03.jpg/300px-Cat03.jpg',
     });
 
-    console.log('Alt text:', seoResult.text, '\n');
+    const seoUsage = (seoResult as any)?.totalUsage || (seoResult as any)?.usage;
+    console.log('Alt text:', seoResult.text);
+    console.log('Usage payload:', seoUsage ?? 'n/a', '\n');
 
     console.log('✅ All examples completed!');
 }

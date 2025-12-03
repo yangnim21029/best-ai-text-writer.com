@@ -18,6 +18,7 @@ export interface SectionAnalysis {
   difficulty?: 'easy' | 'medium' | 'unclear'; // How hard it is to give a clear answer
   writingMode?: 'direct' | 'multi_solutions'; // Derived from difficulty (easy => direct; others => multi solutions)
   solutionAngles?: string[]; // Distinct solution paths for medium/unclear
+  subheadings?: string[]; // Exact H3s (if any) under this H2 from the reference text
 }
 
 export interface ReferenceAnalysis {

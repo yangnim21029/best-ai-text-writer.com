@@ -402,6 +402,16 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                                     {section.narrativePlan[0]}
                                                 </p>
                                             )}
+                                            {Array.isArray(section.subheadings) && section.subheadings.length > 0 && (
+                                                <div className="mt-2 pl-6 border-l border-blue-100 space-y-1">
+                                                    {section.subheadings.map((sub, subIdx) => (
+                                                        <div key={subIdx} className="flex items-start gap-1.5 text-xs text-gray-600 leading-snug break-words">
+                                                            <span className="text-blue-400 mt-0.5">↳</span>
+                                                            <span className="font-medium">{sub}</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
                                             {mode === 'multi_solutions' && angles.length > 0 && (
                                                 <div className="mt-2 flex flex-wrap gap-2">
                                                     {angles.map((angle, aIdx) => (

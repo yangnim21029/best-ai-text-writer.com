@@ -15,7 +15,7 @@ const main = async () => {
   const endpoint = `${AI_BASE_URL}${EMBED_ENDPOINT}`;
   console.log(`→ POST ${endpoint}`);
 
-  const data = await postJson<{ embeddings?: number[][] }>(EMBED_ENDPOINT, {
+  const data = await postJson<{ embeddings?: number[][]; usage?: unknown; totalUsage?: unknown }>(EMBED_ENDPOINT, {
     texts,
     model: EMBED_MODEL_ID,
   });
@@ -26,6 +26,10 @@ const main = async () => {
     const vector = Array.isArray(vec) ? vec : [];
     console.log(`#${idx + 1} length:`, vector.length, 'first 3:', vector.slice(0, 3));
   });
+  const usage = (data as any)?.totalUsage || (data as any)?.usage;
+  if (usage) {
+    console.log('Usage:', usage);
+  }
 };
 
 main().catch((err) => {

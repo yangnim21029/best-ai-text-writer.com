@@ -36,9 +36,11 @@ async function main() {
         },
     );
 
+    const usage = (data as any).totalUsage || data.usage;
+
     console.log('Structured object:', data.object);
     console.log('Finish reason:', data.finishReason ?? 'n/a');
-    console.log('Usage:', data.usage ?? 'n/a');
+    console.log('Usage:', usage ?? 'n/a');
 }
 
 main().catch((err) => {

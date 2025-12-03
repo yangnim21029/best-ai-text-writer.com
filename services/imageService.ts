@@ -140,15 +140,8 @@ export const analyzeImageWithAI = async (
         };
 
         const duration = Date.now() - startTs;
-        const rawUsage = result.usage || { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
-        const usageForCost = {
-            promptTokenCount: rawUsage.inputTokens ?? 0,
-            candidatesTokenCount: rawUsage.outputTokens ?? 0,
-            totalTokenCount: rawUsage.totalTokens ?? ((rawUsage.inputTokens || 0) + (rawUsage.outputTokens || 0))
-        };
-        // Map model to PRICING key (FLASH for vision models)
         const modelType = model.includes('flash') ? 'FLASH' : 'FLASH';
-        const metrics = calculateCost(usageForCost, modelType);
+        const metrics = calculateCost(result, modelType);
 
         return {
             data: result.text,

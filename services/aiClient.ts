@@ -109,7 +109,7 @@ class AIClient {
             const data = result?.data || {};
             const candidates = data.candidates;
             const object = data.object;
-            const usageMetadata = data.usage || data.usageMetadata;
+            const usageMetadata = data.totalUsage || data.usage || data.usageMetadata || result?.totalUsage || result?.usage;
             const text = data.text || extractTextFromCandidates(candidates) || '';
 
             return { text, object, usageMetadata, candidates };
@@ -213,7 +213,7 @@ export const trackCost = (
     responses.forEach(r => {
         if (r && r.cost && r.usage) {
             totalCost += r.cost.totalCost || 0;
-            totalTokens += r.usage.totalTokenCount || 0;
+            totalTokens += (r.usage.totalTokens ?? r.usage.totalTokenCount ?? 0);
         }
     });
 

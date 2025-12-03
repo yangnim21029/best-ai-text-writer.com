@@ -418,6 +418,12 @@ export const promptTemplates = {
     
     TARGET AUDIENCE: ${targetAudience}
     ${languageInstruction}
+
+    STRICT HEADING RULES:
+    - Enumerate EVERY H2 and its child H3s in order from the reference.
+    - Use the exact heading text as it appears (do NOT rewrite, paraphrase, translate, or renumber).
+    - Keep awkward wording or punctuation intact; only trim whitespace.
+    - If no clear headings exist, infer concise H2s, otherwise never replace existing ones.
     
     CONTENT:
     ${content}
@@ -426,7 +432,8 @@ export const promptTemplates = {
     {
       "structure": [
         {
-          "title": "Section Title",
+          "title": "Exact H2 text (no rewrite)",
+          "subheadings": ["Exact H3 text 1", "Exact H3 text 2"],
           "narrativePlan": ["Bullet 1", "Bullet 2"],
           "coreQuestion": "Main question/problem",
           "difficulty": "easy | medium | unclear",

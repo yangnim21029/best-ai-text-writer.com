@@ -38,3 +38,7 @@ You can override the endpoint path if your backend mounts under a different pref
 ```bash
 AI_PATH=/api/ai npx tsx examples/quickstart.ts
 ```
+
+Notes:
+- Sync endpoints now include `usage` and `totalUsage` (use `totalUsage` when available).
+- `/ai/stream` responses are SSE: UI message streams without schema; `fullStream` events with schema. See `examples/stream-reader.ts` and `examples/frontend/ai-stream.ts` for parsing patterns.

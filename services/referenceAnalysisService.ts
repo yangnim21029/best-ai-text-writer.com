@@ -55,7 +55,8 @@ export const analyzeReferenceStructure = async (
                             coreQuestion: { type: Type.STRING },
                             difficulty: { type: Type.STRING, description: "easy | medium | unclear" },
                             writingMode: { type: Type.STRING, description: "direct | multi_solutions" },
-                            solutionAngles: { type: Type.ARRAY, items: { type: Type.STRING } }
+                            solutionAngles: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            subheadings: { type: Type.ARRAY, items: { type: Type.STRING } }
                         }
                     }
                 },
@@ -70,6 +71,11 @@ export const analyzeReferenceStructure = async (
 
         const data = response.data;
 
+        const normalizedStructure = (data.structure || []).map((item: any) => ({
+            ...item,
+            subheadings: Array.isArray(item.subheadings) ? item.subheadings : []
+        }));
+
         const combinedRules = [
             ...(data.competitorBrands || []),
             ...(data.competitorProducts || [])
@@ -77,7 +83,7 @@ export const analyzeReferenceStructure = async (
 
         return {
             data: {
-                structure: data.structure || [],
+                structure: normalizedStructure,
                 generalPlan: data.generalPlan || [],
                 conversionPlan: data.conversionPlan || [],
                 keyInformationPoints: data.keyInformationPoints || [],

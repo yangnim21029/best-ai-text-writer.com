@@ -1,29 +1,99 @@
 import { TargetAudience, TokenUsage, CostBreakdown } from '../types';
 import { PRICING } from '../config/constants';
 
-// Helper: Calculate Cost
-export const calculateCost = (usage: any, modelType: keyof typeof PRICING): { usage: TokenUsage, cost: CostBreakdown } => {
-    const inputTokens = usage?.promptTokenCount || 0;
-    const outputTokens = usage?.candidatesTokenCount || 0;
-    const totalTokens = usage?.totalTokenCount || 0;
+const asNumber = (...values: any[]): number => {
+    for (const value of values) {
+        const num = typeof value === 'string' ? Number(value) : value;
+        if (typeof num === 'number' && Number.isFinite(num)) {
+            return num;
+        }
+    }
+    return 0;
+};
 
-    const rates = PRICING[modelType];
-    const inputCost = inputTokens * rates.input;
-    const outputCost = outputTokens * rates.output;
+const pickUsageContainer = (usage: any): any => {
+    if (!usage) return null;
+
+    // Prefer totalUsage when present (Vercel AI SDK format)
+    if (usage.totalUsage || usage.usage) {
+        return usage.totalUsage || usage.usage;
+    }
+
+    // Sometimes usage is nested under data/metadata
+    if (usage.data?.totalUsage || usage.data?.usage) {
+        return usage.data.totalUsage || usage.data.usage;
+    }
+    if (usage.metadata?.totalUsage || usage.metadata?.usage) {
+        return usage.metadata.totalUsage || usage.metadata.usage;
+    }
+
+    return usage;
+};
+
+export const normalizeTokenUsage = (usage: any): TokenUsage => {
+    const source = pickUsageContainer(usage) || {};
+
+    let inputTokens = asNumber(
+        source.inputTokens,
+        source.promptTokens,
+        source.prompt_tokens,
+        source.input_tokens,
+        source.promptTokenCount,
+        source.inputTokenCount,
+        source.tokens?.inputTokens,
+        source.tokens?.promptTokens
+    );
+
+    let outputTokens = asNumber(
+        source.outputTokens,
+        source.completionTokens,
+        source.output_tokens,
+        source.completion_tokens,
+        source.candidatesTokenCount,
+        source.outputTokenCount,
+        source.tokens?.outputTokens,
+        source.tokens?.completionTokens
+    );
+
+    let totalTokens = asNumber(
+        source.totalTokens,
+        source.total_tokens,
+        source.totalTokenCount,
+        source.tokens?.totalTokens
+    );
+
+    if (!totalTokens) {
+        totalTokens = inputTokens + outputTokens;
+    } else if (!inputTokens && outputTokens && totalTokens >= outputTokens) {
+        inputTokens = totalTokens - outputTokens;
+    } else if (!outputTokens && inputTokens && totalTokens >= inputTokens) {
+        outputTokens = totalTokens - inputTokens;
+    } else if (!inputTokens && !outputTokens) {
+        inputTokens = totalTokens;
+    }
 
     return {
-        usage: { inputTokens, outputTokens, totalTokens },
+        inputTokens,
+        outputTokens,
+        totalTokens
+    };
+};
+
+// Helper: Calculate Cost
+export const calculateCost = (usage: any, modelType: keyof typeof PRICING): { usage: TokenUsage, cost: CostBreakdown } => {
+    const normalized = normalizeTokenUsage(usage);
+    const rates = PRICING[modelType];
+    const inputCost = normalized.inputTokens * rates.input;
+    const outputCost = normalized.outputTokens * rates.output;
+
+    return {
+        usage: normalized,
         cost: { inputCost, outputCost, totalCost: inputCost + outputCost }
     };
 };
 
 // Helper: Normalize usage to TokenUsage shape
-export const toTokenUsage = (usage: any): TokenUsage => {
-    const inputTokens = usage?.promptTokenCount || usage?.inputTokens || 0;
-    const outputTokens = usage?.candidatesTokenCount || usage?.outputTokens || 0;
-    const totalTokens = usage?.totalTokenCount || usage?.totalTokens || (inputTokens + outputTokens);
-    return { inputTokens, outputTokens, totalTokens };
-};
+export const toTokenUsage = (usage: any): TokenUsage => normalizeTokenUsage(usage);
 
 // Helper: Get Language Instruction
 export const getLanguageInstruction = (audience: TargetAudience): string => {
