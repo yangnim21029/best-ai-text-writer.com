@@ -84,6 +84,15 @@ export const useGeneration = () => {
     });
 
     const generate = useCallback(async (config: ArticleConfig) => {
+        const genState = useGenerationStore.getState();
+        const hasExistingAnalysis = !!genState.analysisResults;
+        const hasExistingContent = (genState.content || '').trim().length > 0;
+
+        if (hasExistingAnalysis || hasExistingContent) {
+            const confirmed = window.confirm('已經有分析結果或內容，重新分析會覆蓋目前的資料，確定要繼續嗎？');
+            if (!confirmed) return;
+        }
+
         await mutation.mutateAsync(config);
     }, [mutation]);
 
