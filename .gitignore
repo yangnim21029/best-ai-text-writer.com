@@ -33,3 +33,6 @@ credential.json
 vertex_key.json
 *.pem
 *.key
+
+# refractor-version
+ai-text-writer-nextjs

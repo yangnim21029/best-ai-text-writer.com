@@ -1,5 +1,5 @@
-import React from 'react';
-import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Zap } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Zap, Pencil } from 'lucide-react';
 import { SectionAnalysis } from '../types';
 
 interface SectionPlanModalProps {
@@ -8,8 +8,17 @@ interface SectionPlanModalProps {
     sections: SectionAnalysis[];
     generalPlan?: string[];
     conversionPlan?: string[];
-    onStartWriting?: () => void;
+    onStartWriting?: (sections: SectionAnalysis[]) => void;
+    onSavePlan?: (sections: SectionAnalysis[]) => void;
 }
+
+type DraftSection = SectionAnalysis & {
+    selected: boolean;
+    narrativeText: string;
+    keyFactsText: string;
+    uspText: string;
+    subheadingsText: string;
+};
 
 const difficultyBadge = (value?: SectionAnalysis['difficulty']) => {
     const map: Record<string, { label: string; bg: string; text: string; border: string }> = {
@@ -25,6 +34,12 @@ const difficultyBadge = (value?: SectionAnalysis['difficulty']) => {
     );
 };
 
+const splitLines = (value: string) =>
+    value
+        .split('\n')
+        .map(line => line.trim())
+        .filter(Boolean);
+
 export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
     open,
     onClose,
@@ -32,7 +47,73 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
     generalPlan = [],
     conversionPlan = [],
     onStartWriting,
+    onSavePlan,
 }) => {
+    const [drafts, setDrafts] = useState<DraftSection[]>([]);
+    const [editingIds, setEditingIds] = useState<Set<number>>(new Set());
+
+    useEffect(() => {
+        if (!open) return;
+        const next = (sections || []).map((s) => ({
+            ...s,
+            selected: true,
+            narrativeText: (s.narrativePlan || []).join('\n'),
+            keyFactsText: (s.keyFacts || []).join('\n'),
+            uspText: (s.uspNotes || []).join('\n'),
+            subheadingsText: (s.subheadings || []).join('\n'),
+        }));
+        setDrafts(next);
+        setEditingIds(new Set());
+    }, [open, sections]);
+
+    const allSelected = useMemo(() => drafts.length > 0 && drafts.every(d => d.selected), [drafts]);
+    const canStart = useMemo(() => drafts.some(d => d.selected), [drafts]);
+
+    const buildSections = (onlySelected = false) =>
+        drafts
+            .filter(d => (onlySelected ? d.selected : true))
+            .map((d) => ({
+                ...d,
+                narrativePlan: splitLines(d.narrativeText),
+                keyFacts: splitLines(d.keyFactsText),
+                uspNotes: splitLines(d.uspText),
+                subheadings: splitLines(d.subheadingsText),
+            }) as SectionAnalysis);
+
+    const handleToggleAll = () => {
+        if (drafts.length === 0) return;
+        const next = drafts.map(d => ({ ...d, selected: !allSelected }));
+        setDrafts(next);
+    };
+
+    const handleSave = (shouldStart = false) => {
+        const filtered = buildSections(shouldStart);
+        const full = buildSections(false);
+        if (onSavePlan) onSavePlan(full);
+        if (shouldStart && onStartWriting) {
+            onStartWriting(filtered);
+        }
+        if (!shouldStart) {
+            onClose();
+        }
+    };
+
+    const displaySections = useMemo(
+        () =>
+            drafts.map((d, idx) => ({
+                data: {
+                    ...d,
+                    narrativePlan: splitLines(d.narrativeText),
+                    keyFacts: splitLines(d.keyFactsText),
+                    uspNotes: splitLines(d.uspText),
+                    subheadings: splitLines(d.subheadingsText),
+                } as SectionAnalysis,
+                selected: d.selected,
+                idx,
+            })),
+        [drafts]
+    );
+
     if (!open) return null;
 
     return (
@@ -46,14 +127,26 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                         </div>
                         <div className="flex flex-col">
                             <h3 className="text-lg font-bold text-gray-900 leading-tight">段落計劃預覽</h3>
-                            <p className="text-xs text-gray-500">檢視每個段落的 narrative plan、USP、重點清單，再決定是否開始寫作。</p>
+                            <p className="text-xs text-gray-500">可在寫作前調整段落內容與勾選要寫的段落。</p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
                         <button
-                            onClick={onStartWriting}
+                            onClick={handleToggleAll}
+                            className={`px-3 py-2 text-sm font-semibold rounded-lg border ${allSelected ? 'bg-gray-50 text-gray-700 border-gray-200' : 'bg-blue-50 text-blue-700 border-blue-200'}`}
+                        >
+                            {allSelected ? '取消全選' : '全選'}
+                        </button>
+                        <button
+                            onClick={() => handleSave(false)}
+                            className="px-3 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
+                        >
+                            儲存計劃
+                        </button>
+                        <button
+                            onClick={() => handleSave(true)}
                             className="px-3 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-sm hover:brightness-110 transition disabled:opacity-50"
-                            disabled={!onStartWriting}
+                            disabled={!onStartWriting || !canStart}
                         >
                             立即開始寫作
                         </button>
@@ -109,111 +202,226 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                     </aside>
 
                     <div className="flex-1 overflow-y-auto custom-scrollbar bg-white">
-                        {sections.length === 0 ? (
+                        {drafts.length === 0 ? (
                             <div className="h-full flex items-center justify-center text-sm text-gray-500">
                                 尚未產生段落計劃，請先執行分析。
                             </div>
                         ) : (
                             <div className="p-4 space-y-3">
-                                {sections.map((section, idx) => (
+                                {displaySections.map((section) => {
+                                    const isEditing = editingIds.has(section.idx);
+                                    return (
                                     <div
-                                        key={`${section.title}-${idx}`}
+                                        key={`${section.data.title}-${section.idx}`}
                                         className="border border-gray-100 rounded-xl p-4 shadow-[0_2px_6px_rgba(0,0,0,0.03)] bg-white hover:shadow-md transition"
                                     >
                                         <div className="flex items-start justify-between gap-3">
                                             <div className="flex items-start gap-3">
-                                                <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
-                                                    {idx + 1}
-                                                </div>
-                                                <div>
-                                                    <h4 className="text-base font-bold text-gray-900 leading-tight break-words">
-                                                        {section.title}
-                                                    </h4>
-                                                    {section.coreQuestion && (
-                                                        <p className="text-xs text-gray-500 mt-0.5 break-words">Q: {section.coreQuestion}</p>
+                                                <label className="flex items-start gap-2 cursor-pointer select-none">
+                                                    <input
+                                                        type="checkbox"
+                                                        className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                        checked={section.selected}
+                                                        onChange={(e) =>
+                                                            setDrafts((prev) =>
+                                                                prev.map((d, di) => di === section.idx ? { ...d, selected: e.target.checked } : d)
+                                                            )
+                                                        }
+                                                        />
+                                                    <div className="w-8 h-8 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center font-bold">
+                                                        {section.idx + 1}
+                                                    </div>
+                                                </label>
+                                                <div className="flex-1">
+                                                    {isEditing ? (
+                                                        <>
+                                                            <input
+                                                                value={section.data.title}
+                                                                onChange={(e) =>
+                                                                    setDrafts((prev) =>
+                                                                        prev.map((d, di) => di === section.idx ? { ...d, title: e.target.value } : d)
+                                                                    )
+                                                                }
+                                                                className="text-base font-bold text-gray-900 leading-tight break-words w-full bg-white border border-gray-200 rounded-lg px-2 py-1"
+                                                            />
+                                                            <input
+                                                                value={section.data.coreQuestion || ''}
+                                                                onChange={(e) =>
+                                                                    setDrafts((prev) =>
+                                                                        prev.map((d, di) => di === section.idx ? { ...d, coreQuestion: e.target.value } : d)
+                                                                    )
+                                                                }
+                                                                placeholder="Core question (可空白)"
+                                                                className="mt-1 text-xs text-gray-600 w-full bg-white border border-gray-200 rounded-lg px-2 py-1"
+                                                            />
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <h4 className="text-base font-bold text-gray-900 leading-tight break-words">
+                                                                {section.data.title}
+                                                            </h4>
+                                                            {section.data.coreQuestion ? (
+                                                                <p className="text-xs text-gray-500 mt-0.5 break-words">Q: {section.data.coreQuestion}</p>
+                                                            ) : null}
+                                                        </>
                                                     )}
                                                 </div>
                                             </div>
-                                            {difficultyBadge(section.difficulty)}
+                                            <div className="flex items-center gap-2">
+                                                {difficultyBadge(section.data.difficulty)}
+                                                <button
+                                                    onClick={() =>
+                                                        setEditingIds(prev => {
+                                                            const next = new Set(prev);
+                                                            if (next.has(section.idx)) next.delete(section.idx); else next.add(section.idx);
+                                                            return next;
+                                                        })
+                                                    }
+                                                    className="text-xs font-semibold text-blue-700 hover:underline flex items-center gap-1"
+                                                >
+                                                    <Pencil className="w-3.5 h-3.5" />
+                                                    {isEditing ? '完成' : '編輯'}
+                                                </button>
+                                            </div>
                                         </div>
 
-                                        {section.narrativePlan && section.narrativePlan.length > 0 && (
-                                            <div className="mt-3 p-3 rounded-lg bg-blue-50/60 border border-blue-100">
-                                                <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wide">
-                                                    <Sparkles className="w-4 h-4" />
-                                                    Narrative Plan
-                                                </div>
+                                        <div className="mt-3">
+                                            <div className="flex items-center gap-2 text-xs font-bold text-blue-700 uppercase tracking-wide">
+                                                <Sparkles className="w-4 h-4" />
+                                                Narrative Plan
+                                            </div>
+                                            {isEditing ? (
+                                                <textarea
+                                                    value={drafts[section.idx]?.narrativeText || ''}
+                                                    onChange={(e) =>
+                                                        setDrafts((prev) =>
+                                                            prev.map((d, di) => di === section.idx ? { ...d, narrativeText: e.target.value } : d)
+                                                        )
+                                                    }
+                                                    className="mt-2 w-full border border-blue-100 rounded-lg p-3 text-sm text-gray-700 bg-blue-50/40 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                                    rows={3}
+                                                    placeholder="每行一個重點"
+                                                />
+                                            ) : (
                                                 <ul className="mt-2 space-y-1.5">
-                                                    {section.narrativePlan.map((p, pi) => (
+                                                    {(section.data.narrativePlan || []).map((p, pi) => (
                                                         <li key={pi} className="text-sm text-gray-700 leading-snug flex items-start gap-2">
                                                             <span className="text-blue-400 mt-1">•</span>
                                                             <span className="break-words">{p}</span>
                                                         </li>
                                                     ))}
+                                                    {(section.data.narrativePlan || []).length === 0 && (
+                                                        <li className="text-sm text-gray-400">未提供 narrative plan</li>
+                                                    )}
                                                 </ul>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
 
                                         <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {section.keyFacts && section.keyFacts.length > 0 && (
-                                                <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/70">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-600 uppercase tracking-wide">
-                                                        <ListChecks className="w-4 h-4 text-gray-500" />
-                                                        Key Facts
-                                                    </div>
-                                                    <ul className="mt-2 space-y-1">
-                                                        {section.keyFacts.map((fact, fi) => (
+                                            <div className="border border-gray-100 rounded-lg p-3 bg-gray-50/70">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-gray-600 uppercase tracking-wide">
+                                                    <ListChecks className="w-4 h-4 text-gray-500" />
+                                                    Key Facts
+                                                </div>
+                                                {isEditing ? (
+                                                    <textarea
+                                                        value={drafts[section.idx]?.keyFactsText || ''}
+                                                        onChange={(e) =>
+                                                            setDrafts((prev) =>
+                                                                prev.map((d, di) => di === section.idx ? { ...d, keyFactsText: e.target.value } : d)
+                                                            )
+                                                        }
+                                                        className="mt-2 w-full border border-gray-200 rounded-lg p-2 text-sm text-gray-700 bg-white focus:outline-none focus:ring-2 focus:ring-gray-200 max-h-40 overflow-y-auto"
+                                                        rows={4}
+                                                        placeholder="每行一條 key fact"
+                                                    />
+                                                ) : (
+                                                    <ul className="mt-2 space-y-1 max-h-40 overflow-y-auto pr-1 custom-scrollbar">
+                                                        {(section.data.keyFacts || []).map((fact, fi) => (
                                                             <li key={fi} className="text-sm text-gray-700 flex items-start gap-2 leading-snug">
                                                                 <span className="text-gray-400 mt-1">•</span>
                                                                 <span className="break-words">{fact}</span>
                                                             </li>
                                                         ))}
+                                                        {(section.data.keyFacts || []).length === 0 && (
+                                                            <li className="text-sm text-gray-400">未提供 key facts</li>
+                                                        )}
                                                     </ul>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
 
-                                            {section.uspNotes && section.uspNotes.length > 0 && (
-                                                <div className="border border-purple-100 rounded-lg p-3 bg-purple-50/60">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-purple-700 uppercase tracking-wide">
-                                                        <CircleDot className="w-4 h-4" />
-                                                        USP / 賣點
-                                                    </div>
+                                            <div className="border border-purple-100 rounded-lg p-3 bg-purple-50/60">
+                                                <div className="flex items-center gap-2 text-xs font-bold text-purple-700 uppercase tracking-wide">
+                                                    <CircleDot className="w-4 h-4" />
+                                                    USP / 賣點
+                                                </div>
+                                                {isEditing ? (
+                                                    <textarea
+                                                        value={drafts[section.idx]?.uspText || ''}
+                                                        onChange={(e) =>
+                                                            setDrafts((prev) =>
+                                                                prev.map((d, di) => di === section.idx ? { ...d, uspText: e.target.value } : d)
+                                                            )
+                                                        }
+                                                        className="mt-2 w-full border border-purple-100 rounded-lg p-2 text-sm text-purple-800 bg-white focus:outline-none focus:ring-2 focus:ring-purple-200"
+                                                        rows={3}
+                                                        placeholder="每行一個 USP"
+                                                    />
+                                                ) : (
                                                     <ul className="mt-2 space-y-1">
-                                                        {section.uspNotes.map((usp, ui) => (
+                                                        {(section.data.uspNotes || []).map((usp, ui) => (
                                                             <li key={ui} className="text-sm text-purple-700 flex items-start gap-2 leading-snug">
                                                                 <span className="text-purple-300 mt-1">•</span>
                                                                 <span className="break-words">{usp}</span>
                                                             </li>
                                                         ))}
+                                                        {(section.data.uspNotes || []).length === 0 && (
+                                                            <li className="text-sm text-purple-400">未提供 USP</li>
+                                                        )}
                                                     </ul>
-                                                </div>
-                                            )}
+                                                )}
+                                            </div>
                                         </div>
 
-                                        {section.subheadings && section.subheadings.length > 0 && (
-                                            <div className="mt-3 p-3 rounded-lg border border-amber-100 bg-amber-50/60">
-                                                <div className="flex items-center gap-2 text-xs font-bold text-amber-700 uppercase tracking-wide">
-                                                    <ArrowRight className="w-4 h-4" />
-                                                    建議子標題 (H3)
-                                                </div>
+                                        <div className="mt-3 p-3 rounded-lg border border-amber-100 bg-amber-50/60">
+                                            <div className="flex items-center gap-2 text-xs font-bold text-amber-700 uppercase tracking-wide">
+                                                <ArrowRight className="w-4 h-4" />
+                                                建議子標題 (H3)
+                                            </div>
+                                            {isEditing ? (
+                                                <textarea
+                                                    value={drafts[section.idx]?.subheadingsText || ''}
+                                                    onChange={(e) =>
+                                                        setDrafts((prev) =>
+                                                            prev.map((d, di) => di === section.idx ? { ...d, subheadingsText: e.target.value } : d)
+                                                        )
+                                                    }
+                                                    className="mt-2 w-full border border-amber-100 rounded-lg p-2 text-sm text-amber-800 bg-white focus:outline-none focus:ring-2 focus:ring-amber-200"
+                                                    rows={2}
+                                                    placeholder="每行一個 H3 建議"
+                                                />
+                                            ) : (
                                                 <div className="mt-2 flex flex-wrap gap-2">
-                                                    {section.subheadings.map((h3, hi) => (
+                                                    {(section.data.subheadings || []).map((h3, hi) => (
                                                         <span key={hi} className="text-xs px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 break-words">
                                                             {h3}
                                                         </span>
                                                     ))}
+                                                    {(section.data.subheadings || []).length === 0 && (
+                                                        <span className="text-xs text-amber-500">未提供 H3 建議</span>
+                                                    )}
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
+                                        </div>
 
-                                        {section.shiftPlan && section.shiftPlan.length > 0 && (
+                                        {section.data.shiftPlan && section.data.shiftPlan.length > 0 && (
                                             <div className="mt-3 p-3 rounded-lg border border-indigo-100 bg-indigo-50/60">
                                                 <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 uppercase tracking-wide">
                                                     <Zap className="w-4 h-4" />
                                                     Shift Plan
                                                 </div>
                                                 <div className="mt-2 space-y-1">
-                                                    {section.shiftPlan.slice(0, 3).map((sp, si) => {
+                                                    {section.data.shiftPlan.slice(0, 3).map((sp, si) => {
                                                         const parts = [sp.from ? `from: ${sp.from}` : '', sp.to ? `to: ${sp.to}` : '', sp.reason ? `why: ${sp.reason}` : '']
                                                             .filter(Boolean)
                                                             .join(' | ');
@@ -224,14 +432,15 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                                             </div>
                                                         );
                                                     })}
-                                                    {section.shiftPlan.length > 3 && (
-                                                        <div className="text-[11px] text-indigo-400">+{section.shiftPlan.length - 3} more</div>
+                                                    {section.data.shiftPlan.length > 3 && (
+                                                        <div className="text-[11px] text-indigo-400">+{section.data.shiftPlan.length - 3} more</div>
                                                     )}
                                                 </div>
                                             </div>
                                         )}
                                     </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>

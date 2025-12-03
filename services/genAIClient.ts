@@ -226,7 +226,7 @@ const normalizeResponse = (raw: any): AIResponse => {
         raw?.candidates ||
         envelope?.response?.candidates ||
         raw?.response?.candidates;
-    const usageMetadata =
+    let usageMetadata =
         envelope?.totalUsage ||
         envelope?.usageMetadata ||
         envelope?.usage ||
