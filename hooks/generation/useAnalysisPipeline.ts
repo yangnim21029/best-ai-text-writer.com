@@ -1,4 +1,4 @@
-import { ArticleConfig } from '../../types';
+import { ArticleConfig, SectionAnalysis } from '../../types';
 import { useGenerationStore } from '../../store/useGenerationStore';
 import { useAnalysisStore } from '../../store/useAnalysisStore';
 import { useMetricsStore } from '../../store/useMetricsStore';
@@ -23,6 +23,47 @@ const audienceLabel = (aud: ArticleConfig['targetAudience']) => {
         default:
             return '繁體中文（台灣）';
     }
+};
+
+const mergeOptimizedH3IntoStructure = (
+    structure: SectionAnalysis[] = [],
+    headingOptimizations: {
+        h2_before: string;
+        h2_after: string;
+        h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
+    }[] = []
+): SectionAnalysis[] => {
+    if (!structure.length || !headingOptimizations.length) return structure;
+
+    const normalize = (value: string) => cleanHeadingText(value).toLowerCase();
+
+    return structure.map((section) => {
+        const normalizedTitle = normalize(section.title || '');
+        const matchedOpt = headingOptimizations.find(opt => {
+            const before = normalize(opt.h2_before);
+            const after = normalize(opt.h2_after);
+            return before === normalizedTitle || after === normalizedTitle;
+        });
+
+        if (!matchedOpt?.h3?.length) return section;
+
+        const optimizedH3s = matchedOpt.h3
+            .map(h => cleanHeadingText(h.h3_after || h.h3_before))
+            .filter(Boolean);
+
+        if (!optimizedH3s.length) return section;
+
+        // Use optimized H3s directly; only fall back to existing ones if optimization produced none.
+        const seen = new Set<string>();
+        const uniqueOptimized = optimizedH3s.filter(h3 => {
+            const key = normalize(h3);
+            if (!key || seen.has(key)) return false;
+            seen.add(key);
+            return true;
+        });
+
+        return { ...section, subheadings: uniqueOptimized };
+    });
 };
 
 export const runAnalysisPipeline = async (config: ArticleConfig) => {
@@ -128,6 +169,23 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
 
             analysisStore.setHeadingOptimizations(normalizedForUi);
             appendAnalysisLog(`H2/H3 options ready (${normalizedForUi.length}).`);
+
+            // Sync optimized H3 suggestions back into the section plan (for the plan modal & writing stage).
+            const currentRefAnalysis = useAnalysisStore.getState().refAnalysis;
+            const mergedStructure = mergeOptimizedH3IntoStructure(structure, normalizedForUi);
+            const hasChanges = mergedStructure.some((section, idx) => section !== structure[idx]);
+
+            if (hasChanges) {
+                if (structRes?.data) {
+                    structRes.data = { ...structRes.data, structure: mergedStructure };
+                }
+                if (currentRefAnalysis) {
+                    analysisStore.setRefAnalysis({
+                        ...currentRefAnalysis,
+                        structure: mergedStructure
+                    });
+                }
+            }
         } catch (e) {
             console.warn('Heading refinement during analysis failed', e);
             appendAnalysisLog('Heading refinement failed (continuing).');
