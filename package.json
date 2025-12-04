@@ -9,7 +9,8 @@
     "postbuild": "npm run ai:check",
     "preview": "vite preview",
     "ai:check": "node scripts/verify-ai.js",
-    "test:ai": "tsx test/ai-smoke.ts"
+    "test:ai": "tsx test/ai-smoke.ts",
+    "test:jina": "tsx scripts/test-jina-quality.ts"
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",

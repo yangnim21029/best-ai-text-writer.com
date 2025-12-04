@@ -36,3 +36,4 @@ vertex_key.json
 
 # refractor-version
 ai-text-writer-nextjs
+output/*

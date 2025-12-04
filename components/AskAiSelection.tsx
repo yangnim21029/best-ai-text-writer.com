@@ -712,8 +712,8 @@ const MenuItem: React.FC<{
         <button
             disabled={disabled}
             className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm ${disabled
-                    ? 'text-gray-300 cursor-not-allowed'
-                    : 'text-gray-800 hover:bg-gray-50 active:bg-gray-100'
+                ? 'text-gray-300 cursor-not-allowed'
+                : 'text-gray-800 hover:bg-gray-50 active:bg-gray-100'
                 }`}
             onMouseDown={e => e.preventDefault()}
             onClick={onClick}
