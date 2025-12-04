@@ -1,10 +1,10 @@
 import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis, SectionAnalysis } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { filterSectionContext } from './contextFilterService';
-import { promptRegistry } from './promptRegistry';
+import { promptTemplates } from './promptTemplates';
 import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../config/constants';
-import { getAiProvider } from './aiProvider';
-import { generateContent } from './ai';
+import { aiService } from './aiService';
+
 import { Type } from './schemaTypes';
 
 // Helper to determine injection strategy for the current section
@@ -170,7 +170,7 @@ export const generateSectionContent = async (
     const renderMode = (sectionMeta as any).isChecklist ? 'checklist' : undefined;
     const augmentHints = Array.isArray((sectionMeta as any).augment) ? (sectionMeta as any).augment : [];
 
-    const prompt = promptRegistry.build('sectionContent', {
+    const prompt = promptTemplates.sectionContent({
         sectionTitle,
         languageInstruction,
         previousSections,
@@ -199,51 +199,25 @@ export const generateSectionContent = async (
         ]
     });
 
-    const response = await generateContent(
-        MODEL.FLASH,
+    const response = await aiService.runJson<any>(
         prompt,
+        'FLASH',
         {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    content: { type: Type.STRING },
-                    usedPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    injectedCount: { type: Type.INTEGER, description: "How many times did you mention the Product Name?" }
-                }
+            type: Type.OBJECT,
+            properties: {
+                content: { type: Type.STRING },
+                usedPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                injectedCount: { type: Type.INTEGER, description: "How many times did you mention the Product Name?" }
             }
         }
     );
 
-    // Backend should return an object, but some deployments may only return a JSON string.
-    // Parse defensively so the editor doesn't render raw JSON blobs.
-    const unwrapPayload = (value: any) => {
-        if (value && typeof value === 'object' && value.data && typeof value.data === 'object') {
-            return value.data;
-        }
-        return value;
-    };
-
-    let parsed = response.object as any;
-    if (!parsed && response.text) {
-        try {
-            parsed = JSON.parse(response.text);
-        } catch {
-            parsed = null;
-        }
-    }
-
-    parsed = unwrapPayload(parsed);
-
-    if (!parsed || typeof parsed !== 'object') {
-        parsed = { content: response.text || "", usedPoints: [], injectedCount: 0 };
-    }
-
-    const payload = unwrapPayload(parsed) || {};
+    const payload = response.data || {};
     const rawContent =
         (typeof payload.content === 'string' && payload.content.trim().length > 0)
             ? payload.content
-            : (typeof payload.sectionContent === 'string' ? payload.sectionContent : (response.text || ""));
+            : (typeof payload.sectionContent === 'string' ? payload.sectionContent : "");
+
     const usedPointsSource =
         (Array.isArray(payload.usedPoints) && payload.usedPoints) ||
         (Array.isArray((payload as any).used_points) && (payload as any).used_points) ||
@@ -262,20 +236,18 @@ export const generateSectionContent = async (
         injectedCount
     };
 
-    const metrics = calculateCost(response.usageMetadata, 'FLASH');
-
     const totalCost = {
-        inputCost: metrics.cost.inputCost + contextFilter.cost.inputCost,
-        outputCost: metrics.cost.outputCost + contextFilter.cost.outputCost,
-        totalCost: metrics.cost.totalCost + contextFilter.cost.totalCost
+        inputCost: response.cost.inputCost + contextFilter.cost.inputCost,
+        outputCost: response.cost.outputCost + contextFilter.cost.outputCost,
+        totalCost: response.cost.totalCost + contextFilter.cost.totalCost
     };
 
     const normalizedContent = normalizeSectionContent(data.content || "");
 
     const totalUsage = {
-        inputTokens: metrics.usage.inputTokens + contextFilter.usage.inputTokens,
-        outputTokens: metrics.usage.outputTokens + contextFilter.usage.outputTokens,
-        totalTokens: metrics.usage.totalTokens + contextFilter.usage.totalTokens
+        inputTokens: response.usage.inputTokens + contextFilter.usage.inputTokens,
+        outputTokens: response.usage.outputTokens + contextFilter.usage.outputTokens,
+        totalTokens: response.usage.totalTokens + contextFilter.usage.totalTokens
     };
 
     const duration = Date.now() - startTs;
@@ -299,8 +271,8 @@ export const generateSnippet = async (
     config?: any
 ): Promise<ServiceResponse<string>> => {
     const languageInstruction = getLanguageInstruction(targetAudience);
-    const fullPrompt = promptRegistry.build('snippet', { prompt, languageInstruction });
-    const res = await getAiProvider().runText(fullPrompt, 'FLASH', config);
+    const fullPrompt = promptTemplates.snippet({ prompt, languageInstruction });
+    const res = await aiService.runText(fullPrompt, 'FLASH', config);
     return { data: res.text, usage: res.usage, cost: res.cost, duration: res.duration };
 };
 
@@ -311,8 +283,8 @@ export const rebrandContent = async (
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<string>> => {
     const languageInstruction = getLanguageInstruction(targetAudience);
-    const prompt = promptRegistry.build('rebrandContent', { productBrief, languageInstruction, currentContent });
-    const res = await getAiProvider().runText(prompt, 'FLASH');
+    const prompt = promptTemplates.rebrandContent({ productBrief, languageInstruction, currentContent });
+    const res = await aiService.runText(prompt, 'FLASH');
     return { data: res.text, usage: res.usage, cost: res.cost, duration: res.duration };
 };
 
@@ -350,9 +322,9 @@ export const smartInjectPoint = async (
     }
 
     // 2. FIND BEST BLOCK (Prompt 1)
-    const findPrompt = promptRegistry.build('smartFindBlock', { pointToInject, blocks });
+    const findPrompt = promptTemplates.smartFindBlock({ pointToInject, blocks });
 
-    const findRes = await getAiProvider().runText(findPrompt, 'FLASH');
+    const findRes = await aiService.runText(findPrompt, 'FLASH');
 
     const bestIdStr = findRes.text?.trim().match(/\d+/)?.[0];
     const bestId = bestIdStr ? parseInt(bestIdStr) : -1;
@@ -364,9 +336,9 @@ export const smartInjectPoint = async (
     }
 
     // 3. REWRITE BLOCK (Prompt 2)
-    const rewritePrompt = promptRegistry.build('smartRewriteBlock', { pointToInject, targetHtml: targetBlock.html, languageInstruction });
+    const rewritePrompt = promptTemplates.smartRewriteBlock({ pointToInject, targetHtml: targetBlock.html, languageInstruction });
 
-    const rewriteRes = await getAiProvider().runText(rewritePrompt, 'FLASH');
+    const rewriteRes = await aiService.runText(rewritePrompt, 'FLASH');
 
     const totalUsage = {
         inputTokens: (findRes.usage?.inputTokens || 0) + (rewriteRes.usage?.inputTokens || 0),

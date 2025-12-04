@@ -1,8 +1,8 @@
 import { HeadingOption, HeadingResult, TargetAudience, ServiceResponse, TokenUsage, CostBreakdown } from '../types';
-import { aiClient } from './aiClient';
+import { aiService } from './aiService';
 import { embedTexts, cosineSimilarity } from './embeddingService';
 import { getLanguageInstruction, toTokenUsage } from './promptService';
-import { promptRegistry } from './promptRegistry';
+import { promptTemplates } from './promptTemplates';
 import { Type } from './schemaTypes';
 import { logger } from '../utils/logger';
 
@@ -121,9 +121,9 @@ export const refineHeadings = async (
 
     const refineBatch = async (batch: string[]): Promise<ServiceResponse<HeadingResult[]>> => {
         logger.log('refining_headings', `Refining ${batch.length} headings...`);
-        const prompt = promptRegistry.refineHeadings(articleTitle, batch, languageInstruction);
+        const prompt = promptTemplates.batchRefineHeadings({ articleTitle, headings: batch, languageInstruction });
 
-        const response = await aiClient.runJson<{ headings: any[] }>(prompt, 'FLASH', {
+        const response = await aiService.runJson<{ headings: any[] }>(prompt, 'FLASH', {
             type: Type.OBJECT,
             properties: {
                 headings: {

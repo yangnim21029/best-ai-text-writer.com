@@ -1,6 +1,6 @@
 import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../types';
-import { aiClient } from './aiClient';
-import { promptRegistry } from './promptRegistry';
+import { aiService } from './aiService';
+import { promptTemplates } from './promptTemplates';
 import { Type } from './schemaTypes';
 import { getLanguageInstruction, toTokenUsage } from './promptService';
 
@@ -14,10 +14,10 @@ export const analyzeAuthorityTerms = async (
 
     // Use the registry to build the prompt
     const languageInstruction = getLanguageInstruction(targetAudience);
-    const prompt = promptRegistry.authorityAnalysis(authorityTerms, articleTitle, websiteType, languageInstruction);
+    const prompt = promptTemplates.authorityAnalysis({ authorityTerms, title: articleTitle, websiteType, languageInstruction });
 
     try {
-        const response = await aiClient.runJson<AuthorityAnalysis>(prompt, 'FLASH', {
+        const response = await aiService.runJson<AuthorityAnalysis>(prompt, 'FLASH', {
             type: Type.OBJECT,
             properties: {
                 relevantTerms: {

@@ -1,5 +1,5 @@
 
-import { promptRegistry } from '../services/promptRegistry';
+import { promptTemplates } from '../services/promptTemplates';
 
 const mockPayload = {
     sectionTitle: "Test Section",
@@ -21,7 +21,7 @@ const mockPayload = {
     avoidContent: ["Avoid Topic A", "Avoid Topic B"]
 };
 
-const prompt = promptRegistry.build('sectionContent', mockPayload);
+const prompt = promptTemplates.sectionContent(mockPayload);
 
 console.log("Generated Prompt:");
 console.log(prompt);

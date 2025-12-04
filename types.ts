@@ -136,6 +136,21 @@ export interface CostBreakdown {
   totalCost: number;
 }
 
+export interface AIRequestConfig {
+  responseMimeType?: string;
+  responseSchema?: any;
+  temperature?: number;
+  topK?: number;
+  topP?: number;
+}
+
+export interface AIResponse {
+  text: string;
+  object?: any;
+  usageMetadata?: any;
+  candidates?: any[];
+}
+
 export interface ServiceResponse<T> {
   data: T;
   usage: TokenUsage;

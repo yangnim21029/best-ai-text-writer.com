@@ -1,9 +1,9 @@
 
 import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
-import { generateContent } from './ai';
+import { aiService } from './aiService';
 import { Type } from './schemaTypes';
-import { promptRegistry } from './promptRegistry';
+import { promptTemplates } from './promptTemplates';
 import { MODEL } from '../config/constants';
 
 export const generateProductBrief = async (
@@ -20,40 +20,40 @@ export const generateProductBrief = async (
     // or we can pass a "Context" string if the user provided one.
     // Assuming we rely on the AI's internal knowledge or the URL structure for now.
 
-    const prompt = promptRegistry.build('productBrief', { productName, productUrl, languageInstruction });
+    const prompt = promptTemplates.productBrief({ productName, productUrl, languageInstruction });
 
     try {
-        const response = await generateContent(
-            MODEL.FLASH,
+        const response = await aiService.runJson<ProductBrief>(
             prompt,
+            'FLASH',
             {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        brandName: { type: Type.STRING },
-                        productName: { type: Type.STRING },
-                        productDescription: { type: Type.STRING },
-                        usp: { type: Type.STRING },
-                        primaryPainPoint: { type: Type.STRING },
-                        ctaLink: { type: Type.STRING }
-                    }
+                type: Type.OBJECT,
+                properties: {
+                    brandName: { type: Type.STRING },
+                    productName: { type: Type.STRING },
+                    productDescription: { type: Type.STRING },
+                    usp: { type: Type.STRING },
+                    primaryPainPoint: { type: Type.STRING },
+                    ctaLink: { type: Type.STRING }
                 }
             }
         );
 
-        const data = JSON.parse(response.text || "{}");
-        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+        // Fill in defaults if missing
+        const data = response.data;
+        const finalData: ProductBrief = {
+            brandName: data.brandName || "Brand",
+            productName: data.productName || productName,
+            usp: data.usp || "",
+            ctaLink: data.ctaLink || productUrl,
+            targetPainPoints: (data as any).primaryPainPoint // Map if exists
+        };
 
         return {
-            data: {
-                brandName: data.brandName || "Brand",
-                productName: data.productName || productName,
-                usp: data.usp || "",
-                ctaLink: data.ctaLink || productUrl
-            },
-            ...metrics,
-            duration: Date.now() - startTs
+            data: finalData,
+            usage: response.usage,
+            cost: response.cost,
+            duration: response.duration
         };
 
     } catch (e) {
@@ -75,35 +75,30 @@ export const mapProblemsToProduct = async (
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const prompt = promptRegistry.build('productMapping', { productBrief, articleTopic, languageInstruction });
+    const prompt = promptTemplates.productMapping({ productBrief, articleTopic, languageInstruction });
 
     try {
-        const response = await generateContent(
-            MODEL.FLASH,
+        const response = await aiService.runJson<ProblemProductMapping[]>(
             prompt,
+            'FLASH',
             {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            painPoint: { type: Type.STRING },
-                            productFeature: { type: Type.STRING },
-                            relevanceKeywords: { type: Type.ARRAY, items: { type: Type.STRING } }
-                        }
-                    }
-                }
+                type: Type.ARRAY,
+                items: {
+                    type: Type.OBJECT,
+                    properties: {
+                        painPoint: { type: Type.STRING },
+                        productFeature: { type: Type.STRING },
+                        relevanceKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    },
+                },
             }
         );
 
-        const data = JSON.parse(response.text || "[]");
-        const metrics = calculateCost(response.usageMetadata, 'FLASH');
-
         return {
-            data: data,
-            ...metrics,
-            duration: Date.now() - startTs
+            data: response.data,
+            usage: response.usage,
+            cost: response.cost,
+            duration: response.duration
         };
 
     } catch (e) {
@@ -123,39 +118,36 @@ export const parseProductContext = async (
 ): Promise<ServiceResponse<ProductBrief>> => {
     const startTs = Date.now();
 
-    const prompt = promptRegistry.build('productContextFromText', { rawText });
+    const prompt = promptTemplates.productContextFromText({ rawText });
 
     try {
-        const response = await generateContent(
-            MODEL.FLASH,
+        const response = await aiService.runJson<ProductBrief>(
             prompt,
+            'FLASH',
             {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        brandName: { type: Type.STRING },
-                        productName: { type: Type.STRING },
-                        usp: { type: Type.STRING },
-                        primaryPainPoint: { type: Type.STRING },
-                        ctaLink: { type: Type.STRING }
-                    }
+                type: Type.OBJECT,
+                properties: {
+                    brandName: { type: Type.STRING },
+                    productName: { type: Type.STRING },
+                    usp: { type: Type.STRING },
+                    primaryPainPoint: { type: Type.STRING },
+                    ctaLink: { type: Type.STRING }
                 }
             }
         );
 
-        const data = JSON.parse(response.text || "{}");
-        const metrics = calculateCost(response.usageMetadata, 'FLASH');
-
+        const data = response.data;
         return {
             data: {
                 brandName: data.brandName || "",
                 productName: data.productName || "",
                 usp: data.usp || "",
-                ctaLink: data.ctaLink || ""
+                ctaLink: data.ctaLink || "",
+                targetPainPoints: (data as any).primaryPainPoint
             },
-            ...metrics,
-            duration: Date.now() - startTs
+            usage: response.usage,
+            cost: response.cost,
+            duration: response.duration
         };
 
     } catch (e) {
@@ -185,16 +177,16 @@ export const summarizeBrandContent = async (
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const prompt = promptRegistry.build('brandSummary', { urls, languageInstruction });
+    const prompt = promptTemplates.brandSummary({ urls, languageInstruction });
 
     try {
-        const response = await generateContent(MODEL.FLASH, prompt);
-        const metrics = calculateCost(response.usageMetadata, 'FLASH');
+        const response = await aiService.runText(prompt, 'FLASH');
 
         return {
-            data: response.text?.trim() || "",
-            ...metrics,
-            duration: Date.now() - startTs
+            data: response.text,
+            usage: response.usage,
+            cost: response.cost,
+            duration: response.duration
         };
     } catch (e) {
         console.error("Brand Summary Failed", e);

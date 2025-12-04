@@ -1,8 +1,8 @@
 import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience } from '../types';
 import { SEMANTIC_KEYWORD_LIMIT } from '../config/constants';
 import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from './promptService';
-import { promptRegistry } from './promptRegistry';
-import { aiClient } from './aiClient';
+import { promptTemplates } from './promptTemplates';
+import { aiService } from './aiService';
 import { Type } from './schemaTypes';
 
 // Analyze Context & Generate Action Plan for keywords
@@ -37,14 +37,13 @@ export const extractKeywordActionPlans = async (
     }
 
     // Use the registry to build the prompt with snippet context
-    const prompt = promptRegistry.build('keywordActionPlan', {
+    const prompt = promptTemplates.keywordActionPlan({
         analysisPayloadString,
-        targetAudience,
         languageInstruction
     });
 
     try {
-        const response = await aiClient.runJson<any[]>(prompt, 'FLASH', {
+        const response = await aiService.runJson<any[]>(prompt, 'FLASH', {
             type: Type.ARRAY,
             items: {
                 type: Type.OBJECT,

@@ -1,6 +1,6 @@
 import { ServiceResponse, ReferenceAnalysis, TargetAudience } from '../types';
-import { aiClient } from './aiClient';
-import { promptRegistry } from './promptRegistry';
+import { aiService } from './aiService';
+import { promptTemplates } from './promptTemplates';
 import { getLanguageInstruction, toTokenUsage } from './promptService';
 import { Type } from './schemaTypes';
 
@@ -16,7 +16,7 @@ export const extractWebsiteTypeAndTerm = async (content: string) => {
     `;
 
     // Using runJson for structured output
-    return await aiClient.runJson<{ websiteType: string; authorityTerms: string }>(
+    return await aiService.runJson<{ websiteType: string; authorityTerms: string }>(
         prompt,
         'FLASH',
         {
@@ -39,10 +39,10 @@ export const analyzeReferenceStructure = async (
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     // Use the registry to build the prompt with language instruction
-    const prompt = promptRegistry.referenceAnalysis(referenceContent, targetAudience, languageInstruction);
+    const prompt = promptTemplates.referenceStructure({ content: referenceContent, targetAudience, languageInstruction });
 
     try {
-        const response = await aiClient.runJson<any>(prompt, 'FLASH', {
+        const response = await aiService.runJson<any>(prompt, 'FLASH', {
             type: Type.OBJECT,
             properties: {
                 structure: {

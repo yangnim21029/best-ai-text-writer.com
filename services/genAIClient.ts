@@ -1,4 +1,4 @@
-import { AIResponse } from './ai';
+import { AIResponse } from '../types';
 import { AI_DEFAULTS } from '../config/constants';
 
 interface GenAIRequest {

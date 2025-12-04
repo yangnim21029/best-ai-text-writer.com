@@ -1,9 +1,9 @@
 
 import { ServiceResponse, ScrapedImage, TargetAudience, ImageAssetPlan } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
-import { generateContent } from './ai';
+import { aiService } from './aiService';
 import { Type } from './schemaTypes';
-import { promptRegistry } from './promptRegistry';
+import { promptTemplates } from './promptTemplates';
 import { MODEL } from '../config/constants';
 import { buildAiUrl } from './genAIClient';
 
@@ -167,16 +167,16 @@ export const analyzeVisualStyle = async (
         .map(img => img.aiDescription)
         .join("\n---\n");
 
-    const prompt = promptRegistry.build('visualStyle', { languageInstruction: getLanguageInstruction('zh-TW'), analyzedSamples, websiteType });
+    const prompt = promptTemplates.visualStyle({ languageInstruction: getLanguageInstruction('zh-TW'), analyzedSamples, websiteType });
 
     try {
-        const response = await generateContent(MODEL.FLASH, prompt);
+        const response = await aiService.runText(prompt, 'FLASH');
 
-        const metrics = calculateCost(response.usageMetadata, 'FLASH');
         return {
-            data: response.text?.trim() || "Clean, modern professional photography with natural lighting.",
-            ...metrics,
-            duration: Date.now() - startTs
+            data: response.text,
+            usage: response.usage,
+            cost: response.cost,
+            duration: response.duration
         };
     } catch (e) {
         console.error("Visual Style Analysis failed", e);
@@ -197,20 +197,19 @@ export const generateImagePromptFromContext = async (
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const prompt = promptRegistry.build('imagePromptFromContext', {
+    const prompt = promptTemplates.imagePromptFromContext({
         contextText,
         languageInstruction,
         visualStyle,
         guide: VISUAL_STYLE_GUIDE,
     });
 
-    const response = await generateContent(MODEL.FLASH, prompt);
-
-    const metrics = calculateCost(response.usageMetadata, 'FLASH');
+    const response = await aiService.runText(prompt, 'FLASH');
 
     return {
         data: response.text?.trim() || "",
-        ...metrics,
+        usage: response.usage,
+        cost: response.cost,
         duration: Date.now() - startTs
     };
 };
@@ -340,24 +339,21 @@ export const planImagesForArticle = async (
     `;
 
     try {
-        const response = await generateContent(
-            MODEL.FLASH,
+        const response = await aiService.runJson<any>(
             prompt,
+            'FLASH',
             {
-                responseMimeType: 'application/json',
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        plans: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    generatedPrompt: { type: Type.STRING, description: "Detailed prompt including subject + visual style + mood." },
-                                    category: { type: Type.STRING, enum: ["BRANDED_LIFESTYLE", "PRODUCT_DETAIL", "ECOMMERCE_WHITE_BG"] },
-                                    insertAfter: { type: Type.STRING },
-                                    rationale: { type: Type.STRING }
-                                }
+                type: Type.OBJECT,
+                properties: {
+                    plans: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                generatedPrompt: { type: Type.STRING, description: "Detailed prompt including subject + visual style + mood." },
+                                category: { type: Type.STRING, enum: ["BRANDED_LIFESTYLE", "PRODUCT_DETAIL", "ECOMMERCE_WHITE_BG"] },
+                                insertAfter: { type: Type.STRING },
+                                rationale: { type: Type.STRING }
                             }
                         }
                     }
@@ -365,8 +361,7 @@ export const planImagesForArticle = async (
             }
         );
 
-        const result = JSON.parse(response.text || "{}");
-        const plans: any[] = result.plans || [];
+        const plans: any[] = response.data.plans || [];
 
         const finalPlans: ImageAssetPlan[] = plans.map((p: any, index: number) => ({
             id: `plan-${Date.now()}-${index}`,
@@ -376,12 +371,11 @@ export const planImagesForArticle = async (
             status: 'idle'
         }));
 
-        const metrics = calculateCost(response.usageMetadata, 'FLASH');
-
         return {
             data: finalPlans,
-            ...metrics,
-            duration: Date.now() - startTs
+            usage: response.usage,
+            cost: response.cost,
+            duration: response.duration
         };
 
     } catch (e) {

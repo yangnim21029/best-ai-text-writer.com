@@ -1,7 +1,7 @@
 import { ServiceResponse, TargetAudience } from '../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { Type } from './schemaTypes';
-import { runLlm } from './llmOrchestrator';
+import { aiService } from './aiService';
 
 // Smart Context Filter with Knowledge Base Support (Stronger RAG)
 export const filterSectionContext = async (
@@ -50,18 +50,14 @@ export const filterSectionContext = async (
     `;
 
     try {
-        const response = await runLlm({
-            prompt,
-            model: 'FLASH',
+        const response = await aiService.runText(prompt, 'FLASH', {
             responseMimeType: 'application/json',
-            config: {
-                responseSchema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        filteredAuthTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        knowledgeInsights: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    }
+            responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                    filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    filteredAuthTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    knowledgeInsights: { type: Type.ARRAY, items: { type: Type.STRING } },
                 }
             }
         });
