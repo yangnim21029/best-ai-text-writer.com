@@ -140,7 +140,7 @@ export const promptTemplates = {
     ## Conciseness Constraints
     - ** General Rule **: Cut all fluff. Be crisp and direct. Stop immediately after answering the core question.
     ${/introduction|conclusion|intro|outcome|result|summary|引言|結尾|結論/i.test(sectionTitle)
-        ? '- ** SPECIAL CONSTRAINT **: Target ~80 words. Write as a SINGLE block of text (one paragraph). Do NOT split into multiple paragraphs.'
+        ? '- ** SPECIAL CONSTRAINT **: Target 40~80 words. Write as a SINGLE block of text (one paragraph). Do NOT split into multiple paragraphs.'
         : ''} 
     - ** If difficulty = "easy" **: Target < 160 words. Get straight to the point. No preamble.
     - ** If difficulty = "medium" **: Target < 180 words. Explain efficiently using Lists.
@@ -732,7 +732,7 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     5) Brand - exclusive points that must NOT apply to competitors.
     6) Competitor brand & product names to suppress / avoid.
     7) Per - section Key Facts / USP. (Shift Plan removed).
-    8) Voice Strategy: Detect regional dialect conflicts (percentages) and explain human writing voice.
+    8) Voice Strategy: Detect foreign brand/product availability issues and explain human writing voice.
     
     <TargetAudience>
     ${targetAudience}
@@ -747,9 +747,10 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     ACTION: Structure the JSON in this language.
 
     ## Voice Strategy Analysis
-    - ** regionVoiceDetect **: Analyze Entities, Brands, and Products. 
-      - If they use local terms for ${targetAudience}: return "PASS".
-      - If NOT: List specific mismatches (e.g. "Term X should be Y").
+    - ** regionVoiceDetect **: Detect foreign Products/Services/Brands that are inaccessible in ${targetAudience}.
+      - Example: If target is "Hong Kong", flagging "Taiwan-only clinics/brands" as a mismatch because they are hard to access.
+      - Return "PASS" if all brands are accessible locally.
+      - Otherwise list: "Warning: [Brand X] is a [Region Y] brand/service, might not be available in [Target Region]."
     - ** humanWritingVoice **: Analyze the first 300 words (or the full Intro Paragraph). Explain "Why does this sound HUMAN?" by following these 5 steps:
       1. **Emotions & Subjectivity**: Identify subjective judgments/cultural evaluations (unlike AI's objective tone).
       2. **Tone & Particles**: Look for sentence-final particles (語助詞 like 喔, 唷) that create intimacy.
