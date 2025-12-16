@@ -5,7 +5,7 @@ import { fetchUrlContent } from '../services/research/webScraper';
 import { extractWebsiteTypeAndTerm } from '../services/research/referenceAnalysisService';
 import { ArticleFormValues } from '../schemas/formSchema';
 import { CostBreakdown, ScrapedImage, TokenUsage } from '../types';
-import { dedupeScrapedImages } from '../utils/scrapedImages';
+import { dedupeScrapedImages } from '../utils/imageUtils';
 
 interface UseUrlScraperParams {
     setValue: UseFormSetValue<ArticleFormValues>;

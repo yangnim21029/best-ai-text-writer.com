@@ -6,7 +6,7 @@ import { SavedProfile, ScrapedImage } from '../types';
 import { useUrlScraper } from './useUrlScraper';
 import { useProfileManager } from './useProfileManager';
 import { useStorageReset } from './useStorageReset';
-import { dedupeScrapedImages } from '../utils/scrapedImages';
+import { dedupeScrapedImages } from '../utils/imageUtils';
 
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
 

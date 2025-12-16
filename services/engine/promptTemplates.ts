@@ -56,95 +56,80 @@ export const promptTemplates = {
   }) => {
     const resolvedDifficulty = difficulty || 'easy';
     const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
-    return `are an expert editor writing the section:
+    return `You are an expert editor writing the section:
     <SectionTitle>
       ${sectionTitle}
     </SectionTitle>
     DEFINITION: The title of the specific section you need to write.
-      ACTION: Write content specifically for this section header.
     
     <LanguageInstruction>
     ${languageInstruction}
     </LanguageInstruction>
     DEFINITION: The target language and audience for the article.
-      ACTION: Strictly follow the language and region requirements.
     
     ## Context Structure
-        <ArticleTopic>
-        ${articleTitle}
+    <ArticleTopic>
+    ${articleTitle}
     </ArticleTopic>
     DEFINITION: The main topic of the entire article.
-      ACTION: Ensure this section contributes to this main topic.
 
     <PreviousSections>
     ${previousSections.slice(-2).map((s: string) => s.substring(0, 100) + "...").join(" | ")}
     </PreviousSections>
     DEFINITION: Summaries of the immediately preceding sections.
-      ACTION: Ensure smooth flow from these sections and avoid repeating them.
 
     <UpcomingSections>
     ${futureSections.join(", ")}
     </UpcomingSections>
     DEFINITION: Titles of sections to be written later.
-      ACTION: Do NOT write content for these sections; only transition towards them.
 
 
-    ## Strategy & Voice
-        <OverallVoice>
-        ${generalPlan?.join("; ") || "Professional, authoritative"}
+    ## Strategy & Style
+    <OverallVoice>
+    ${generalPlan?.join("; ") || "Professional, authoritative"}
     </OverallVoice>
     DEFINITION: The desired tone and persona for the article.
-      ACTION: Adopt this voice consistently.
 
     <SectionStrategy>
     ${specificPlan?.join("; ") || "Explain thoroughly"}
     </SectionStrategy>
     DEFINITION: Specific goals or angles for this section.
-      ACTION: Implement these strategic instructions.
 
-        ${humanWritingVoice ? `
+    <BrandKnowledge>
+    ${kbInsights.length > 0 ? kbInsights.join("; ") : "None"}
+    </BrandKnowledge>
+    DEFINITION: Background facts or guidelines about the brand.
+
+    ${humanWritingVoice ? `
     <HumanWritingVoice>
     ${humanWritingVoice}
     </HumanWritingVoice>
     DEFINITION: Instructions on how to sound human and not like an AI.
-    ACTION: Mimic these specific human writing habits and eccentricities.
-    ` : ''
-      }
+    ` : ''}
 
-    <BrandKnowledge>
-      ${kbInsights.length > 0 ? kbInsights.join("; ") : "None"}
-    </BrandKnowledge>
-    DEFINITION: Background facts or guidelines about the brand.
-      ACTION: Incorporate this knowledge where relevant to build authority.
-
-        ${regionReplacements && regionReplacements.length > 0 ? `
+    ${regionReplacements && regionReplacements.length > 0 ? `
     <RegionalReplacements>
     ${regionReplacements.map(r => `- "${r.original}" -> "${r.replacement}"`).join('\n')}
     </RegionalReplacements>
     DEFINITION: Mandatory vocabulary corrections for the target region.
-    ACTION: You MUST replace these terms if they appear.
-    ` : ''
-      }
+    ` : ''}
 
 
     ## Task Definition
-      <CoreQuestion>
-      ${coreQuestion || "Infer the precise question and answer it"}
+    <CoreQuestion>
+    ${coreQuestion || "Infer the precise question and answer it"}
     </CoreQuestion>
     DEFINITION: The comprehensive question this section must answer.
-      ACTION: Provide a clear and direct answer to this question.
 
     <Difficulty>
     ${resolvedDifficulty}
     </Difficulty>
-    DEFINITION: The complexity level of the topic(easy, medium, unclear).
-      ACTION: Adjust your explanation depth: Easy = Brief, Medium = Detailed, Unclear = Clarify ambiguity.
+    DEFINITION: The complexity level of the topic (easy, medium, unclear).
 
     <WritingMode>
     ${mode === 'direct' ? "direct answer first" : "multi solutions then synthesize"}
     </WritingMode>
-    DEFINITION: The structural approach(Direct vs Multi - angle).
-      ACTION: ${mode === 'multi_solutions' ? 'Provide distinct solution paths before synthesizing.' : 'Lead with the answer immediately.'}
+    DEFINITION: The structural approach (Direct vs Multi-angle).
     
     ${mode === 'multi_solutions'
         ? `- Provide 2-3 distinct, non-overlapping solution paths before the final synthesized answer.`
@@ -153,10 +138,13 @@ export const promptTemplates = {
 
 
     ## Conciseness Constraints
-    - ** General Rule **: Cut all fluff.Be crisp and direct.Stop immediately after answering the core question.
-    - ** If difficulty = "easy" **: Target < 200 words.Get straight to the point.No preamble.
-    - ** If difficulty = "medium" **: Target < 300 words.Explain efficiently.
-    - ** If difficulty = "unclear" **: Focus on clarifying the ambiguity briefly.
+    - ** General Rule **: Cut all fluff. Be crisp and direct. Stop immediately after answering the core question.
+    ${/introduction|conclusion|intro|outcome|result|summary|引言|結尾|結論/i.test(sectionTitle)
+        ? '- ** SPECIAL CONSTRAINT **: Target ~80 words. Write as a SINGLE block of text (one paragraph). Do NOT split into multiple paragraphs.'
+        : ''} 
+    - ** If difficulty = "easy" **: Target < 160 words. Get straight to the point. No preamble.
+    - ** If difficulty = "medium" **: Target < 180 words. Explain efficiently using Lists.
+    - ** If difficulty = "unclear" **: Focus on clarifying the ambiguity briefly with Lists.
 
 
     ## Output Restrictions
@@ -172,21 +160,7 @@ export const promptTemplates = {
     ${subheadings.map((h, i) => `${i + 1}. ${h}`).join('\n')}
     </MandatorySubheadings>
     DEFINITION: The exact H3 subheadings you must use.
-    ACTION: Write content for exactly these subheadings in this order. Do not skip or invent others.
     ` : '(No predefined subheadings)'
-      }
-
-
-    ## Must Add Content
-    ${augmentHints && augmentHints.length > 0
-        ? `
-    <AugmentPoints>
-    ${augmentHints.join(' | ')}
-    </AugmentPoints>
-    DEFINITION: Critical points that must be added to this section.
-    ACTION: Ensure these points are included in the narrative.
-        `
-        : '(None)'
       }
 
 
@@ -197,33 +171,31 @@ export const promptTemplates = {
         ${solutionAngles.join("; ")}
         </DefinedAngles>
         DEFINITION: The specific angles/perspectives to cover.
-        ACTION: Structure your response around these angles.
         ` : "None provided; create 2 distinct angles.")
         : "Not needed for direct mode."
       }
 
 
     ## Resources & Keywords
-      <KeywordsToWeave>
-      ${keywordPlans.map((k: any) => k.word).join(", ")}
-    </KeywordsToWeave>
-    DEFINITION: SEO keywords to include naturally.
-      ACTION: Weave these words into the text where they fit naturally.
+    <SemanticKeywords>
+    ${keywordPlans.map((k: any) => `
+    - "${k.word}": ${k.plan?.join('; ') || 'Use naturally.'}`).join('')}
+    </SemanticKeywords>
+    DEFINITION: SEO keywords with semantic usage rules.
+    INSTRUCTION: Use these words according to their "Semantic Context" rules to maintain the original depth.
 
     <AuthorityTerms>
     ${relevantAuthTerms.slice(0, 5).join(", ")}
     </AuthorityTerms>
     DEFINITION: Technical or authoritative terms.
-      ACTION: Use these terms to demonstrate expertise.
 
 
     ## Key Facts & Narrative Points
-    - ** CRITICAL WRITING RULE **: When writing the main sentence for any Key Fact below, ** minimize the use of commas and symbols **.Use clean, direct sentence structures. 
+    - ** CRITICAL WRITING RULE **: When writing the main sentence for any Key Fact below, ** minimize the use of commas and symbols **. Use clean, direct sentence structures. 
     <KeyPoints>
     ${points.length > 0 ? points.join("; ") : "(No new key points needed for this section, focus on narrative)"}
     </KeyPoints>
     DEFINITION: The core facts and information for this section.
-      ACTION: Turn these facts into a cohesive narrative.
 
 
     ## Injection Plan
@@ -236,7 +208,6 @@ export const promptTemplates = {
     ${suppressHints.map(c => `- ${c}`).join('\n')}
     </StrictExclusion>
     DEFINITION: Topics that are strictly forbidden here.
-    ACTION: Do NOT write about these topics.
     ` : '(None)'
       }
 
@@ -245,13 +216,12 @@ export const promptTemplates = {
     ${avoidContent.map(c => `- ${c}`).join('\n')}
     </NegativeConstraints>
     DEFINITION: Content to avoid to prevent repetition/redundancy.
-    ACTION: Do not mention these as they are covered elsewhere.
     ` : ''
       }
 
 
     ## Output Schema
-      - Return ONLY the content for this section in JSON format.
+    - Return ONLY the content for this section in JSON format.
     - Use proper Markdown for the content string(H3 for subsections, Lists where appropriate).
     - Do NOT repeat the H2 Title "${sectionTitle}".
     - Ensure smooth transitions from the previous section.
@@ -777,7 +747,9 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     ACTION: Structure the JSON in this language.
 
     ## Voice Strategy Analysis
-    - ** regionVoiceDetect **: Analyze the language composition percentage (e.g. "70% HK / 30% TW"). Check if it conflicts with ${targetAudience}.
+    - ** regionVoiceDetect **: Analyze Entities, Brands, and Products. 
+      - If they use local terms for ${targetAudience}: return "PASS".
+      - If NOT: List specific mismatches (e.g. "Term X should be Y").
     - ** humanWritingVoice **: Analyze the first 300 words (or the full Intro Paragraph). Explain "Why does this sound HUMAN?" by following these 5 steps:
       1. **Emotions & Subjectivity**: Identify subjective judgments/cultural evaluations (unlike AI's objective tone).
       2. **Tone & Particles**: Look for sentence-final particles (語助詞 like 喔, 唷) that create intimacy.

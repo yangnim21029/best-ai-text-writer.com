@@ -3,7 +3,7 @@ import { UseFormRegister } from 'react-hook-form';
 import { ArticleFormValues } from '../../schemas/formSchema';
 import { ScrapedImage } from '../../types';
 import { Download, FileText, Filter, ImageIcon, Link2, Loader2 } from 'lucide-react';
-import { dedupeScrapedImages } from '../../utils/scrapedImages';
+import { dedupeScrapedImages } from '../../utils/imageUtils';
 
 interface SourceMaterialSectionProps {
     register: UseFormRegister<ArticleFormValues>;
@@ -122,8 +122,8 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                                     onClick={onRequestSemanticFilter}
                                     disabled={!canSemanticFilter}
                                     className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-semibold transition-colors ${canSemanticFilter
-                                            ? 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
-                                            : 'border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed'
+                                        ? 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
+                                        : 'border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed'
                                         }`}
                                 >
                                     <Filter className="w-3 h-3" />
