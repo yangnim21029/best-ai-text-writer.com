@@ -16,7 +16,7 @@
  * 6. Heading Structure - Are H1/H2/H3 properly preserved?
  */
 
-import { fetchUrlContent } from '../services/webScraper';
+import { fetchUrlContent } from '../services/research/webScraper';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';

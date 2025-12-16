@@ -7,7 +7,7 @@
  * - 1 request/second recommended
  */
 
-import { fetchUrlContent } from './services/webScraper';
+import { fetchUrlContent } from './services/research/webScraper';
 import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';

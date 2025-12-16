@@ -14,7 +14,7 @@ if (typeof import.meta === 'undefined' || !import.meta.env) {
     (globalThis as any).import = { meta: { env: process.env } };
 }
 
-import { generateSectionContent } from './services/contentGenerationService';
+import { generateSectionContent } from './services/generation/contentGenerationService';
 import { ArticleConfig } from './types';
 
 const testKeyPointsTracking = async () => {

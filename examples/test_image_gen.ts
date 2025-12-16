@@ -1,5 +1,5 @@
 
-import { planImagesForArticle, generateImage } from '../services/imageService';
+import { planImagesForArticle, generateImage } from '../services/generation/imageService';
 import { ScrapedImage } from '../types';
 
 async function testImageGeneration() {

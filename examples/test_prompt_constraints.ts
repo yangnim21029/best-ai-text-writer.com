@@ -1,5 +1,5 @@
 
-import { promptTemplates } from '../services/promptTemplates';
+import { promptTemplates } from '../services/engine/promptTemplates';
 
 const mockPayload = {
     sectionTitle: "Test Section",
