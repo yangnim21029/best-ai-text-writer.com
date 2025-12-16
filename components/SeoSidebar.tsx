@@ -174,7 +174,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     </div>
                     <div className="text-center space-y-2">
                         <h3 className="text-lg font-bold text-gray-800">Analyzing Content</h3>
-                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Extraction in progress...</p>
+                        <p className="text-xs text-gray-500 uppercase tracking-wide font-medium">Parallel Analysis: Structure & Voice Strategy...</p>
                     </div>
                 </div>
             );

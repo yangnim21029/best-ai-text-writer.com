@@ -34,58 +34,66 @@ export const analyzeReferenceStructure = async (
     targetAudience: TargetAudience
 ): Promise<ServiceResponse<ReferenceAnalysis>> => {
     const startTs = Date.now();
-
-    // Get language instruction for the target audience
     const languageInstruction = getLanguageInstruction(targetAudience);
 
-    // Use the registry to build the prompt with language instruction
-    const prompt = promptTemplates.referenceStructure({ content: referenceContent, targetAudience, languageInstruction });
+    // Prepare Prompts
+    const structurePrompt = promptTemplates.narrativeStructure({ content: referenceContent, targetAudience, languageInstruction });
+    const voicePrompt = promptTemplates.voiceStrategy({ content: referenceContent, targetAudience, languageInstruction });
 
     try {
-        const response = await aiService.runJson<any>(prompt, 'FLASH', {
-            type: Type.OBJECT,
-            properties: {
-                h1Title: { type: Type.STRING },
-                introText: { type: Type.STRING },
-                structure: {
-                    type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            title: { type: Type.STRING },
-                            narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            coreQuestion: { type: Type.STRING },
-                            difficulty: { type: Type.STRING, description: "easy | medium | unclear" },
-                            exclude: { type: Type.BOOLEAN },
-                            excludeReason: { type: Type.STRING },
-                            writingMode: { type: Type.STRING, description: "direct | multi_solutions" },
-                            solutionAngles: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            isChecklist: { type: Type.BOOLEAN },
-                            // shiftPlan removed
-                            suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            augment: { type: Type.ARRAY, items: { type: Type.STRING } },
+        // Run Parallel Analysis
+        const [structRes, voiceRes] = await Promise.all([
+            // 1. Structure Analysis
+            aiService.runJson<any>(structurePrompt, 'FLASH', {
+                type: Type.OBJECT,
+                properties: {
+                    h1Title: { type: Type.STRING },
+                    introText: { type: Type.STRING },
+                    keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    structure: {
+                        type: Type.ARRAY,
+                        items: {
+                            type: Type.OBJECT,
+                            properties: {
+                                title: { type: Type.STRING },
+                                narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                coreQuestion: { type: Type.STRING },
+                                difficulty: { type: Type.STRING, description: "easy | medium | unclear" },
+                                exclude: { type: Type.BOOLEAN },
+                                excludeReason: { type: Type.STRING },
+                                writingMode: { type: Type.STRING, description: "direct | multi_solutions" },
+                                solutionAngles: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                isChecklist: { type: Type.BOOLEAN },
+                                suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                augment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            }
                         }
                     }
-                },
-                generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
-                competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                regionVoiceDetect: { type: Type.STRING },
-                humanWritingVoice: { type: Type.STRING }
-            }
-        });
+                }
+            }),
+            // 2. Voice & Strategy Analysis
+            aiService.runJson<any>(voicePrompt, 'FLASH', {
+                type: Type.OBJECT,
+                properties: {
+                    generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                    regionVoiceDetect: { type: Type.STRING },
+                    humanWritingVoice: { type: Type.STRING }
+                }
+            })
+        ]);
 
-        const data = response.data;
+        const structData = structRes.data;
+        const voiceData = voiceRes.data;
 
-        // Filter out excluded sections (marked as irrelevant like "目錄", unrelated sidebars)
-        // Note: difficulty=unclear sections are kept - they just need more content handling
-        const filteredStructure = (data.structure || []).filter((item: any) => {
+        // Filter excluded sections
+        const filteredStructure = (structData.structure || []).filter((item: any) => {
             if (item.exclude === true) {
                 console.log(`[RefAnalysis] Excluding section: "${item.title}" - Reason: ${item.excludeReason || 'irrelevant'}`);
                 return false;
@@ -98,40 +106,54 @@ export const analyzeReferenceStructure = async (
             subheadings: Array.isArray(item.subheadings) ? item.subheadings : [],
             keyFacts: Array.isArray(item.keyFacts) ? item.keyFacts : [],
             uspNotes: Array.isArray(item.uspNotes) ? item.uspNotes : [],
-            // shiftPlan removed
             suppress: Array.isArray(item.suppress) ? item.suppress : [],
             augment: Array.isArray(item.augment) ? item.augment : [],
         }));
 
         const combinedRules = [
-            ...(data.competitorBrands || []),
-            ...(data.competitorProducts || [])
+            ...(voiceData.competitorBrands || []),
+            ...(voiceData.competitorProducts || [])
         ];
+
+        // Combine Token Usage & Cost
+        const totalUsage = {
+            inputTokens: (structRes.usage?.inputTokens || 0) + (voiceRes.usage?.inputTokens || 0),
+            outputTokens: (structRes.usage?.outputTokens || 0) + (voiceRes.usage?.outputTokens || 0),
+            totalTokens: (structRes.usage?.totalTokens || 0) + (voiceRes.usage?.totalTokens || 0),
+        };
+
+        const totalCost = {
+            inputCost: (structRes.cost?.inputCost || 0) + (voiceRes.cost?.inputCost || 0),
+            outputCost: (structRes.cost?.outputCost || 0) + (voiceRes.cost?.outputCost || 0),
+            totalCost: (structRes.cost?.totalCost || 0) + (voiceRes.cost?.totalCost || 0),
+        };
 
         return {
             data: {
-                h1Title: data.h1Title || '',
-                introText: data.introText || '',
+                h1Title: structData.h1Title || '',
+                introText: structData.introText || '',
                 structure: normalizedStructure,
-                generalPlan: data.generalPlan || [],
-                conversionPlan: data.conversionPlan || [],
-                keyInformationPoints: data.keyInformationPoints || [],
-                brandExclusivePoints: data.brandExclusivePoints || [],
+                keyInformationPoints: structData.keyInformationPoints || [],
+
+                // From Voice Analysis
+                generalPlan: voiceData.generalPlan || [],
+                conversionPlan: voiceData.conversionPlan || [],
+                brandExclusivePoints: voiceData.brandExclusivePoints || [],
                 replacementRules: combinedRules,
-                competitorBrands: data.competitorBrands || [],
-                competitorProducts: data.competitorProducts || [],
-                regionVoiceDetect: data.regionVoiceDetect,
-                humanWritingVoice: data.humanWritingVoice
+                competitorBrands: voiceData.competitorBrands || [],
+                competitorProducts: voiceData.competitorProducts || [],
+                regionVoiceDetect: voiceData.regionVoiceDetect,
+                humanWritingVoice: voiceData.humanWritingVoice
             },
-            usage: toTokenUsage(response.usage),
-            cost: response.cost,
-            duration: response.duration
+            usage: totalUsage,
+            cost: totalCost,
+            duration: Date.now() - startTs
         };
 
     } catch (e: any) {
         console.error("Structure analysis failed", e);
-        const errorUsage = toTokenUsage(e?.usage);
-        const errorCost = e?.cost || { inputCost: 0, outputCost: 0, totalCost: 0 };
+        const errorUsage = toTokenUsage(0); // Simplified error handling
+        const errorCost = { inputCost: 0, outputCost: 0, totalCost: 0 };
         return {
             data: {
                 structure: [],

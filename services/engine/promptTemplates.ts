@@ -718,33 +718,97 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     
     OUTPUT JSON:
     {
-      "relevantTerms": ["best-fit term 1", "best-fit term 2"],
+          "relevantTerms": ["best-fit term 1", "best-fit term 2"],
         "combinations": ["term A + term B in intro", "term C in meta description"]
     }
     Return JSON only.`,
 
-  referenceStructure: ({ content, targetAudience, languageInstruction }: any) => `
-    Analyze the reference text to extract:
-    1) The H1 title and introductory paragraph(first paragraph after H1).
-    2) A Narrative Structure with reasoning.
-    3) Conversion & value strategy(offers, CTAs, risk reversals).
-    4) Key information points to preserve.
-    5) Brand - exclusive points that must NOT apply to competitors.
-    6) Competitor brand & product names to suppress / avoid.
-    7) Per - section Key Facts / USP. (Shift Plan removed).
-    8) Voice Strategy: Detect foreign brand/product availability issues and explain human writing voice.
+  narrativeStructure: ({ content, targetAudience, languageInstruction }: any) => `
+    Analyze the reference text to extract the Narrative Structure.
     
+    1) The H1 title and introductory paragraph (first paragraph after H1).
+    2) A Logical Outline (H2 -> H3) with narrative goals.
+    3) Key information points (Facts) for each section.
+    4) Key information points (General) to preserve.
+
     <TargetAudience>
     ${targetAudience}
     </TargetAudience>
     DEFINITION: The target region.
-    ACTION: Use this to detect dialect mismatches and set structure.
     
     <LanguageInstruction>
     ${languageInstruction}
     </LanguageInstruction>
     DEFINITION: Output language.
-    ACTION: Structure the JSON in this language.
+
+    STRICT HEADING RULES:
+    - Enumerate EVERY H2 and its child H3s in order from the reference.
+    - Use the exact heading text as it appears (do NOT rewrite, paraphrase, translate, or renumber).
+    - Keep awkward wording or punctuation intact; only trim whitespace.
+    - If no clear headings exist, infer concise H2s, otherwise never replace existing ones.
+    
+    SECTION RELEVANCE FILTER:
+    - If a section title is IRRELEVANT to the main article topic (e.g., "目錄", "延伸閱讀", unrelated sidebar), mark it with difficulty: "unclear" AND set "exclude": true.
+    - Excluded sections will be REMOVED from the generated outline.
+    - Only include sections that contribute to the main content.
+    
+    ⚠️ NEGATIVE SIGNAL DETECTION(CRITICAL):
+    When analyzing each section, carefully identify NEGATIVE SIGNALS - content that should NOT be included in that section. These include:
+    - Phrases like "不應在此處", "應於...提及" (content that belongs elsewhere)
+    - Off-topic sidebars
+    
+        IMPORTANT: Any negative instruction or off-topic content MUST go into the "suppress" array.
+    
+    <ContentToAnalyze>
+    ${content}
+    </ContentToAnalyze>
+    DEFINITION: The reference text.
+    
+    OUTPUT JSON:
+    {
+      "h1Title": "Exact H1 title text",
+      "introText": "The first paragraph/intro text after H1 (if available)",
+      "structure": [
+        {
+          "title": "Exact H2 text (no rewrite)",
+          "subheadings": ["Exact H3 text 1", "Exact H3 text 2"],
+          "narrativePlan": ["Positive guidance 1", "Positive guidance 2"],
+          "coreQuestion": "Main question/problem",
+          "difficulty": "easy | medium | unclear",
+          "exclude": false,
+          "excludeReason": "Only set if exclude=true",
+          "writingMode": "direct | multi_solutions",
+          "solutionAngles": ["angle 1", "angle 2"],
+          "keyFacts": ["Fact 1", "Fact 2"],
+          "uspNotes": ["USP relevant to this section"],
+          "isChecklist": false,
+          "suppress": ["Negative constraint 1"],
+          "augment": ["Content to add"]
+        }
+      ],
+      "keyInformationPoints": ["General key fact 1", "General key fact 2"]
+    }
+    `,
+
+  voiceStrategy: ({ content, targetAudience, languageInstruction }: any) => `
+    Analyze the reference text to extract the Voice and Brand Strategy.
+
+    1) Voice & Tone (General Plan).
+    2) Conversion Strategy (Offers, CTAs, Risk Reversals).
+    3) Brand Exclusive Points (USP).
+    4) Competitor Names/Products to suppress.
+    5) Regional Validity (Brand Availability).
+    6) Human Writing Characteristics.
+
+    <TargetAudience>
+    ${targetAudience}
+    </TargetAudience>
+    DEFINITION: The target region.
+    
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+    DEFINITION: Output language.
 
     ## Voice Strategy Analysis
     - ** regionVoiceDetect **: Detect foreign Products/Services/Brands that are inaccessible in ${targetAudience}.
@@ -758,60 +822,6 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
       4. **Cultural Metaphors**: Does it link facts to cultural concepts (e.g. physiognomy/fortune telling 面相) rather than just medical facts?
       5. **Social Intent**: Is there a call for interaction (save/share) vs just providing info?
       *Summarize these findings into a concise guide.*
-    
-    STRICT HEADING RULES:
-    - Enumerate EVERY H2 and its child H3s in order from the reference.
-    - Use the exact heading text as it appears(do NOT rewrite, paraphrase, translate, or renumber).
-    - Keep awkward wording or punctuation intact; only trim whitespace.
-    - If no clear headings exist, infer concise H2s, otherwise never replace existing ones.
-    
-    SECTION RELEVANCE FILTER:
-    - If a section title is IRRELEVANT to the main article topic(e.g., "目錄", "延伸閱讀", unrelated sidebar), mark it with difficulty: "unclear" AND set "exclude": true.
-    - Excluded sections will be REMOVED from the generated outline.
-    - Only include sections that contribute to the main content.
-    
-    ⚠️ NEGATIVE SIGNAL DETECTION(CRITICAL):
-    When analyzing each section, carefully identify NEGATIVE SIGNALS - content that should NOT be included in that section.These include:
-    - Phrases like "不應在此處", "應於...提及", "這些應於處理相關問題的特定內容中提及"(content that belongs elsewhere)
-    - References to topics only tangentially related(e.g., mentioning 川字紋 / 抬頭紋 in a section about 眼尾下垂)
-    - Off - topic sidebars or tangential mentions
-    
-        IMPORTANT: Any negative instruction or off - topic content MUST go into the "suppress" array, NOT narrativePlan.
-    
-    <ContentToAnalyze>
-    ${content}
-    </ContentToAnalyze>
-    DEFINITION: The reference text.
-    ACTION: Analyze this content thoroughly.
-    
-    OUTPUT JSON:
-    {
-      "h1Title": "Exact H1 title text",
-        "introText": "The first paragraph/intro text after H1 (if available)",
-          "structure": [
-            {
-              "title": "Exact H2 text (no rewrite)",
-              "subheadings": ["Exact H3 text 1", "Exact H3 text 2"],
-              "narrativePlan": ["Positive guidance 1", "Positive guidance 2"],  // ONLY positive writing instructions
-              "coreQuestion": "Main question/problem",
-              "difficulty": "easy | medium | unclear",
-              "exclude": false,
-              "excludeReason": "Only set if exclude=true, explain why this section is irrelevant",
-              "writingMode": "direct | multi_solutions",
-              "solutionAngles": ["Angle A", "Angle B"],
-              "keyFacts": ["Atomic fact 1", "Atomic fact 2", "..."],       // checklist-ready; no paraphrase/drop
-              "uspNotes": ["USP/brand angle 1", "..."],                    // if available; else []
-              "isChecklist": true,                                         // true if this section is a listicle/checklist
-              // shiftPlan removed
-              "suppress": ["Off-topic content or phrases that say 'should be mentioned elsewhere'"],  // MUST include any negative signals, off-topic mentions, or "應於...提及" content
-              "augment": ["Add/borrow Y into this section"]                // must-add points for this section
-            }
-          ],
-            "generalPlan": ["Overall voice guidelines"],
-              "conversionPlan": ["Value prop", "CTA", "Offer"],
-                "keyInformationPoints": ["Point 1", "Point 2"],
-                  "brandExclusivePoints": ["Facts unique to brand"],
-                    "competitorBrands": ["Competitor Brand 1", "Competitor Brand 2"],
                       "competitorProducts": ["Competitor Product 1", "Competitor Product 2"],
                         "regionVoiceDetect": "Match | Warning ...",
                           "humanWritingVoice": "Human writing voice description..."
