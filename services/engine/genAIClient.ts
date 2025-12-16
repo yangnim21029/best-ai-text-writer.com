@@ -314,9 +314,17 @@ export class GenAIClient {
                 console.log('[GenAIClient] Request payload:', JSON.stringify(payload, null, 2));
                 console.log('[GenAIClient] Request URL:', buildAiUrl('/generate'));
 
+                const token = env.VITE_AI_TOKEN || env.AI_TOKEN;
+                const headers: Record<string, string> = {
+                    'Content-Type': 'application/json',
+                };
+                if (token) {
+                    headers['Authorization'] = `Bearer ${token}`;
+                }
+
                 const doRequest = async (path: string) => fetch(buildAiUrl(path), {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers,
                     body: JSON.stringify(payload),
                     signal: combinedSignal,
                 });
