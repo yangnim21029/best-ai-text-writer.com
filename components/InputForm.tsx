@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
+import { SubmitHandler } from 'react-hook-form';
 import { ArticleConfig, CostBreakdown, GenerationStep, SavedProfile, ScrapedImage, TargetAudience, TokenUsage } from '../types';
 import { ArticleFormValues } from '../schemas/formSchema';
-import { summarizeBrandContent } from '../services/productService';
+import { summarizeBrandContent } from '../services/research/productFeatureToPainPointMapper';
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
@@ -152,7 +153,7 @@ export const InputForm: React.FC<InputFormProps> = ({
         [semanticThresholdValue]
     );
 
-    const onSubmit = (data: ArticleFormValues) => {
+    const onSubmit: SubmitHandler<ArticleFormValues> = (data) => {
         const usableImages = scrapedImages.filter(img => !img.ignored);
         onGenerate({
             title: data.title,
@@ -405,11 +406,10 @@ export const InputForm: React.FC<InputFormProps> = ({
                             type="button"
                             onClick={onShowPlan}
                             disabled={!hasPlan}
-                            className={`w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all border ${
-                                hasPlan
-                                    ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100'
-                                    : 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed'
-                            }`}
+                            className={`w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all border ${hasPlan
+                                ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100'
+                                : 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed'
+                                }`}
                         >
                             <LayoutTemplate className="w-4 h-4" />
                             <span>檢視段落計劃</span>

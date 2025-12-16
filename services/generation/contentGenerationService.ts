@@ -1,11 +1,11 @@
-import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis, SectionAnalysis } from '../types';
-import { calculateCost, getLanguageInstruction } from './promptService';
-import { filterSectionContext } from './contextFilterService';
-import { promptTemplates } from './promptTemplates';
-import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../config/constants';
-import { aiService } from './aiService';
+import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis, SectionAnalysis } from '../../types';
+import { calculateCost, getLanguageInstruction } from '../engine/promptService';
+import { filterSectionContext } from '../engine/contextFilterService';
+import { promptTemplates } from '../engine/promptTemplates';
+import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
+import { aiService } from '../engine/aiService';
 
-import { Type } from './schemaTypes';
+import { Type } from '../engine/schemaTypes';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -159,16 +159,11 @@ export const generateSectionContent = async (
 
     const languageInstruction = getLanguageInstruction(config.targetAudience);
     const suppressHints = Array.isArray((sectionMeta as any).suppress) ? (sectionMeta as any).suppress : [];
-    const shiftPlanHints = Array.isArray((sectionMeta as any).shiftPlan)
-        ? (sectionMeta as any).shiftPlan.map((p: any) => {
-            const from = typeof p?.from === 'string' ? p.from : '';
-            const to = typeof p?.to === 'string' ? p.to : '';
-            const reason = typeof p?.reason === 'string' ? p.reason : '';
-            return [from && `from: ${from}`, to && `to: ${to}`, reason && `why: ${reason}`].filter(Boolean).join(' | ');
-        }).filter(Boolean)
-        : [];
+    // shiftPlan logic removed
+    const shiftPlanHints: string[] = [];
     const renderMode = (sectionMeta as any).isChecklist ? 'checklist' : undefined;
     const augmentHints = Array.isArray((sectionMeta as any).augment) ? (sectionMeta as any).augment : [];
+    const subheadings = Array.isArray((sectionMeta as any).subheadings) ? (sectionMeta as any).subheadings : [];
 
     const prompt = promptTemplates.sectionContent({
         sectionTitle,
@@ -188,15 +183,18 @@ export const generateSectionContent = async (
         writingMode,
         solutionAngles,
         renderMode,
-        shiftPlan: shiftPlanHints,
+        // shiftPlan removed
         suppressHints,
         augmentHints,
+        subheadings, // Pass extracted subheadings
         avoidContent: [
             ...futureSections,
             ...previousSections,
             ...relevantKeyPoints.filter(p => !pointsAvailableForThisSection.includes(p)),
             ...suppressHints
-        ]
+        ],
+        regionReplacements: config.referenceAnalysis?.regionalReplacements,
+        humanWritingVoice: config.referenceAnalysis?.humanWritingVoice // NEW: Pass human voice
     });
 
     const response = await aiService.runJson<any>(

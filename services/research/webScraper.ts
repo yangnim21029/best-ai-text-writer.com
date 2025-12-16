@@ -1,5 +1,5 @@
 
-import { ScrapedImage } from '../types';
+import { ScrapedImage } from '../../types';
 /**
  * Web Scraper Service
  * Uses Jina AI Reader (https://jina.ai/reader) to turn URLs into LLM-friendly Markdown.

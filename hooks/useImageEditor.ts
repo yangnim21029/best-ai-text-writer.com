@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react';
 import { TargetAudience, CostBreakdown, TokenUsage, ScrapedImage, ImageAssetPlan } from '../types';
-import { generateImagePromptFromContext, generateImage, planImagesForArticle } from '../services/imageService';
+import { generateImagePromptFromContext, generateImage, planImagesForArticle } from '../services/generation/imageService';
 
 interface UseImageEditorParams {
     editorRef: React.RefObject<HTMLDivElement>;

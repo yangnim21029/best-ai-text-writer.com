@@ -30,6 +30,7 @@ export const StreamingModal: React.FC<StreamingModalProps> = ({
         switch (s) {
             case 'writing_content': return 'AI 正在撰寫文章...';
             case 'refining_headings': return '正在優化標題 (H2/H3 Swap)...';
+            case 'localizing_hk': return '正在套用香港市場用語...';
             case 'finalizing': return '正在完成最後修飾...';
             default: return 'AI 正在思考...';
         }

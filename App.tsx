@@ -8,7 +8,7 @@ import { Changelog } from './components/Changelog';
 import { PasswordGate } from './components/PasswordGate';
 import { useProfileStore } from './store/useProfileStore';
 import { useGeneration } from './hooks/useGeneration';
-import { parseProductContext } from './services/productService';
+import { parseProductContext } from './services/research/productFeatureToPainPointMapper';
 import { SavedProfile, ScrapedImage, SectionAnalysis } from './types';
 import { useGenerationStore } from './store/useGenerationStore';
 import { useAnalysisStore } from './store/useAnalysisStore';

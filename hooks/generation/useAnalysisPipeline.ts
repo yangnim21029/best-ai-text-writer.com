@@ -2,17 +2,19 @@ import { ArticleConfig, SectionAnalysis } from '../../types';
 import { useGenerationStore } from '../../store/useGenerationStore';
 import { useAnalysisStore } from '../../store/useAnalysisStore';
 import { useMetricsStore } from '../../store/useMetricsStore';
-import { parseProductContext, generateProblemProductMapping } from '../../services/productService';
-import { analyzeText } from '../../services/nlpService';
-import { extractKeywordActionPlans } from '../../services/keywordAnalysisService';
+import { parseProductContext, generateProblemProductMapping } from '../../services/research/productFeatureToPainPointMapper';
+import { analyzeText } from '../../services/engine/nlpService';
+import { extractKeywordActionPlans } from '../../services/research/termUsagePlanner';
 import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
-import { analyzeReferenceStructure } from '../../services/referenceAnalysisService';
-import { analyzeAuthorityTerms } from '../../services/authorityService';
-import { analyzeImageWithAI, analyzeVisualStyle } from '../../services/imageService';
+import { analyzeReferenceStructure } from '../../services/research/referenceAnalysisService';
+import { analyzeAuthorityTerms } from '../../services/research/authorityService';
+import { analyzeImageWithAI, analyzeVisualStyle } from '../../services/generation/imageService';
 import { appendAnalysisLog, summarizeList } from './generationLogger';
-import { getLanguageInstruction } from '../../services/promptService';
-import { refineHeadings } from '../../services/headingRefinerService';
+import { getLanguageInstruction } from '../../services/engine/promptService';
+
 import { cleanHeadingText } from '../../utils/textUtils';
+import { analyzeRegionalTerms } from '../../services/research/regionalAnalysisService';
+
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 const audienceLabel = (aud: ArticleConfig['targetAudience']) => {
@@ -25,46 +27,7 @@ const audienceLabel = (aud: ArticleConfig['targetAudience']) => {
     }
 };
 
-const mergeOptimizedH3IntoStructure = (
-    structure: SectionAnalysis[] = [],
-    headingOptimizations: {
-        h2_before: string;
-        h2_after: string;
-        h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
-    }[] = []
-): SectionAnalysis[] => {
-    if (!structure.length || !headingOptimizations.length) return structure;
 
-    const normalize = (value: string) => cleanHeadingText(value).toLowerCase();
-
-    return structure.map((section) => {
-        const normalizedTitle = normalize(section.title || '');
-        const matchedOpt = headingOptimizations.find(opt => {
-            const before = normalize(opt.h2_before);
-            const after = normalize(opt.h2_after);
-            return before === normalizedTitle || after === normalizedTitle;
-        });
-
-        if (!matchedOpt?.h3?.length) return section;
-
-        const optimizedH3s = matchedOpt.h3
-            .map(h => cleanHeadingText(h.h3_after || h.h3_before))
-            .filter(Boolean);
-
-        if (!optimizedH3s.length) return section;
-
-        // Use optimized H3s directly; only fall back to existing ones if optimization produced none.
-        const seen = new Set<string>();
-        const uniqueOptimized = optimizedH3s.filter(h3 => {
-            const key = normalize(h3);
-            if (!key || seen.has(key)) return false;
-            seen.add(key);
-            return true;
-        });
-
-        return { ...section, subheadings: uniqueOptimized };
-    });
-};
 
 export const runAnalysisPipeline = async (config: ArticleConfig) => {
     const generationStore = useGenerationStore.getState();
@@ -125,77 +88,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
     };
 
     // Task 1.5: Heading refinement for preview (uses extracted structure titles)
-    const headingTask = async (structRes: any) => {
-        const structure = structRes?.data?.structure || [];
-        const headings = structure.map((s: any) => cleanHeadingText(s.title || '')).filter(Boolean);
-        if (headings.length === 0) return;
-        if (isStopped()) return;
 
-        generationStore.setGenerationStep('refining_headings');
-        appendAnalysisLog('Optimizing H2/H3 (preview) ...');
-        try {
-            const refineRes = await refineHeadings(
-                fullConfig.title || 'Article',
-                headings,
-                fullConfig.targetAudience
-            );
-            metricsStore.addCost(refineRes.cost.totalCost, refineRes.usage.totalTokens);
-
-            const normalizedForUi = (refineRes.data || []).map((item: any, idx: number) => {
-                const h2Before = cleanHeadingText(item.h2_before || item.before || headings[idx] || '');
-                const h2After = cleanHeadingText(item.h2_after || item.after || item.before || headings[idx] || '');
-                const h3List = Array.isArray(item.h3) ? item.h3 : [];
-                return {
-                    h2_before: h2Before,
-                    h2_after: h2After,
-                    h2_reason: item.h2_reason || item.reason || '',
-                    h2_options: Array.isArray(item.h2_options)
-                        ? item.h2_options.map((opt: any) => ({
-                            text: cleanHeadingText(opt.text || ''),
-                            reason: opt.reason || '',
-                            score: typeof opt.score === 'number' ? opt.score : undefined
-                        }))
-                        : undefined,
-                    needs_manual: item.needs_manual || false,
-                    h3: h3List
-                        .filter((h: any) => h && (h.h3_before || h.h3_after))
-                        .map((h: any) => ({
-                            h3_before: cleanHeadingText(h.h3_before || h.before || ''),
-                            h3_after: cleanHeadingText(h.h3_after || h.after || h.h3_before || ''),
-                            h3_reason: h.h3_reason || h.reason || '',
-                        }))
-                };
-            });
-
-            analysisStore.setHeadingOptimizations(normalizedForUi);
-            appendAnalysisLog(`H2/H3 options ready (${normalizedForUi.length}).`);
-
-            // Sync optimized H3 suggestions back into the section plan (for the plan modal & writing stage).
-            const currentRefAnalysis = useAnalysisStore.getState().refAnalysis;
-            const mergedStructure = mergeOptimizedH3IntoStructure(structure, normalizedForUi);
-            const hasChanges = mergedStructure.some((section, idx) => section !== structure[idx]);
-
-            if (hasChanges) {
-                if (structRes?.data) {
-                    structRes.data = { ...structRes.data, structure: mergedStructure };
-                }
-                if (currentRefAnalysis) {
-                    analysisStore.setRefAnalysis({
-                        ...currentRefAnalysis,
-                        structure: mergedStructure
-                    });
-                }
-            }
-        } catch (e) {
-            console.warn('Heading refinement during analysis failed', e);
-            appendAnalysisLog('Heading refinement failed (continuing).');
-        } finally {
-            // Reset step indicator if still analyzing
-            if (generationStore.status === 'analyzing') {
-                generationStore.setGenerationStep('idle');
-            }
-        }
-    };
 
     // Task 2: NLP & Keyword Planning
     const keywordTask = async () => {
@@ -298,26 +191,58 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         }
     };
 
+
+
+    // Task 5: Regional Analysis (NEW)
+    const regionalTask = async () => {
+        if (isStopped()) return;
+        generationStore.setGenerationStep('localizing_hk'); // Reuse step label or create new 'analyzing_region'
+        appendAnalysisLog('Analyzing regional terminology & brand grounding...');
+
+        try {
+            const regionRes = await analyzeRegionalTerms(fullConfig.referenceContent, fullConfig.targetAudience);
+            console.log(`[Timer] Regional Analysis: ${regionRes.duration}ms`);
+
+            if (regionRes.data && regionRes.data.length > 0) {
+                appendAnalysisLog(`Regional analysis found ${regionRes.data.length} terms to correct.`);
+                // Store in refAnalysis (requires refAnalysis to be initialized first, or return it)
+                return regionRes.data;
+            } else {
+                appendAnalysisLog('Regional analysis: No major issues found.');
+                return [];
+            }
+        } catch (e) {
+            console.warn("Regional analysis failed", e);
+            appendAnalysisLog('Regional analysis failed (continuing).');
+            return [];
+        }
+    };
+
     // --- EXECUTE PARALLEL ---
     const productPromise = productTask();
     const keywordPromise = keywordTask();
     const structurePromise = structureTask();
     const visualPromise = visualTask();
+    const regionalPromise = regionalTask();
 
-    const [productResult, structureResult] = await Promise.all([
+    const [productResult, structureResult, regionalResult] = await Promise.all([
         productPromise,
-        structurePromise
+        structurePromise,
+        regionalPromise
     ]);
 
-    // Complete heading refinement before allowing writing, so chosen headings are used.
-    if (structureResult?.structRes) {
-        try {
-            await headingTask(structureResult.structRes);
-        } catch (err) {
-            console.warn('Heading refinement during analysis failed', err);
-            appendAnalysisLog('Heading refinement failed (continuing).');
+    // Merge regional result into structureResult
+    if (structureResult?.structRes?.data) {
+        structureResult.structRes.data.regionalReplacements = regionalResult;
+        // Also update the store immediately if needed, though runAnalysisOnly handles final set
+        if (analysisStore.refAnalysis) {
+            analysisStore.setRefAnalysis({
+                ...analysisStore.refAnalysis,
+                regionalReplacements: regionalResult
+            });
         }
     }
+
     appendAnalysisLog('Analysis stage completed. Preparing to write...');
 
     keywordPromise.catch(err => console.warn('Keyword task failed (background)', err));
@@ -327,6 +252,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         productResult,
         structureResult,
         keywordPromise, // Return promises if we need to await them later (though we awaited them above unless turbo)
-        visualPromise
+        visualPromise,
+        regionalPromise
     };
 };

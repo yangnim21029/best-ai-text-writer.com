@@ -31,6 +31,19 @@ interface AnalysisState {
         h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
     }[];
     languageInstruction: string;
+    hkGroundingResult: {
+        isHKRelevant: boolean;
+        relevanceScore: number;
+        issues: { type: string; original: string; hkEquivalent: string; confidence: number; context: string }[];
+        suggestions: { original: string; rewritten: string }[];
+    } | null;
+    // NEW: Pending grounding for confirmation modal
+    pendingGroundingResult: {
+        issues: { type: string; original: string; regionEquivalent: string; confidence: number; context: string; selected: boolean }[];
+        rewrittenContent: string;
+        regionLabel: string;
+    } | null;
+    showGroundingModal: boolean;
     setKeywordPlans: (plans: KeywordActionPlan[]) => void;
     setRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     setAuthAnalysis: (analysis: AuthorityAnalysis | null) => void;
@@ -51,6 +64,11 @@ interface AnalysisState {
         h3?: { h3_before: string; h3_after: string; h3_reason?: string }[];
     }[]) => void;
     setLanguageInstruction: (instruction: string) => void;
+    setHKGroundingResult: (result: AnalysisState['hkGroundingResult']) => void;
+    // NEW: Pending grounding actions
+    setPendingGroundingResult: (result: AnalysisState['pendingGroundingResult']) => void;
+    setShowGroundingModal: (show: boolean) => void;
+    toggleGroundingIssueSelection: (index: number) => void;
     reset: () => void;
 }
 
@@ -70,6 +88,9 @@ export const useAnalysisStore = create<AnalysisState>()(
             articleTitle: '',
             headingOptimizations: [],
             languageInstruction: '',
+            hkGroundingResult: null,
+            pendingGroundingResult: null,
+            showGroundingModal: false,
             setKeywordPlans: (plans) => set({ keywordPlans: plans }),
             setRefAnalysis: (analysis) => set({ refAnalysis: analysis }),
             setAuthAnalysis: (analysis) => set({ authAnalysis: analysis }),
@@ -85,6 +106,21 @@ export const useAnalysisStore = create<AnalysisState>()(
             setArticleTitle: (title) => set({ articleTitle: title }),
             setHeadingOptimizations: (items) => set({ headingOptimizations: items }),
             setLanguageInstruction: (instruction) => set({ languageInstruction: instruction }),
+            setHKGroundingResult: (result) => set({ hkGroundingResult: result }),
+            setPendingGroundingResult: (result) => set({ pendingGroundingResult: result }),
+            setShowGroundingModal: (show) => set({ showGroundingModal: show }),
+            toggleGroundingIssueSelection: (index) => set((state) => {
+                if (!state.pendingGroundingResult) return state;
+                const newIssues = state.pendingGroundingResult.issues.map((issue, i) =>
+                    i === index ? { ...issue, selected: !issue.selected } : issue
+                );
+                return {
+                    pendingGroundingResult: {
+                        ...state.pendingGroundingResult,
+                        issues: newIssues
+                    }
+                };
+            }),
             reset: () => set({
                 keywordPlans: [],
                 refAnalysis: null,
@@ -99,6 +135,9 @@ export const useAnalysisStore = create<AnalysisState>()(
                 articleTitle: '',
                 headingOptimizations: [],
                 languageInstruction: '',
+                hkGroundingResult: null,
+                pendingGroundingResult: null,
+                showGroundingModal: false,
             }),
         }),
         {

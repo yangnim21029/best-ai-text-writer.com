@@ -1,8 +1,8 @@
-import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../types';
-import { aiService } from './aiService';
-import { promptTemplates } from './promptTemplates';
-import { Type } from './schemaTypes';
-import { getLanguageInstruction, toTokenUsage } from './promptService';
+import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../../types';
+import { aiService } from '../engine/aiService';
+import { promptTemplates } from '../engine/promptTemplates';
+import { Type } from '../engine/schemaTypes';
+import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
 
 export const analyzeAuthorityTerms = async (
     authorityTerms: string,
@@ -12,9 +12,14 @@ export const analyzeAuthorityTerms = async (
 ): Promise<ServiceResponse<AuthorityAnalysis>> => {
     const startTs = Date.now();
 
+    // Truncate authorityTerms to roughly 3000 chars to prevent timeout/overload
+    const truncatedTerms = authorityTerms.length > 3000
+        ? authorityTerms.slice(0, 3000) + "...(truncated)"
+        : authorityTerms;
+
     // Use the registry to build the prompt
     const languageInstruction = getLanguageInstruction(targetAudience);
-    const prompt = promptTemplates.authorityAnalysis({ authorityTerms, title: articleTitle, websiteType, languageInstruction });
+    const prompt = promptTemplates.authorityAnalysis({ authorityTerms: truncatedTerms, title: articleTitle, websiteType, languageInstruction });
 
     try {
         const response = await aiService.runJson<AuthorityAnalysis>(prompt, 'FLASH', {

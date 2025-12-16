@@ -1,4 +1,4 @@
-import { refineHeadings } from '../../services/headingRefinerService';
+import { refineHeadings } from '../../services/generation/headingRefinerService';
 import { useGenerationStore } from '../../store/useGenerationStore';
 import { useAnalysisStore } from '../../store/useAnalysisStore';
 import { useMetricsStore } from '../../store/useMetricsStore';

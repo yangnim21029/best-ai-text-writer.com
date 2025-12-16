@@ -1,4 +1,4 @@
-import { ServiceResponse, TargetAudience } from '../types';
+import { ServiceResponse, TargetAudience } from '../../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { Type } from './schemaTypes';
 import { aiService } from './aiService';

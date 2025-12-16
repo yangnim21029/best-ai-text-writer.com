@@ -1,7 +1,7 @@
 import { genAIClient } from './genAIClient';
-import { MODEL } from '../config/constants';
+import { MODEL } from '../../config/constants';
 import { calculateCost } from './promptService';
-import { TokenUsage, CostBreakdown, AIRequestConfig, AIResponse } from '../types';
+import { TokenUsage, CostBreakdown, AIRequestConfig, AIResponse } from '../../types';
 
 export type LlmModelKey = keyof typeof MODEL;
 
@@ -88,6 +88,8 @@ class AIService {
             throw error;
         }
     }
+
+
 }
 
 export const aiService = new AIService();

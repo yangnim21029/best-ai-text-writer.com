@@ -4,10 +4,11 @@ export const appendAnalysisLog = (msg: string) => {
     const store = useGenerationStore.getState();
     // Only append logs to content during the analysis phase
     if (store.status === 'analyzing') {
-        store.setContent(prev => {
-            const next = typeof prev === 'string' ? prev : '';
-            return next ? `${next}\n${msg}` : msg;
-        });
+        // store.setContent(prev => {
+        //     const next = typeof prev === 'string' ? prev : '';
+        //     return next ? `${next}\n${msg}` : msg;
+        // });
+        console.log(`[Analysis Log]: ${msg}`);
     } else {
         console.log(`[Background Log]: ${msg}`);
     }

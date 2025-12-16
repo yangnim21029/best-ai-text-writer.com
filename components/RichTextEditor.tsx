@@ -13,7 +13,7 @@ import { useMetaGenerator } from '../hooks/useMetaGenerator';
 import { useOptionalEditorContext } from './editor/EditorContext';
 import { useAskAi } from '../hooks/useAskAi';
 import { useEditorAutosave } from '../hooks/useEditorAutosave';
-import { smartInjectPoint } from '../services/contentGenerationService';
+import { smartInjectPoint } from '../services/generation/contentGenerationService';
 import { useAnalysisStore } from '../store/useAnalysisStore';
 
 type AskAiMode = 'edit' | 'format';

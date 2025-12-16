@@ -1,8 +1,9 @@
 import { useCallback, useState } from 'react';
-import { generateSnippet } from '../services/contentGenerationService';
+import { generateSnippet } from '../services/generation/contentGenerationService';
 import { TargetAudience, CostBreakdown, TokenUsage, ProductBrief } from '../types';
-import { promptTemplates } from '../services/promptTemplates';
-import { Type } from '../services/schemaTypes';
+import { promptTemplates } from '../services/engine/promptTemplates';
+import { Type } from '../services/engine/schemaTypes';
+import { aiService } from '../services/engine/aiService';
 
 interface MetaContext {
     keyPoints: string[];
@@ -39,15 +40,15 @@ export const useMetaGenerator = ({
         try {
             const articleText = (tiptapApi?.getPlainText ? tiptapApi.getPlainText() : editorRef.current?.innerText || '').slice(0, 1000);
             const contextLines: string[] = [];
-            if (context.keyPoints.length > 0) contextLines.push(`Key Points: ${context.keyPoints.slice(0, 6).join('; ')}`);
-            if (context.brandExclusivePoints.length > 0) contextLines.push(`Brand USPs: ${context.brandExclusivePoints.slice(0, 4).join('; ')}`);
+            if (context.keyPoints.length > 0) contextLines.push(`Key Points: ${context.keyPoints.slice(0, 6).join('; ')} `);
+            if (context.brandExclusivePoints.length > 0) contextLines.push(`Brand USPs: ${context.brandExclusivePoints.slice(0, 4).join('; ')} `);
             if (context.productBrief?.brandName || context.productBrief?.productName) {
-                contextLines.push(`Brand: ${context.productBrief?.brandName || ''} Product: ${context.productBrief?.productName || ''} USP: ${context.productBrief?.usp || ''}`);
+                contextLines.push(`Brand: ${context.productBrief?.brandName || ''} Product: ${context.productBrief?.productName || ''} USP: ${context.productBrief?.usp || ''} `);
             }
-            if (context.visualStyle) contextLines.push(`Visual Style: ${context.visualStyle}`);
+            if (context.visualStyle) contextLines.push(`Visual Style: ${context.visualStyle} `);
             if (context.outlineSections && context.outlineSections.length > 0) {
                 const outlinePreview = context.outlineSections.slice(0, 8).join(' > ');
-                contextLines.push(`Outline: ${outlinePreview}`);
+                contextLines.push(`Outline: ${outlinePreview} `);
             }
 
             const metaPrompt = promptTemplates.metaSeo({

@@ -2,13 +2,15 @@ import { ArticleConfig, SectionAnalysis } from '../../types';
 import { useGenerationStore } from '../../store/useGenerationStore';
 import { useAnalysisStore } from '../../store/useAnalysisStore';
 import { useMetricsStore } from '../../store/useMetricsStore';
-import { generateSectionContent } from '../../services/contentGenerationService';
-import { mergeTurboSections } from '../../services/turboRenderer';
-import { refineAllHeadings } from './useHeadingRefiner';
+import { generateSectionContent } from '../../services/generation/contentGenerationService';
+import { mergeTurboSections } from '../../services/generation/contentDisplayService';
+
 
 import { cleanHeadingText, stripLeadingHeading } from '../../utils/textUtils';
-import { planImagesForArticle, generateImage } from '../../services/imageService';
+import { planImagesForArticle, generateImage } from '../../services/generation/imageService';
 import { appendAnalysisLog } from './generationLogger';
+import { replaceTerms } from '../../services/engine/termReplacementService';
+import { aiService } from '../../services/engine/aiService';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 
@@ -38,7 +40,17 @@ export const runContentGeneration = async (
         sectionsToGenerate = lines.map(title => ({ title }));
         isUsingCustomOutline = true;
     } else if (refAnalysisData?.structure && refAnalysisData.structure.length > 0) {
-        sectionsToGenerate = refAnalysisData.structure;
+        sectionsToGenerate = [...refAnalysisData.structure]; // Clone to avoid mutating original
+
+        // Inject Introduction if available
+        if (refAnalysisData.introText && refAnalysisData.introText.trim().length > 0) {
+            sectionsToGenerate.unshift({
+                title: "前言", // Use generic Intro title
+                narrativePlan: [refAnalysisData.introText],
+                subheadings: [],
+                difficulty: 'easy'
+            });
+        }
         isUsingCustomOutline = false;
     } else {
         sectionsToGenerate = [
@@ -192,9 +204,7 @@ export const runContentGeneration = async (
 
     if (!isStopped()) {
         generationStore.setContent(renderProgressSections());
-        if (!shouldUseHeadingAnalysis) {
-            await refineAllHeadings(sectionHeadings, sectionsToGenerate, config, renderProgressSections);
-        }
+        // Auto-heading refinement disabled in favor of manual toolbar tool
     }
 
     if (!isStopped()) {
@@ -247,10 +257,55 @@ export const runContentGeneration = async (
             appendAnalysisLog('Skipping auto image planning (manual only).');
         }
 
+        // --- REGION LOCALIZATION (for all target audiences) ---
+        generationStore.setGenerationStep('localizing_hk');  // Keep step name for backward compat
+        generationStore.setGenerationStep('localizing_hk');  // Keep step name for backward compat
+        const { getRegionLabel } = await import('../../services/research/regionGroundingService');
+        const regionLabel = getRegionLabel(config.targetAudience);
+        appendAnalysisLog(`🔍 正在進行${regionLabel}市場本地化...`);
+
+        try {
+            // Step 1: Basic term replacement from Google Sheet (for HK mainly)
+            const currentContent = generationStore.content;
+
+            // Sanity check: don't proceed if current content is suspiciously short
+            if (!currentContent || currentContent.length < 100) {
+                console.warn('[Localization] Content too short or empty, skipping localization');
+                appendAnalysisLog('⚠ 內容太短，跳過本地化處理');
+                // FIX: Ensure we don't hang in streaming state
+                generationStore.setStatus('completed');
+                generationStore.setGenerationStep('idle');
+                return;
+            }
+
+            const termResult = await replaceTerms(currentContent);
+            let contentToValidate = currentContent;
+
+            if (termResult.totalReplacements > 0) {
+                // Validate term replacement result
+                if (termResult.content && termResult.content.length >= currentContent.length * 0.5) {
+                    generationStore.setContent(termResult.content);
+                    contentToValidate = termResult.content;
+                    appendAnalysisLog(`✓ 詞彙替換完成：共 ${termResult.totalReplacements} 處 (${termResult.replacements.map(r => `${r.original}→${r.replacement}`).slice(0, 5).join(', ')}${termResult.replacements.length > 5 ? '...' : ''})`);
+                } else {
+                    console.warn('[Localization] Term replacement result too short, keeping original');
+                    appendAnalysisLog('⚠ 詞彙替換結果異常，保留原內容');
+                }
+            } else {
+                appendAnalysisLog('✓ 詞彙檢查：無需替換');
+            }
+
+            // Step 2: Region grounding validation (REMOVED as per user request)
+            // We rely on the AI writing prompt to apply regional replacements during generation.
+            appendAnalysisLog(`✓ Regional verification skipped.`);
+        } catch (e) {
+            console.error('Localization failed', e);
+            appendAnalysisLog(`⚠ Localizaion error (see console)`);
+        }
+
         generationStore.setGenerationStep('finalizing');
-        setTimeout(() => {
-            generationStore.setStatus('completed');
-            generationStore.setGenerationStep('idle');
-        }, 1000);
+        // FIX: Ensure immediate completion so the content is visible under the modal
+        generationStore.setStatus('completed');
+        generationStore.setGenerationStep('idle');
     }
 };

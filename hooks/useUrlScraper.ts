@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { UseFormSetValue } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
-import { fetchUrlContent } from '../services/webScraper';
-import { extractWebsiteTypeAndTerm } from '../services/referenceAnalysisService';
+import { fetchUrlContent } from '../services/research/webScraper';
+import { extractWebsiteTypeAndTerm } from '../services/research/referenceAnalysisService';
 import { ArticleFormValues } from '../schemas/formSchema';
 import { CostBreakdown, ScrapedImage, TokenUsage } from '../types';
 import { dedupeScrapedImages } from '../utils/scrapedImages';

@@ -1,5 +1,5 @@
-import { TargetAudience, TokenUsage, CostBreakdown } from '../types';
-import { PRICING } from '../config/constants';
+import { TargetAudience, TokenUsage, CostBreakdown } from '../../types';
+import { PRICING } from '../../config/constants';
 
 const asNumber = (...values: any[]): number => {
     for (const value of values) {
@@ -105,6 +105,7 @@ export const getLanguageInstruction = (audience: TargetAudience): string => {
           - Style should be natural for Hong Kong readers (Standard Written Chinese with HK nuances).
           - **STRICTLY FORBIDDEN:** Spoken Cantonese particles (e.g., 嘅, 係, 咗, 佢, 咁) unless explicitly requested.
           - Maintain a professional written tone (Standard Written Chinese).
+
           `;
         case 'zh-MY':
             return `
@@ -112,6 +113,7 @@ export const getLanguageInstruction = (audience: TargetAudience): string => {
           - Use Simplified characters.
           - Use Malaysia-specific Chinese vocabulary and context where applicable (e.g., '巴刹' for market, '巴士' for bus, local currency references if needed).
           - Tone: Relatable to Malaysian Chinese readers.
+
           `;
         case 'zh-TW':
         default:
@@ -121,6 +123,7 @@ export const getLanguageInstruction = (audience: TargetAudience): string => {
           - Style should be natural for Taiwanese readers.
           - **STRICTLY FORBIDDEN:** Cantonese particles (e.g., 嘅, 係, 咗, 佢, 咁) and Hong Kong specific vocabulary (e.g., '質素').
           - Ensure the tone is standard written Chinese suitable for Taiwan.
+
           `;
     }
 };

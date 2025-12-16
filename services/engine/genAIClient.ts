@@ -1,5 +1,5 @@
-import { AIResponse } from '../types';
-import { AI_DEFAULTS } from '../config/constants';
+import { AIResponse } from '../../types';
+import { AI_DEFAULTS } from '../../config/constants';
 
 interface GenAIRequest {
     model: string;
@@ -310,6 +310,10 @@ export class GenAIClient {
                 timeoutMs || DEFAULT_TIMEOUT
             );
             try {
+                // DEBUG: Log request payload for debugging
+                console.log('[GenAIClient] Request payload:', JSON.stringify(payload, null, 2));
+                console.log('[GenAIClient] Request URL:', buildAiUrl('/generate'));
+
                 const doRequest = async (path: string) => fetch(buildAiUrl(path), {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },

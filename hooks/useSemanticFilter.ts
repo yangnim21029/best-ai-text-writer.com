@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { embedTexts, cosineSimilarity } from '../services/embeddingService';
+import { embedTexts, cosineSimilarity } from '../services/engine/embeddingService';
 
 const DEFAULT_SEMANTIC_THRESHOLD = 0.79;
 

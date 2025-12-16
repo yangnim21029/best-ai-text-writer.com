@@ -1,4 +1,4 @@
-import { EMBED_MODEL_ID } from '../config/constants';
+import { EMBED_MODEL_ID } from '../../config/constants';
 import { buildAiUrl } from './genAIClient';
 
 interface EmbedOptions {

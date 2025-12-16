@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { marked } from 'marked';
 import { TargetAudience, CostBreakdown, TokenUsage } from '../types';
-import { generateSnippet, smartInjectPoint } from '../services/contentGenerationService';
+import { generateSnippet, smartInjectPoint } from '../services/generation/contentGenerationService';
 
 interface UseAIEditorParams {
     editorRef: React.RefObject<HTMLDivElement>;
@@ -68,15 +68,15 @@ export const useAIEditor = ({
     const handleRefinePoint = useCallback(async (point: string) => {
         if (!editorRef.current) return;
         setRefiningPoint(point);
-        
+
         try {
             const fullHtml = editorRef.current.innerHTML;
-            
+
             const res = await smartInjectPoint(fullHtml, point, targetAudience as TargetAudience);
-            
+
             if (res.data && res.data.originalSnippet && res.data.newSnippet) {
                 const { originalSnippet, newSnippet } = res.data;
-                
+
                 if (editorRef.current.innerHTML.includes(originalSnippet)) {
                     editorRef.current.innerHTML = editorRef.current.innerHTML.replace(originalSnippet, newSnippet);
                 } else {
@@ -88,7 +88,7 @@ export const useAIEditor = ({
                        `;
                     editorRef.current.innerHTML += suggestionHtml;
                 }
-                
+
                 onTogglePoint?.(point);
                 if (onAddCost) onAddCost(res.cost, res.usage);
             } else {

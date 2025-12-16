@@ -1,4 +1,4 @@
-import { KeywordData } from '../types';
+import { KeywordData } from '../../types';
 
 interface NlpResponse {
   status: string;

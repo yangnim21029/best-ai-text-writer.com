@@ -1,7 +1,7 @@
 import { useCallback, useRef } from 'react';
 import { marked } from 'marked';
-import { generateSnippet } from '../services/contentGenerationService';
-import { getLanguageInstruction } from '../services/promptService';
+import { generateSnippet } from '../services/generation/contentGenerationService';
+import { getLanguageInstruction } from '../services/engine/promptService';
 import type { AskAiRunActionInput } from '../components/AskAiSelection';
 import { TargetAudience, CostBreakdown, TokenUsage } from '../types';
 

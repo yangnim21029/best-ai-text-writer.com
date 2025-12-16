@@ -1,9 +1,9 @@
-import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience } from '../types';
-import { SEMANTIC_KEYWORD_LIMIT } from '../config/constants';
-import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from './promptService';
-import { promptTemplates } from './promptTemplates';
-import { aiService } from './aiService';
-import { Type } from './schemaTypes';
+import { ServiceResponse, KeywordActionPlan, KeywordData, TargetAudience } from '../../types';
+import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
+import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from '../engine/promptService';
+import { promptTemplates } from '../engine/promptTemplates';
+import { aiService } from '../engine/aiService';
+import { Type } from '../engine/schemaTypes';
 
 // Analyze Context & Generate Action Plan for keywords
 export const extractKeywordActionPlans = async (

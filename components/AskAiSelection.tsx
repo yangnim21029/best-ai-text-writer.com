@@ -257,17 +257,20 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     }, [toolbarPosition, toolbarSize]);
 
     const lockTaskSelection = (overrideText?: string) => {
-        const text = (overrideText || taskSelectionText || selectionText).trim();
+        // ALWAYS prefer the current selectionText if we are starting a fresh action (no active task)
+        // or if an override is provided.
+        // We only use taskSelectionText if we are specifically iterating on an existing locked task.
+        const text = (overrideText || selectionText || taskSelectionText).trim();
+
         if (!text) {
             alert('請先選取要調整的文字。');
             return '';
         }
-        const isNewTarget = text !== taskSelectionText;
-        setTaskSelectionText(text);
-        if (selectionRangeRef.current && isNewTarget) {
-            // Range is stored per task on creation
-        }
-        if (isNewTarget) {
+
+        // Update the locked text for consistency
+        if (text !== taskSelectionText) {
+            setTaskSelectionText(text);
+            // Clear custom prompt if the text context changed completely
             setCustomPrompt('');
         }
         return text;

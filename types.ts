@@ -22,20 +22,26 @@ export interface SectionAnalysis {
   keyFacts?: string[]; // Checklist-ready atomic facts for this section
   uspNotes?: string[]; // USP/賣點提示
   isChecklist?: boolean; // Should render as checklist/listicle
-  shiftPlan?: { from?: string; to?: string; reason?: string; suppress?: string[]; augment?: string[] }[]; // Suggested rearrange/omit/add
   suppress?: string[]; // Points to avoid in this section
   augment?: string[]; // Points to add/borrow into this section
 }
 
 export interface ReferenceAnalysis {
+  h1Title?: string;             // NEW: H1 title extracted from reference
+  introText?: string;           // NEW: Intro paragraph after H1
   structure: SectionAnalysis[]; // Detailed structure with plans
   generalPlan: string[];        // Global style rules
   conversionPlan: string[];     // NEW: How the author presents value/benefits
   keyInformationPoints: string[]; // General High density facts/concepts
   brandExclusivePoints: string[]; // NEW: Unique Selling Points / Brand specific claims
   replacementRules?: string[];   // Deprecated: Old generic rules
+  regionalReplacements?: { original: string; replacement: string; reason?: string }[]; // NEW: Automated regional fixes
   competitorBrands?: string[];   // Specific brand names to nuke
   competitorProducts?: string[]; // Specific product names to swap
+
+  // NEW: Voice Strategy Enhancements
+  regionVoiceDetect?: string;    // Percentage composition (e.g., "70% HK / 30% TW")
+  humanWritingVoice?: string;    // Reasoning for why it sounds human-written
 }
 
 export interface AuthorityAnalysis {
@@ -120,7 +126,7 @@ export interface ArticleConfig {
 
 export type GenerationStatus = 'idle' | 'analyzing' | 'analysis_ready' | 'streaming' | 'completed' | 'error';
 
-export type GenerationStep = 'idle' | 'fetching_url' | 'parsing_product' | 'nlp_analysis' | 'extracting_structure' | 'analyzing_visuals' | 'analyzing_authority' | 'planning_keywords' | 'mapping_product' | 'writing_content' | 'refining_headings' | 'generating_images' | 'finalizing';
+export type GenerationStep = 'idle' | 'fetching_url' | 'parsing_product' | 'nlp_analysis' | 'extracting_structure' | 'analyzing_visuals' | 'analyzing_authority' | 'planning_keywords' | 'mapping_product' | 'writing_content' | 'refining_headings' | 'generating_images' | 'localizing_hk' | 'finalizing';
 
 // --- Cost Tracking Types ---
 
@@ -142,6 +148,13 @@ export interface AIRequestConfig {
   temperature?: number;
   topK?: number;
   topP?: number;
+  providerOptions?: {
+    vertex?: {
+      groundingConfig?: {
+        googleSearchRetrieval?: Record<string, unknown>;
+      };
+    };
+  };
 }
 
 export interface AIResponse {

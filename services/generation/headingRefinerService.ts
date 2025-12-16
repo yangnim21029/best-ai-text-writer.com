@@ -1,10 +1,10 @@
-import { HeadingOption, HeadingResult, TargetAudience, ServiceResponse, TokenUsage, CostBreakdown } from '../types';
-import { aiService } from './aiService';
-import { embedTexts, cosineSimilarity } from './embeddingService';
-import { getLanguageInstruction, toTokenUsage } from './promptService';
-import { promptTemplates } from './promptTemplates';
-import { Type } from './schemaTypes';
-import { logger } from '../utils/logger';
+import { HeadingOption, HeadingResult, TargetAudience, ServiceResponse, TokenUsage, CostBreakdown } from '../../types';
+import { aiService } from '../engine/aiService';
+import { embedTexts, cosineSimilarity } from '../engine/embeddingService';
+import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
+import { promptTemplates } from '../engine/promptTemplates';
+import { Type } from '../engine/schemaTypes';
+import { logger } from '../../utils/logger';
 
 const cleanHeading = (s: string | undefined): string =>
     (s || '')

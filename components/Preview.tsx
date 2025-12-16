@@ -1,12 +1,17 @@
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { marked } from 'marked';
 import { Copy, Check, AlertCircle, Code, Eye, Terminal, FileDown, Loader2, Sparkles } from 'lucide-react';
 import { GenerationStatus, TargetAudience, CostBreakdown, TokenUsage, SavedProfile, ScrapedImage, GenerationStep, ProductBrief } from '../types';
 import { RichTextEditor } from './RichTextEditor';
 import { EditorProvider } from './editor/EditorContext';
 import { StreamingModal } from './StreamingModal';
+import { RegionGroundingModal } from './RegionGroundingModal';
+import { HeadingOptimizerModal } from './HeadingOptimizerModal';
+import { useAnalysisStore } from '../store/useAnalysisStore';
+
+import { useGenerationStore } from '../store/useGenerationStore';
 
 interface PreviewProps {
   content: string;
@@ -39,7 +44,9 @@ interface ToolbarActionsProps {
   onChangeView: (mode: ViewMode) => void;
   onCopyHtml: () => void;
   onCopyMarkdown: () => void;
+  onOptimizeHeadings: () => void;
   copied: boolean;
+
   variant?: 'light' | 'dark';
 }
 
@@ -48,7 +55,9 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
   onChangeView,
   onCopyHtml,
   onCopyMarkdown,
+  onOptimizeHeadings,
   copied,
+
   variant = 'light',
 }) => {
   const isDark = variant === 'dark';
@@ -80,11 +89,23 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
 
       <button
         onClick={onCopyMarkdown}
-        className={`flex items-center gap-1 px-3 py-1.5 font-medium rounded-md transition-colors ${copyButton}`}
-        title="Copy as Markdown"
+        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors ${isDark ? 'bg-amber-900/30 text-amber-200 border border-amber-800 hover:bg-amber-900/50' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+          }`}
+        title="Copy Markdown"
       >
-        <FileDown className="w-4 h-4" />
-        <span>Markdown</span>
+        <span>Copy MD</span>
+      </button>
+
+      <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
+
+      <button
+        onClick={onOptimizeHeadings}
+        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors border ${isDark ? 'bg-indigo-900/20 text-indigo-300 border-indigo-800 hover:bg-indigo-900/40' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+          }`}
+        title="Refine H2/H3 Headings with AI"
+      >
+        <Sparkles className="w-4 h-4" />
+        <span className="hidden sm:inline">Opt. Headings</span>
       </button>
 
       <button
@@ -125,8 +146,43 @@ export const Preview: React.FC<PreviewProps> = ({
   const [copied, setCopied] = useState(false);
   const [viewMode, setViewMode] = useState<ViewMode>('visual');
   const [editorHtml, setEditorHtml] = useState('');
+  const [showHeadingOptimizer, setShowHeadingOptimizer] = useState(false);
+
+
+  // Region grounding modal state
+  const { pendingGroundingResult, showGroundingModal, setPendingGroundingResult, setShowGroundingModal } = useAnalysisStore();
+  const generationStore = useGenerationStore();
 
   const isAnalyzing = status === 'analyzing';
+
+  // Handle applying selected grounding replacements
+  const handleApplyGrounding = useCallback((selectedIssues: { original: string; regionEquivalent: string }[]) => {
+    if (selectedIssues.length === 0) {
+      setPendingGroundingResult(null);
+      return;
+    }
+
+    let currentContent = generationStore.content;
+
+    // Apply each selected replacement
+    for (const issue of selectedIssues) {
+      if (issue.original && issue.regionEquivalent) {
+        // Use regex for global replacement
+        const regex = new RegExp(issue.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+        currentContent = currentContent.replace(regex, issue.regionEquivalent);
+      }
+    }
+
+    generationStore.setContent(currentContent);
+    setPendingGroundingResult(null);
+    console.log(`[RegionGrounding] Applied ${selectedIssues.length} replacements`);
+  }, [generationStore, setPendingGroundingResult]);
+
+  // Handle skipping grounding (keep original)
+  const handleSkipGrounding = useCallback(() => {
+    setPendingGroundingResult(null);
+    console.log('[RegionGrounding] User skipped all replacements');
+  }, [setPendingGroundingResult]);
 
   // Start every new analysis with a clean editor to avoid showing stale drafts
   useEffect(() => {
@@ -212,7 +268,9 @@ export const Preview: React.FC<PreviewProps> = ({
       onChangeView={setViewMode}
       onCopyHtml={handleCopy}
       onCopyMarkdown={handleCopyMarkdown}
+      onOptimizeHeadings={() => setShowHeadingOptimizer(true)}
       copied={copied}
+
       variant={variant}
     />
   );
@@ -225,6 +283,7 @@ export const Preview: React.FC<PreviewProps> = ({
       case 'analyzing_visuals': return '正在偵測圖片風格';
       case 'planning_keywords': return '正在規劃關鍵字';
       case 'mapping_product': return '正在配對痛點與賣點';
+      case 'localizing_hk': return '正在套用香港市場用語';
       default: return 'AI 正在準備';
     }
   };
@@ -300,11 +359,26 @@ export const Preview: React.FC<PreviewProps> = ({
 
         {isAnalyzing && <InlineAnalysisIndicator />}
 
+        <RegionGroundingModal
+          onApply={handleApplyGrounding}
+          onSkip={handleSkipGrounding}
+        />
+
+        <HeadingOptimizerModal
+          isOpen={showHeadingOptimizer}
+          onClose={() => setShowHeadingOptimizer(false)}
+          onApply={(newContent) => {
+            setEditorHtml(newContent);
+            generationStore.setContent(newContent);
+          }}
+        />
         <StreamingModal
           isOpen={status === 'streaming'}
           content={content}
           step={generationStep || 'writing_content'}
         />
+
+
       </div>
     </div>
   );

@@ -1,10 +1,10 @@
 
-import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } from '../types';
-import { calculateCost, getLanguageInstruction } from './promptService';
-import { aiService } from './aiService';
-import { Type } from './schemaTypes';
-import { promptTemplates } from './promptTemplates';
-import { MODEL } from '../config/constants';
+import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } from '../../types';
+import { calculateCost, getLanguageInstruction } from '../engine/promptService';
+import { aiService } from '../engine/aiService';
+import { Type } from '../engine/schemaTypes';
+import { promptTemplates } from '../engine/promptTemplates';
+import { MODEL } from '../../config/constants';
 
 export const generateProductBrief = async (
     productName: string,
