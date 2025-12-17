@@ -1,4 +1,4 @@
-import { ArticleConfig, KeywordActionPlan, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis, SectionAnalysis } from '../../types';
+import { ArticleConfig, FrequentWordsPlacementAnalysis, AuthorityAnalysis, ServiceResponse, TokenUsage, CostBreakdown, ProductBrief, ProblemProductMapping, SectionGenerationResult, TargetAudience, ReferenceAnalysis, SectionAnalysis } from '../../types';
 import { calculateCost, getLanguageInstruction } from '../engine/promptService';
 import { filterSectionContext } from '../engine/contextFilterService';
 import { promptTemplates } from '../engine/promptTemplates';
@@ -109,7 +109,7 @@ export const generateSectionContent = async (
     sectionTitle: string,
     specificPlan: string[] | undefined,
     generalPlan: string[] | undefined,
-    keywordPlans: KeywordActionPlan[],
+    keywordPlans: FrequentWordsPlacementAnalysis[],
     previousSections: string[] = [],
     futureSections: string[] = [],
     authorityAnalysis: AuthorityAnalysis | null = null,

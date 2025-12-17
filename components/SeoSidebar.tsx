@@ -3,10 +3,10 @@
 import React, { useMemo, useState } from 'react';
 import { useAnalysisStore } from '../store/useAnalysisStore';
 import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, X, ShoppingBag, ArrowRight, Gem, Square, Languages, Copy, Check } from 'lucide-react';
-import { GenerationStatus, KeywordActionPlan, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief, TargetAudience } from '../types';
+import { GenerationStatus, FrequentWordsPlacementAnalysis, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief, TargetAudience } from '../types';
 
 interface SeoSidebarProps {
-    keywordPlans: KeywordActionPlan[];
+    keywordPlans: FrequentWordsPlacementAnalysis[];
     referenceAnalysis: ReferenceAnalysis | null;
     authorityAnalysis: AuthorityAnalysis | null;
     productMapping?: ProblemProductMapping[];
@@ -293,20 +293,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 )}
                             </div>
 
-                            {/* Replacement Rules */}
-                            {referenceAnalysis?.replacementRules && referenceAnalysis.replacementRules.length > 0 && (
-                                <div className="space-y-2 pt-3 border-t border-gray-100">
-                                    <h5 className="text-xs font-bold text-gray-400 uppercase">Competitor Terms (To Be Replaced)</h5>
-                                    <ul className="space-y-2">
-                                        {referenceAnalysis.replacementRules.map((rule, ri) => (
-                                            <li key={ri} className="text-xs text-gray-600 flex items-start gap-2 leading-relaxed">
-                                                <span className="text-red-400 font-mono text-xs flex-shrink-0">[-]</span>
-                                                <span className="break-words">{rule}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
+
                         </div>
                     </div>
                 )}
@@ -324,6 +311,56 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             <p className="text-sm text-gray-600 leading-relaxed italic">
                                 "{visualStyle || "Clean, modern professional photography with natural lighting."}"
                             </p>
+                        </div>
+                    </div>
+                )}
+
+                {/* NEW: Localization & Safety Card */}
+                {referenceAnalysis && ((referenceAnalysis.regionalReplacements && referenceAnalysis.regionalReplacements.length > 0) || (referenceAnalysis.replacementRules && referenceAnalysis.replacementRules.length > 0)) && (
+                    <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
+                        <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-amber-50/80 to-white flex items-center gap-2">
+                            <ShieldCheck className="w-3.5 h-3.5 text-amber-600" />
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Localization & Safety</h4>
+                        </div>
+                        <div className="p-3 space-y-3">
+                            {/* Regional Corrections */}
+                            {referenceAnalysis.regionalReplacements && referenceAnalysis.regionalReplacements.length > 0 && (
+                                <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <h5 className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
+                                            Regional Corrections
+                                            <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px]">{referenceAnalysis.regionalReplacements.length}</span>
+                                        </h5>
+                                    </div>
+                                    <ul className="grid grid-cols-1 gap-2">
+                                        {referenceAnalysis.regionalReplacements.map((item, idx) => (
+                                            <li key={idx} className="bg-amber-50/50 rounded p-2 border border-amber-100 flex flex-col gap-1">
+                                                <div className="flex items-center gap-2 text-xs font-medium text-gray-800 flex-wrap">
+                                                    <span className="text-red-500 line-through decoration-red-500/50">{item.original}</span>
+                                                    <span className="text-gray-400">→</span>
+                                                    <span className="text-emerald-600 font-bold">{item.replacement}</span>
+                                                </div>
+                                                {item.reason && <span className="text-[10px] text-gray-500 leading-snug">{item.reason}</span>}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+
+                            {/* Blocked Competitor Terms */}
+                            {referenceAnalysis.replacementRules && referenceAnalysis.replacementRules.length > 0 && (
+                                <div className={`space-y-2 ${referenceAnalysis.regionalReplacements?.length ? 'pt-2 border-t border-gray-100' : ''}`}>
+                                    <h5 className="text-xs font-bold text-gray-400 uppercase">Blocked Terms</h5>
+                                    <ul className="space-y-1.5">
+                                        {referenceAnalysis.replacementRules.map((rule, idx) => (
+                                            <li key={idx} className="text-xs text-gray-600 flex items-start gap-2 bg-gray-50 rounded px-2 py-1 border border-gray-100">
+                                                <span className="text-red-400 font-bold">[-]</span>
+                                                <span className="break-words font-medium">{rule}</span>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -561,6 +598,11 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                                 <span className="leading-snug opacity-90">{rule}</span>
                                             </div>
                                         ))}
+                                        {item.exampleSentence && (
+                                            <div className="mt-2 text-xs text-gray-500 italic border-l-2 border-indigo-100 pl-2">
+                                                "{item.exampleSentence}"
+                                            </div>
+                                        )}
                                     </div>
                                 </div>
                             ))}

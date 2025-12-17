@@ -231,7 +231,7 @@ export const promptTemplates = {
 `;
   },
 
-  keywordActionPlan: ({
+  frequentWordsPlacementAnalysis: ({
     languageInstruction,
     analysisPayloadString,
   }: {
@@ -241,19 +241,18 @@ export const promptTemplates = {
     I have a list of High - Frequency Keywords and their "Context Snippets" from a Reference Text.
 
       TASK:
-    For each keyword, analyze its context snippets to understand the specific ** Sentence Structure ** and ** Syntactic placement ** used by the author.
-    Generate a "Usage Action Plan"(Max 3 points) for a ghostwriter.
+    For each keyword, analyze its context snippets to understand the specific ** Sentence Structure ** and ** Syntactic placement **.
+    Generate a "Usage Action Plan" (Max 3 brief points).
+    Extract a ** SINGLE, SHORT ** "Example Sentence" (Max 40 chars/15 words).
 
       <LanguageInstruction>
       ${languageInstruction}
       </LanguageInstruction>
-      DEFINITION: Target language for the explanation.
-      ACTION: Write the plan in this language.
 
-    The Action Plan must be specific about the ** Sentence Context ** (NOT the paragraph type):
-    1. ** Syntactic Placement **: Analyze where in the * sentence * this word appears.Does it usually start the sentence ? Is it used in a dependent clause ? Is it part of a list ? Is it used as a transition ?
-      2. ** Collocations **: What specific words, prepositions, or adjectives immediately precede or follow it in the snippets ?
-        3. ** Tone / Function **: Is it used to qualify a previous statement, introduce a technical detail, or provide a concrete example ?
+    The Action Plan must be specific about the ** Sentence Context **:
+    1. ** Placement **: Where does it appear? (Start/Middle/End/Transition)
+    2. ** Collocations **: What words appear around it?
+    3. ** Tone **: What function does it serve?
 
           INPUT DATA:
     <AnalysisPayload>
@@ -266,10 +265,11 @@ export const promptTemplates = {
     [
       {
         "word": "keyword",
-        "plan": ["sentence-level guidance 1", "guidance 2", "guidance 3"]
+        "plan": ["brief guidance 1", "brief guidance 2", "brief guidance 3"],
+        "exampleSentence": "ONE short sentence (< 15 words) from the text. NO explanations."
       }
     ]
-    Return JSON only, no prose, no markdown fences.
+    Return JSON only.
     `,
 
   productBrief: ({ productName, productUrl, languageInstruction }: any) => `
@@ -893,31 +893,25 @@ TASK:
     `,
 
   regionalBrandAnalysis: ({ content, targetAudience }: { content: string; targetAudience: string }) => `
-    Analyze the provided content for ** Regional Terminology ** and ** Brand Name ** accuracy for the target audience: 
+    TASK: Analyze the content for ** Regional Terminology ** and ** Brand Availability ** conflicts in: ${targetAudience}.
+
     <TargetAudience>
     ${targetAudience}
     </TargetAudience>
-    DEFINITION: Target Region.
-    ACTION: Check for dialect mismatch against this region.
-    
-    Use Google Search(Grounding) to verify:
-    1. ** Brand Names **: Are they essentially correct for this region ? (e.g. "Diablo" is "暗黑破壞神" in TW / HK, not "迪亞布羅")
-    2. ** Regional Vocabulary **: Are there terms that should be replaced ? (e.g. "視頻" -> "影片" for TW, "質量" -> "質素" for HK)
-    
-    Do NOT correct common grammar unless it's a specific regional conflict.
-    Focus on PROPER NOUNS, BRAND NAMES, and REGIONAL - SPECIFIC terms.
-    
+
+    Using Google Search (Grounding), verify:
+    1. ** Brand Availability **: Are mentioned brands/products actually available/popular in ${targetAudience}? (e.g. A Taiwan-only clinic appearing in a Hong Kong article is a mismatch).
+    2. ** Regional Vocabulary **: Replace obvious dialect terms (e.g. "視頻" -> "影片" for TW).
+
     <ContentSnippet>
     ${content.slice(0, 15000)}...
     </ContentSnippet>
-    DEFINITION: The text to analyze.
-    ACTION: Scan this text for issues.
 
     OUTPUT JSON:
     [
-      { "original": "Wrong Term", "replacement": "Correct Term", "reason": "Reason for change" }
+      { "original": "Wrong Term", "replacement": "Correct Term", "reason": "Reason (e.g. 'Taiwan-only brand')" }
     ]
-    Return JSON only.
+    Return JSON only. If no issues, return [].
     `,
 };
 

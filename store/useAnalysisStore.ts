@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
     AuthorityAnalysis,
-    KeywordActionPlan,
+    FrequentWordsPlacementAnalysis,
     ProblemProductMapping,
     ProductBrief,
     ReferenceAnalysis,
@@ -11,7 +11,7 @@ import {
 } from '../types';
 
 interface AnalysisState {
-    keywordPlans: KeywordActionPlan[];
+    keywordPlans: FrequentWordsPlacementAnalysis[];
     refAnalysis: ReferenceAnalysis | null;
     authAnalysis: AuthorityAnalysis | null;
     scrapedImages: ScrapedImage[];
@@ -44,7 +44,7 @@ interface AnalysisState {
         regionLabel: string;
     } | null;
     showGroundingModal: boolean;
-    setKeywordPlans: (plans: KeywordActionPlan[]) => void;
+    setKeywordPlans: (plans: FrequentWordsPlacementAnalysis[]) => void;
     setRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     setAuthAnalysis: (analysis: AuthorityAnalysis | null) => void;
     setScrapedImages: (images: ScrapedImage[]) => void;

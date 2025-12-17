@@ -380,27 +380,7 @@ export const InputForm: React.FC<InputFormProps> = ({
                             )}
                         </button>
 
-                        <button
-                            type="button"
-                            onClick={() => onGenerateSections && onGenerateSections()}
-                            disabled={!canGenerateSections || isGenerating || isWriting}
-                            className={`w-full py-3 rounded-xl text-sm font-bold flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] border ${!canGenerateSections || isGenerating || isWriting
-                                ? 'bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed'
-                                : 'bg-white text-emerald-700 border-emerald-200 hover:bg-emerald-50'
-                                }`}
-                        >
-                            {isWriting ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    <span>Writing Sections...</span>
-                                </>
-                            ) : (
-                                <>
-                                    <Zap className="w-4 h-4" />
-                                    <span>Step 2：生成 Sections</span>
-                                </>
-                            )}
-                        </button>
+
 
                         <button
                             type="button"

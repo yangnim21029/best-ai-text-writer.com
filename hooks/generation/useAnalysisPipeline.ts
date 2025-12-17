@@ -4,7 +4,7 @@ import { useAnalysisStore } from '../../store/useAnalysisStore';
 import { useMetricsStore } from '../../store/useMetricsStore';
 import { parseProductContext, generateProblemProductMapping } from '../../services/research/productFeatureToPainPointMapper';
 import { analyzeText } from '../../services/engine/nlpService';
-import { extractKeywordActionPlans } from '../../services/research/termUsagePlanner';
+import { extractFrequentWordsPlacementAnalysis } from '../../services/research/termUsagePlanner';
 import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { analyzeReferenceStructure } from '../../services/research/referenceAnalysisService';
 import { analyzeAuthorityTerms } from '../../services/research/authorityService';
@@ -104,7 +104,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
             generationStore.setGenerationStep('planning_keywords');
             try {
                 appendAnalysisLog(`Planning keyword strategy (top ${keywordPlanCandidates.length})...`);
-                const planRes = await extractKeywordActionPlans(fullConfig.referenceContent, keywordPlanCandidates, fullConfig.targetAudience);
+                const planRes = await extractFrequentWordsPlacementAnalysis(fullConfig.referenceContent, keywordPlanCandidates, fullConfig.targetAudience);
                 console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
                 analysisStore.setKeywordPlans(planRes.data);
                 const planWords = summarizeList(planRes.data.map(p => p.word), 6);
@@ -225,10 +225,11 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
     const visualPromise = visualTask();
     const regionalPromise = regionalTask();
 
-    const [productResult, structureResult, regionalResult] = await Promise.all([
+    const [productResult, structureResult, regionalResult, keywordResult] = await Promise.all([
         productPromise,
         structurePromise,
-        regionalPromise
+        regionalPromise,
+        keywordPromise
     ]);
 
     // Merge regional result into structureResult
@@ -245,7 +246,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
 
     appendAnalysisLog('Analysis stage completed. Preparing to write...');
 
-    keywordPromise.catch(err => console.warn('Keyword task failed (background)', err));
+
     visualPromise.catch(err => console.warn('Visual task failed (background)', err));
 
     return {

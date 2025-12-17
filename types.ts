@@ -5,10 +5,11 @@ export interface KeywordData {
   count: number;
 }
 
-export interface KeywordActionPlan {
+export interface FrequentWordsPlacementAnalysis {
   word: string;
   snippets: string[]; // The raw context snippets extracted from text
   plan: string[];     // The AI-generated action rules (max 3)
+  exampleSentence?: string; // NEW: An example sentence extracted from the original text
 }
 
 export interface SectionAnalysis {
@@ -115,7 +116,7 @@ export interface ArticleConfig {
   productRawText?: string;     // Raw input (Passed from UI)
 
   // Derived data passed to the generator
-  keywordPlans?: KeywordActionPlan[];
+  keywordPlans?: FrequentWordsPlacementAnalysis[];
   referenceAnalysis?: ReferenceAnalysis;
   authorityAnalysis?: AuthorityAnalysis;
   productMapping?: ProblemProductMapping[]; // NEW: The logic map
