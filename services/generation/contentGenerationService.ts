@@ -194,7 +194,9 @@ export const generateSectionContent = async (
             ...suppressHints
         ],
         regionReplacements: config.referenceAnalysis?.regionalReplacements,
-        humanWritingVoice: config.referenceAnalysis?.humanWritingVoice // NEW: Pass human voice
+        humanWritingVoice: config.referenceAnalysis?.humanWritingVoice, // NEW: Pass human voice
+        regionVoiceDetect: config.referenceAnalysis?.regionVoiceDetect, // NEW: Pass region voice %
+        replacementRules: config.referenceAnalysis?.replacementRules // NEW: Pass blocked terms
     });
 
     const response = await aiService.runJson<any>(

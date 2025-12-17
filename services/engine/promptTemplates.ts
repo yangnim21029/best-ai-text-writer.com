@@ -28,6 +28,8 @@ export const promptTemplates = {
     subheadings, // NEW: Accept subheadings
     regionReplacements, // NEW: Regional replacements
     humanWritingVoice, // NEW: Human Writing Voice (why it sounds human)
+    regionVoiceDetect, // NEW: Region Voice Detect %
+    replacementRules, // NEW: Blocked terms/Safety
   }: {
     sectionTitle: string;
     languageInstruction: string;
@@ -53,6 +55,8 @@ export const promptTemplates = {
     subheadings?: string[]; // NEW
     regionReplacements?: { original: string; replacement: string }[]; // NEW: Regional text replacements
     humanWritingVoice?: string; // NEW
+    regionVoiceDetect?: string; // NEW
+    replacementRules?: string[]; // NEW
   }) => {
     const resolvedDifficulty = difficulty || 'easy';
     const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
@@ -105,6 +109,22 @@ export const promptTemplates = {
     ${humanWritingVoice}
     </HumanWritingVoice>
     DEFINITION: Instructions on how to sound human and not like an AI.
+    ` : ''}
+
+    ${regionVoiceDetect ? `
+    <RegionVoiceProfile>
+    ${regionVoiceDetect}
+    </RegionVoiceProfile>
+    DEFINITION: The detected regional voice composition (e.g., 70% HK / 30% TW).
+    INSTRUCTION: Adhere to the dominant regional tone.
+    ` : ''}
+
+    ${replacementRules && replacementRules.length > 0 ? `
+    <SafetyConstraints>
+    ${replacementRules.map(r => `- AVOID: ${r}`).join('\n')}
+    </SafetyConstraints>
+    DEFINITION: Blocked terms or competitor names.
+    INSTRUCTION: Do NOT use these terms under any circumstances.
     ` : ''}
 
     ${regionReplacements && regionReplacements.length > 0 ? `
@@ -816,10 +836,10 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     DEFINITION: The reference text to analyze.
 
     ## Voice Strategy Analysis
-    - ** regionVoiceDetect **: Detect foreign Products/Services/Brands that are inaccessible in ${targetAudience}.
-      - Example: If target is "Hong Kong", flagging "Taiwan-only clinics/brands" as a mismatch because they are hard to access.
-      - Return "PASS" if all brands are accessible locally.
-      - Otherwise list: "Warning: [Brand X] is a [Region Y] brand/service, might not be available in [Target Region]."
+    - ** regionVoiceDetect **: Analyze the "Regional Voice Composition" of the text (e.g., usage of regional slang like "地道/貼地" for HK vs "接地氣" for TW).
+      - Calculate an approximate PERCENTAGE breakdown.
+      - Return a string like: "70% HK / 30% TW" or "100% TW".
+      - If uncertain or neutral, return "Neutral / Unclear".
     - ** humanWritingVoice **: Analyze the first 300 words (or the full Intro Paragraph). Explain "Why does this sound HUMAN?" by following these 5 steps:
       1. **Emotions & Subjectivity**: Identify subjective judgments/cultural evaluations (unlike AI's objective tone).
       2. **Tone & Particles**: Look for sentence-final particles (語助詞 like 喔, 唷) that create intimacy.

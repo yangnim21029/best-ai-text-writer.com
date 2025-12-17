@@ -132,7 +132,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
             )
         ]);
 
-        console.log(`[Timer] Structure Analysis: ${structRes.duration}ms`);
+        console.log(`[Timer] Narrative Structure (Outline): ${structRes.duration}ms`);
         console.log(`[Timer] Authority Analysis: ${authRes.duration}ms`);
         appendAnalysisLog(`Structure extracted (${structRes.data?.structure?.length || 0} sections).`);
         appendAnalysisLog('Authority terms mapped.');
