@@ -4,6 +4,7 @@ import React, { useMemo, useState } from 'react';
 import { useAnalysisStore } from '../store/useAnalysisStore';
 import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, X, ShoppingBag, ArrowRight, Gem, Square, Languages, Copy, Check } from 'lucide-react';
 import { GenerationStatus, FrequentWordsPlacementAnalysis, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief, TargetAudience } from '../types';
+import { Search, Loader2 } from 'lucide-react';
 
 interface SeoSidebarProps {
     keywordPlans: FrequentWordsPlacementAnalysis[];
@@ -27,6 +28,8 @@ interface SeoSidebarProps {
     brandKnowledge: string;
     setBrandKnowledge: (kb: string) => void;
     displayScale?: number;
+    onSearchLocalAlternatives?: () => Promise<void>;
+    isSearchingAlternatives?: boolean;
 }
 
 type Tab = 'analysis' | 'knowledge';
@@ -45,7 +48,9 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     onStop,
     brandKnowledge,
     setBrandKnowledge,
-    displayScale = 1
+    displayScale = 1,
+    onSearchLocalAlternatives,
+    isSearchingAlternatives = false
 }) => {
     const visualStyle = useAnalysisStore(state => state.visualStyle);
     const [activeTab, setActiveTab] = useState<Tab>('analysis');
@@ -332,13 +337,17 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                             <span className="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full text-[10px]">{referenceAnalysis.regionalReplacements.length}</span>
                                         </h5>
                                     </div>
-                                    <ul className="grid grid-cols-1 gap-2">
+                                    <ul className="grid grid-cols-1 gap-2 max-h-48 overflow-y-auto pr-1 custom-scrollbar">
                                         {referenceAnalysis.regionalReplacements.map((item, idx) => (
-                                            <li key={idx} className="bg-amber-50/50 rounded p-2 border border-amber-100 flex flex-col gap-1">
+                                            <li key={idx} className={`rounded p-2 border flex flex-col gap-1 ${item.replacement ? 'bg-amber-50/50 border-amber-100' : 'bg-red-50/50 border-red-100'}`}>
                                                 <div className="flex items-center gap-2 text-xs font-medium text-gray-800 flex-wrap">
                                                     <span className="text-red-500 line-through decoration-red-500/50">{item.original}</span>
                                                     <span className="text-gray-400">→</span>
-                                                    <span className="text-emerald-600 font-bold">{item.replacement}</span>
+                                                    {item.replacement ? (
+                                                        <span className="text-emerald-600 font-bold">{item.replacement}</span>
+                                                    ) : (
+                                                        <span className="text-red-500 font-bold italic">(刪除)</span>
+                                                    )}
                                                 </div>
                                                 {item.reason && <span className="text-[10px] text-gray-500 leading-snug">{item.reason}</span>}
                                             </li>
@@ -347,20 +356,67 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 </div>
                             )}
 
-                            {/* Blocked Competitor Terms */}
-                            {referenceAnalysis.replacementRules && referenceAnalysis.replacementRules.length > 0 && (
-                                <div className={`space-y-2 ${referenceAnalysis.regionalReplacements?.length ? 'pt-2 border-t border-gray-100' : ''}`}>
-                                    <h5 className="text-xs font-bold text-gray-400 uppercase">Blocked Terms</h5>
-                                    <ul className="space-y-1.5">
-                                        {referenceAnalysis.replacementRules.map((rule, idx) => (
-                                            <li key={idx} className="text-xs text-gray-600 flex items-start gap-2 bg-gray-50 rounded px-2 py-1 border border-gray-100">
-                                                <span className="text-red-400 font-bold">[-]</span>
-                                                <span className="break-words font-medium">{rule}</span>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
+                            {/* Blocked Competitor Terms with Classification */}
+                            {((referenceAnalysis.competitorBrands && referenceAnalysis.competitorBrands.length > 0) ||
+                                (referenceAnalysis.competitorProducts && referenceAnalysis.competitorProducts.length > 0)) && (
+                                    <div className={`space-y-2 ${referenceAnalysis.regionalReplacements?.length ? 'pt-2 border-t border-gray-100' : ''}`}>
+                                        <div className="flex items-center justify-between">
+                                            <h5 className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
+                                                Blocked Terms
+                                                <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full text-[10px]">
+                                                    {(referenceAnalysis.competitorBrands?.length || 0) + (referenceAnalysis.competitorProducts?.length || 0)}
+                                                </span>
+                                            </h5>
+                                        </div>
+
+                                        {/* Recommendation Banner */}
+                                        {((referenceAnalysis.competitorBrands?.length || 0) + (referenceAnalysis.competitorProducts?.length || 0)) >= 3 && (
+                                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 space-y-2">
+                                                <div className="flex items-start gap-2">
+                                                    <span className="text-blue-600 text-sm">💡</span>
+                                                    <p className="text-xs text-blue-700 leading-relaxed">
+                                                        偵測到 <strong>{(referenceAnalysis.competitorBrands?.length || 0) + (referenceAnalysis.competitorProducts?.length || 0)}</strong> 個品牌/產品需要本地替換
+                                                    </p>
+                                                </div>
+                                                <button
+                                                    className="w-full px-3 py-1.5 bg-blue-600 text-white text-xs font-semibold rounded-md hover:bg-blue-700 active:scale-[0.98] transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                                                    onClick={onSearchLocalAlternatives}
+                                                    disabled={isSearchingAlternatives || !onSearchLocalAlternatives}
+                                                >
+                                                    {isSearchingAlternatives ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                                    ) : (
+                                                        <Search className="w-3.5 h-3.5" />
+                                                    )}
+                                                    搜尋本地替代品牌
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        <ul className="space-y-1.5">
+                                            {/* Brand items */}
+                                            {referenceAnalysis.competitorBrands?.map((brand, idx) => (
+                                                <li key={`brand-${idx}`} className="text-xs text-gray-600 flex items-center justify-between gap-2 bg-gray-50 rounded px-2 py-1.5 border border-gray-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-red-400 font-bold">[-]</span>
+                                                        <span className="break-words font-medium">{brand}</span>
+                                                    </div>
+                                                    <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-full">品牌</span>
+                                                </li>
+                                            ))}
+                                            {/* Product items */}
+                                            {referenceAnalysis.competitorProducts?.map((product, idx) => (
+                                                <li key={`product-${idx}`} className="text-xs text-gray-600 flex items-center justify-between gap-2 bg-gray-50 rounded px-2 py-1.5 border border-gray-100">
+                                                    <div className="flex items-center gap-2">
+                                                        <span className="text-red-400 font-bold">[-]</span>
+                                                        <span className="break-words font-medium">{product}</span>
+                                                    </div>
+                                                    <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-full">產品</span>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
                         </div>
                     </div>
                 )}

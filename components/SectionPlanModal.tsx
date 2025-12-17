@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Zap, Pencil, Ban, Plus, CheckSquare } from 'lucide-react';
+import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Pencil, Ban, CheckSquare, RefreshCw, Languages } from 'lucide-react';
 import { SectionAnalysis } from '../types';
 
 interface SectionPlanModalProps {
@@ -8,8 +8,15 @@ interface SectionPlanModalProps {
     sections: SectionAnalysis[];
     generalPlan?: string[];
     conversionPlan?: string[];
+    regionalReplacements?: { original: string; replacement: string; reason?: string }[];
+    // Localized versions (stored separately)
+    localizedSections?: SectionAnalysis[];
+    localizedGeneralPlan?: string[];
+    localizedConversionPlan?: string[];
+    isLocalizing?: boolean; // Loading state from parent
     onStartWriting?: (sections: SectionAnalysis[]) => void;
     onSavePlan?: (sections: SectionAnalysis[]) => void;
+    onLocalizeAll?: () => Promise<void>; // Now just triggers parent to do AI localization
 }
 
 type DraftSection = SectionAnalysis & {
@@ -46,15 +53,38 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
     sections,
     generalPlan = [],
     conversionPlan = [],
+    regionalReplacements = [],
+    localizedSections,
+    localizedGeneralPlan,
+    localizedConversionPlan,
+    isLocalizing = false,
     onStartWriting,
     onSavePlan,
+    onLocalizeAll,
 }) => {
     const [drafts, setDrafts] = useState<DraftSection[]>([]);
     const [editingIds, setEditingIds] = useState<Set<number>>(new Set());
+    const [useLocalizedPlan, setUseLocalizedPlan] = useState(false);
+
+    // Determine if localized plan is available
+    const hasLocalizedPlan = Boolean(localizedSections && localizedSections.length > 0);
+
+    // Active data based on toggle
+    const activeSections = useLocalizedPlan && hasLocalizedPlan ? localizedSections! : sections;
+    const activeGeneralPlan = useLocalizedPlan && hasLocalizedPlan ? (localizedGeneralPlan || []) : generalPlan;
+    const activeConversionPlan = useLocalizedPlan && hasLocalizedPlan ? (localizedConversionPlan || []) : conversionPlan;
+
+    // Handle localize all plans - trigger parent to do AI localization
+    const handleLocalizeAll = async () => {
+        if (regionalReplacements.length === 0 || !onLocalizeAll) return;
+        await onLocalizeAll();
+        // Auto-switch to localized view after localizing
+        setUseLocalizedPlan(true);
+    };
 
     useEffect(() => {
         if (!open) return;
-        const next = (sections || []).map((s) => ({
+        const next = (activeSections || []).map((s) => ({
             ...s,
             selected: true,
             narrativeText: (s.narrativePlan || []).join('\n'),
@@ -64,7 +94,7 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
         }));
         setDrafts(next);
         setEditingIds(new Set());
-    }, [open, sections]);
+    }, [open, activeSections, useLocalizedPlan]);
 
     const allSelected = useMemo(() => drafts.length > 0 && drafts.every(d => d.selected), [drafts]);
     const canStart = useMemo(() => drafts.some(d => d.selected), [drafts]);
@@ -137,11 +167,32 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                         >
                             {allSelected ? '取消全選' : '全選'}
                         </button>
+                        {/* Toggle between original and localized plan */}
+                        {hasLocalizedPlan && (
+                            <button
+                                onClick={() => setUseLocalizedPlan(!useLocalizedPlan)}
+                                className={`px-3 py-2 text-sm font-semibold rounded-lg border flex items-center gap-1.5 transition ${useLocalizedPlan
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : 'bg-gray-50 text-gray-600 border-gray-200'
+                                    }`}
+                            >
+                                <Languages className="w-4 h-4" />
+                                {useLocalizedPlan ? '本地化版本 ✓' : '原版'}
+                            </button>
+                        )}
                         <button
                             onClick={() => handleSave(false)}
                             className="px-3 py-2 text-sm font-semibold text-gray-700 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition"
                         >
                             儲存計劃
+                        </button>
+                        <button
+                            onClick={handleLocalizeAll}
+                            className="px-3 py-2 text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition flex items-center gap-1.5 disabled:opacity-50"
+                            disabled={regionalReplacements.length === 0 || isLocalizing}
+                        >
+                            <Languages className="w-4 h-4" />
+                            {isLocalizing ? '處理中...' : '全部段落本地化'}
                         </button>
                         <button
                             onClick={() => handleSave(true)}
@@ -166,10 +217,13 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                             <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
                                 <Map className="w-4 h-4 text-blue-600" />
                                 Global Plan
+                                {useLocalizedPlan && hasLocalizedPlan && (
+                                    <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">本地化</span>
+                                )}
                             </div>
-                            {generalPlan.length > 0 ? (
+                            {activeGeneralPlan.length > 0 ? (
                                 <ul className="space-y-2">
-                                    {generalPlan.map((item, idx) => (
+                                    {activeGeneralPlan.map((item, idx) => (
                                         <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                             <span className="text-blue-400 mt-1">•</span>
                                             <span className="leading-snug">{item}</span>
@@ -184,10 +238,13 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                 <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
                                     <Target className="w-4 h-4 text-emerald-600" />
                                     Conversion Plan
+                                    {useLocalizedPlan && hasLocalizedPlan && (
+                                        <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">本地化</span>
+                                    )}
                                 </div>
-                                {conversionPlan.length > 0 ? (
+                                {activeConversionPlan.length > 0 ? (
                                     <ul className="mt-2 space-y-2">
-                                        {conversionPlan.map((item, idx) => (
+                                        {activeConversionPlan.map((item, idx) => (
                                             <li key={idx} className="text-sm text-gray-700 flex items-start gap-2">
                                                 <span className="text-emerald-400 mt-1">•</span>
                                                 <span className="leading-snug">{item}</span>
@@ -198,6 +255,34 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                     <p className="text-sm text-gray-400">尚未有轉換策略。</p>
                                 )}
                             </div>
+
+                            {/* Regional Replacements */}
+                            {regionalReplacements.length > 0 && (
+                                <div className="pt-4 border-t border-gray-100">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
+                                        <RefreshCw className="w-4 h-4 text-amber-600" />
+                                        需要替換 ({regionalReplacements.length})
+                                    </div>
+                                    <ul className="mt-2 space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                        {regionalReplacements.map((item, idx) => (
+                                            <li key={idx} className={`text-sm rounded p-2 border ${item.replacement ? 'bg-amber-50/50 border-amber-100' : 'bg-red-50/50 border-red-100'}`}>
+                                                <div className="flex items-center gap-2 flex-wrap">
+                                                    <span className="text-red-500 line-through text-xs">{item.original}</span>
+                                                    <span className="text-gray-400">→</span>
+                                                    {item.replacement ? (
+                                                        <span className="text-emerald-600 font-semibold text-xs">{item.replacement}</span>
+                                                    ) : (
+                                                        <span className="text-red-500 font-semibold italic text-xs">(刪除)</span>
+                                                    )}
+                                                </div>
+                                                {item.reason && (
+                                                    <p className="text-[10px] text-gray-500 mt-1">{item.reason}</p>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
                         </div>
                     </aside>
 
@@ -420,31 +505,6 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                                 )}
                                             </div>
 
-                                            {section.data.shiftPlan && section.data.shiftPlan.length > 0 && (
-                                                <div className="mt-3 p-3 rounded-lg border border-indigo-100 bg-indigo-50/60">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-indigo-700 uppercase tracking-wide">
-                                                        <Zap className="w-4 h-4" />
-                                                        Shift Plan
-                                                    </div>
-                                                    <div className="mt-2 space-y-1">
-                                                        {section.data.shiftPlan.slice(0, 3).map((sp, si) => {
-                                                            const parts = [sp.from ? `from: ${sp.from}` : '', sp.to ? `to: ${sp.to}` : '', sp.reason ? `why: ${sp.reason}` : '']
-                                                                .filter(Boolean)
-                                                                .join(' | ');
-                                                            return (
-                                                                <div key={si} className="text-sm text-indigo-700 flex items-start gap-2 leading-snug break-words">
-                                                                    <span className="text-indigo-300 mt-1">•</span>
-                                                                    <span>{parts || '調整排序/內容'}</span>
-                                                                </div>
-                                                            );
-                                                        })}
-                                                        {section.data.shiftPlan.length > 3 && (
-                                                            <div className="text-[11px] text-indigo-400">+{section.data.shiftPlan.length - 3} more</div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            )}
-
                                             {/* Suppress (不應有) */}
                                             {section.data.suppress && section.data.suppress.length > 0 && (
                                                 <div className="mt-3 p-3 rounded-lg border border-rose-100 bg-rose-50/60">
@@ -456,24 +516,6 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                                         {section.data.suppress.map((item, si) => (
                                                             <li key={si} className="text-sm text-rose-700 flex items-start gap-2 leading-snug">
                                                                 <span className="text-rose-300 mt-1">-</span>
-                                                                <span className="break-words">{item}</span>
-                                                            </li>
-                                                        ))}
-                                                    </ul>
-                                                </div>
-                                            )}
-
-                                            {/* Augment (建議有) */}
-                                            {section.data.augment && section.data.augment.length > 0 && (
-                                                <div className="mt-3 p-3 rounded-lg border border-emerald-100 bg-emerald-50/60">
-                                                    <div className="flex items-center gap-2 text-xs font-bold text-emerald-700 uppercase tracking-wide">
-                                                        <Plus className="w-4 h-4" />
-                                                        建議有 (Augment)
-                                                    </div>
-                                                    <ul className="mt-2 space-y-1">
-                                                        {section.data.augment.map((item, ai) => (
-                                                            <li key={ai} className="text-sm text-emerald-700 flex items-start gap-2 leading-snug">
-                                                                <span className="text-emerald-300 mt-1">+</span>
                                                                 <span className="break-words">{item}</span>
                                                             </li>
                                                         ))}

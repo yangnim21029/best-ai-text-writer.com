@@ -119,20 +119,28 @@ export const promptTemplates = {
     INSTRUCTION: Adhere to the dominant regional tone.
     ` : ''}
 
-    ${replacementRules && replacementRules.length > 0 ? `
-    <SafetyConstraints>
-    ${replacementRules.map(r => `- AVOID: ${r}`).join('\n')}
-    </SafetyConstraints>
-    DEFINITION: Blocked terms or competitor names.
-    INSTRUCTION: Do NOT use these terms under any circumstances.
-    ` : ''}
 
-    ${regionReplacements && regionReplacements.length > 0 ? `
-    <RegionalReplacements>
-    ${regionReplacements.map(r => `- "${r.original}" -> "${r.replacement}"`).join('\n')}
-    </RegionalReplacements>
-    DEFINITION: Mandatory vocabulary corrections for the target region.
+    ## Localization & Safety
+    ${(replacementRules && replacementRules.length > 0) || (regionReplacements && regionReplacements.length > 0) ? `
+    <LocalizationAndSafety>
+    ${replacementRules && replacementRules.length > 0 ? `
+    **Blocked Terms (DO NOT USE):**
+    ${replacementRules.map(r => `- ❌ ${r}`).join('\n')}
     ` : ''}
+    ${regionReplacements && regionReplacements.length > 0 ? `
+    **Regional Replacements (MANDATORY):**
+    ${regionReplacements.map(r => r.replacement
+      ? `- "${r.original}" → "${r.replacement}"`
+      : `- "${r.original}" → [REMOVE from text]`
+    ).join('\n')}
+    ` : ''}
+    </LocalizationAndSafety>
+    DEFINITION: Terms to avoid and mandatory vocabulary corrections for the target region.
+    INSTRUCTION:
+    1. NEVER use any Blocked Terms.
+    2. ALWAYS replace "original" terms with their "replacement".
+    3. If replacement is [REMOVE], rewrite the sentence to exclude that term entirely.
+    ` : '(No localization constraints)'}
 
 
     ## Task Definition
@@ -816,14 +824,18 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     1) Voice & Tone (General Plan).
     2) Conversion Strategy (Offers, CTAs, Risk Reversals).
     3) Brand Exclusive Points (USP).
-    4) Competitor Names/Products to suppress.
-    5) Regional Validity (Brand Availability).
-    6) Human Writing Characteristics.
+    4) Competitor Names/Products to suppress. (CRITICAL: Do NOT list the region name "${targetAudience}" itself as a competitor).
+    5) **Regional Entities Detection**: CRITICAL - Identify ALL brands, stores, services, or entities that are SPECIFIC to a different region and NOT available in the target region "${targetAudience}".
+       - For zh-HK target: Detect Taiwan-specific brands (如：寶雅、全聯、momo購物、蝦皮台灣), Taiwan fashion brands, Taiwan chain stores.
+       - For zh-TW target: Detect Hong Kong-specific brands (如：HKTVmall、百佳、惠康、sasa), HK chain stores.
+       - These should be added to competitorBrands or competitorProducts even if they are not direct competitors.
+    6) Regional Validity (Brand Availability).
+    7) Human Writing Characteristics.
 
     <TargetAudience>
     ${targetAudience}
     </TargetAudience>
-    DEFINITION: The target region.
+    DEFINITION: The target region. ALL entities not available in this region should be flagged as competitorBrands/Products.
     
     <LanguageInstruction>
     ${languageInstruction}
@@ -847,10 +859,11 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
       4. **Cultural Metaphors**: Does it link facts to cultural concepts (e.g. physiognomy/fortune telling 面相) rather than just medical facts?
       5. **Social Intent**: Is there a call for interaction (save/share) vs just providing info?
       *Summarize these findings into a concise guide.*
-                      "competitorProducts": ["Competitor Product 1", "Competitor Product 2"],
-                        "regionVoiceDetect": "Match | Warning ...",
-                          "humanWritingVoice": "Human writing voice description..."
-    }
+    - ** competitorBrands **: List ALL brands that should be avoided, including:
+      - Direct competitors mentioned in the text
+      - **Region-specific brands/stores NOT available in ${targetAudience}** (e.g., Taiwan brands 韌 REN, Fashion for Yes, 寶雅 when targeting Hong Kong)
+    - ** competitorProducts **: List ALL products that should be avoided or replaced.
+
     Return JSON only, no extra text or markdown fences.`,
 
   keywordAnalysis: ({ content, targetAudience, languageInstruction }: { content: string; targetAudience: TargetAudience; languageInstruction: string }) => `

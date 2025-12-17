@@ -44,6 +44,8 @@ interface AnalysisState {
         regionLabel: string;
     } | null;
     showGroundingModal: boolean;
+    // NEW: Localized plan stored separately
+    localizedRefAnalysis: ReferenceAnalysis | null;
     setKeywordPlans: (plans: FrequentWordsPlacementAnalysis[]) => void;
     setRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     setAuthAnalysis: (analysis: AuthorityAnalysis | null) => void;
@@ -69,6 +71,7 @@ interface AnalysisState {
     setPendingGroundingResult: (result: AnalysisState['pendingGroundingResult']) => void;
     setShowGroundingModal: (show: boolean) => void;
     toggleGroundingIssueSelection: (index: number) => void;
+    setLocalizedRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     reset: () => void;
 }
 
@@ -91,6 +94,7 @@ export const useAnalysisStore = create<AnalysisState>()(
             hkGroundingResult: null,
             pendingGroundingResult: null,
             showGroundingModal: false,
+            localizedRefAnalysis: null,
             setKeywordPlans: (plans) => set({ keywordPlans: plans }),
             setRefAnalysis: (analysis) => set({ refAnalysis: analysis }),
             setAuthAnalysis: (analysis) => set({ authAnalysis: analysis }),
@@ -121,6 +125,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                     }
                 };
             }),
+            setLocalizedRefAnalysis: (analysis) => set({ localizedRefAnalysis: analysis }),
             reset: () => set({
                 keywordPlans: [],
                 refAnalysis: null,
@@ -138,6 +143,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 hkGroundingResult: null,
                 pendingGroundingResult: null,
                 showGroundingModal: false,
+                localizedRefAnalysis: null,
             }),
         }),
         {
@@ -157,6 +163,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 languageInstruction: state.languageInstruction,
                 productMapping: state.productMapping,
                 activeProductBrief: state.activeProductBrief,
+                localizedRefAnalysis: state.localizedRefAnalysis,
             }),
         }
     )

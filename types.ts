@@ -151,6 +151,7 @@ export interface AIRequestConfig {
   topP?: number;
   providerOptions?: {
     vertex?: {
+      useSearchGrounding?: boolean;
       groundingConfig?: {
         googleSearchRetrieval?: Record<string, unknown>;
       };

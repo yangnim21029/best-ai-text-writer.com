@@ -283,7 +283,7 @@ export class GenAIClient {
 
         // Extract schema from config if present
         if (config) {
-            const { responseSchema, responseMimeType, ...restConfig } = config;
+            const { responseSchema, responseMimeType, providerOptions, ...restConfig } = config;
 
             // Some backends expect `responseSchema`, others expect `schema`.
             // Send both to stay backward compatible and avoid missing-field errors.
@@ -293,6 +293,10 @@ export class GenAIClient {
             }
 
             if (responseMimeType) payload.responseMimeType = responseMimeType;
+
+            // Pass providerOptions for features like Google Search Grounding
+            if (providerOptions) payload.providerOptions = providerOptions;
+
             if (Object.keys(restConfig).length > 0) payload.config = restConfig;
         }
 

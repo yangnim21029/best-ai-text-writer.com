@@ -142,42 +142,78 @@ export const findRegionEquivalents = async (
         };
     }
 
-    const targetEntities = entities.slice(0, 10);
-    const entityList = targetEntities.map(e => `- ${e.text} (${e.type}, from ${e.region})`).join('\n');
+    // Process ALL entities in a single grounding call (no limit)
+    const entityList = entities.map(e => `- ${e.text} (${e.type})`).join('\n');
 
     const prompt = `
-你是一位${config.name}市場專家。請為以下非${config.name}實體找出${config.name}對應的替代選項。
+你是一位${config.name}市場專家。請為以下非${config.name}實體找出${config.name}適合的替代選項。
 
 **需要查找替代的實體：**
 ${entityList}
 
-**請找出：**
-1. ${config.name}市場對應的品牌/服務/機構
-2. ${config.name}慣用的名稱或說法
-3. ${config.name}相關的法規或標準
+**替代選項優先順序（請依序嘗試）：**
+1. **直接對應** - ${config.name}市場中功能相同的品牌/服務（如：台灣「全聯」→ 香港「百佳/惠康」）
+2. **同類替代** - 同品類中${config.name}較知名的品牌（如：台灣服裝品牌 → 任何香港知名服裝品牌）
+3. **通用描述** - 如果找不到具體品牌，使用通用描述（如：「韌 REN」→「本地運動服飾品牌」或「知名運動服裝店」）
+4. **刪除** - 只有在完全無法描述時才使用「[刪除]」
 
-**輸出 JSON 格式：**
-{
-  "mappings": [
-    {
-      "type": "entity|brand|regulation|currency|location|service",
-      "original": "原實體",
-      "regionEquivalent": "${config.name}對應",
-      "confidence": 0.0-1.0,
-      "context": "說明為何這是合適的替代",
-      "sourceRegion": "來源地區"
-    }
-  ]
-}
+**重要規則：**
+- 盡量提供替代，不要輕易使用「[刪除]」
+- 通用描述也是可接受的替代（如「大型藥妝連鎖店」、「本地電商平台」）
+- 每個輸入的實體都必須有一個對應的輸出`;
 
-只輸出 JSON。如果某實體找不到合適替代，可以省略或設 regionEquivalent 為空。`;
+    // Schema for structured output
+    const schema = {
+        type: 'object',
+        properties: {
+            mappings: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    properties: {
+                        type: { type: 'string', description: 'entity|brand|regulation|currency|location|service' },
+                        original: { type: 'string', description: '原實體名稱' },
+                        regionEquivalent: { type: 'string', description: `${config.name}對應的真實品牌/服務名稱，如找不到則填 "[刪除]"` },
+                        confidence: { type: 'number', description: '0.0-1.0 置信度' },
+                        context: { type: 'string', description: '說明為何這是合適的替代，或為何建議刪除' },
+                        sourceRegion: { type: 'string', description: '來源地區' }
+                    },
+                    required: ['original', 'regionEquivalent', 'context']
+                }
+            }
+        },
+        required: ['mappings']
+    };
 
-    const response = await aiService.runJson<{
+    // Use runJsonWithSearch with schema for stable structured output
+    const response = await aiService.runJsonWithSearch<{
         mappings: RegionIssue[];
-    }>(prompt, 'FLASH');
+    }>(prompt, 'FLASH', schema);
+
+    // Ensure ALL input entities have a mapping
+    const aiMappings = response.data.mappings || [];
+    const finalMappings: RegionIssue[] = entities.map(entity => {
+        const found = aiMappings.find(m => m.original === entity.text);
+        if (found) {
+            // Convert "[刪除]" to empty string for actual deletion
+            return {
+                ...found,
+                regionEquivalent: found.regionEquivalent === '[刪除]' ? '' : found.regionEquivalent
+            };
+        }
+        // If AI didn't return this entity, create empty replacement (for deletion)
+        return {
+            type: entity.type as any,
+            original: entity.text,
+            regionEquivalent: '',
+            confidence: 0,
+            context: '未找到合適替代，建議從內容中移除',
+            sourceRegion: entity.region
+        };
+    });
 
     return {
-        mappings: (response.data.mappings || []).filter(m => m.regionEquivalent),
+        mappings: finalMappings,
         usage: response.usage,
         cost: response.cost,
         duration: response.duration
@@ -341,5 +377,128 @@ export const validateAndAdaptForRegion = async (
         usage: totalUsage,
         cost: totalCost,
         duration: Date.now() - startTime
+    };
+};
+
+/**
+ * AI-powered localization for section plans
+ * Intelligently rewrites plans for target region, not just string replacement
+ */
+export const localizePlanWithAI = async (
+    data: {
+        generalPlan: string[];
+        conversionPlan: string[];
+        sections: { title: string; narrativePlan?: string[]; keyFacts?: string[]; uspNotes?: string[]; subheadings?: string[] }[];
+    },
+    replacements: { original: string; replacement: string; reason?: string }[],
+    targetAudience: TargetAudience
+): Promise<{
+    localizedGeneralPlan: string[];
+    localizedConversionPlan: string[];
+    localizedSections: typeof data.sections;
+    usage: TokenUsage;
+    cost: CostBreakdown;
+    duration: number;
+}> => {
+    const config = REGION_CONFIG[targetAudience];
+    if (!config || replacements.length === 0) {
+        return {
+            localizedGeneralPlan: data.generalPlan,
+            localizedConversionPlan: data.conversionPlan,
+            localizedSections: data.sections,
+            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+            duration: 0
+        };
+    }
+
+    // Build replacement instructions
+    const replacementGuide = replacements.map(r =>
+        r.replacement
+            ? `- 「${r.original}」→「${r.replacement}」${r.reason ? `（${r.reason}）` : ''}`
+            : `- 「${r.original}」→ 刪除此詞，重寫相關句子使其通順`
+    ).join('\n');
+
+    // Serialize plans for AI
+    const plansJson = JSON.stringify({
+        generalPlan: data.generalPlan,
+        conversionPlan: data.conversionPlan,
+        sections: data.sections.map(s => ({
+            title: s.title,
+            narrativePlan: s.narrativePlan || [],
+            keyFacts: s.keyFacts || [],
+            uspNotes: s.uspNotes || [],
+            subheadings: s.subheadings || []
+        }))
+    }, null, 2);
+
+    const prompt = `
+你是一位${config.name}市場內容本地化專家。請將以下段落計劃進行本地化改寫，使其完全適合${config.name}讀者。
+
+**本地化替換指引：**
+${replacementGuide}
+
+**原始段落計劃：**
+${plansJson}
+
+**本地化規則：**
+1. 應用上述替換指引，將非${config.name}的品牌/服務/實體替換為適當的替代
+2. 如果替換後句子不通順，請適度改寫使其自然
+3. 如果某詞需要刪除，請重寫該句子使其意思完整，不要留下空白
+4. 保持原有的結構和格式（數組、標題等）
+5. 對於 generalPlan 和 conversionPlan，確保策略仍然適用於${config.name}市場
+
+**請輸出 JSON，格式與輸入相同：**
+{
+  "generalPlan": ["本地化後的策略..."],
+  "conversionPlan": ["本地化後的轉換策略..."],
+  "sections": [
+    {
+      "title": "本地化後的標題",
+      "narrativePlan": ["本地化後的敘事計劃..."],
+      "keyFacts": ["本地化後的關鍵事實..."],
+      "uspNotes": ["本地化後的賣點..."],
+      "subheadings": ["本地化後的子標題..."]
+    }
+  ]
+}
+
+只輸出 JSON，不要其他文字。`;
+
+    const schema = {
+        type: 'object',
+        properties: {
+            generalPlan: { type: 'array', items: { type: 'string' } },
+            conversionPlan: { type: 'array', items: { type: 'string' } },
+            sections: {
+                type: 'array',
+                items: {
+                    type: 'object',
+                    properties: {
+                        title: { type: 'string' },
+                        narrativePlan: { type: 'array', items: { type: 'string' } },
+                        keyFacts: { type: 'array', items: { type: 'string' } },
+                        uspNotes: { type: 'array', items: { type: 'string' } },
+                        subheadings: { type: 'array', items: { type: 'string' } }
+                    }
+                }
+            }
+        },
+        required: ['generalPlan', 'conversionPlan', 'sections']
+    };
+
+    const response = await aiService.runJson<{
+        generalPlan: string[];
+        conversionPlan: string[];
+        sections: typeof data.sections;
+    }>(prompt, 'FLASH', schema);
+
+    return {
+        localizedGeneralPlan: response.data.generalPlan || data.generalPlan,
+        localizedConversionPlan: response.data.conversionPlan || data.conversionPlan,
+        localizedSections: response.data.sections || data.sections,
+        usage: response.usage,
+        cost: response.cost,
+        duration: response.duration
     };
 };

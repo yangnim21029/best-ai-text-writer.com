@@ -26,8 +26,18 @@ export const extractSemanticKeywordsAnalysis = async (
 ): Promise<ServiceResponse<FrequentWordsPlacementAnalysis[]>> => {
     const startTs = Date.now();
 
+    // 1. Deduplicate keywords (Case-insensitive) to prevent processing duplicates
+    const uniqueKeywordsMap = new Map<string, KeywordData>();
+    keywords.forEach(k => {
+        const lower = (k.token || '').toLowerCase().trim();
+        if (lower && !uniqueKeywordsMap.has(lower)) {
+            uniqueKeywordsMap.set(lower, k);
+        }
+    });
+    const uniqueKeywords = Array.from(uniqueKeywordsMap.values());
+
     // Take top keywords to avoid token limits (magic number tuned for speed/cost)
-    const topKeywords = keywords.slice(0, SEMANTIC_KEYWORD_LIMIT);
+    const topKeywords = uniqueKeywords.slice(0, SEMANTIC_KEYWORD_LIMIT);
 
     const truncateSnippet = (text: string, maxLen: number = 160) =>
         text.length > maxLen ? `${text.slice(0, maxLen - 3)}...` : text;
@@ -125,15 +135,26 @@ export const extractSemanticKeywordsAnalysis = async (
     });
 
     // Map back to include snippets (using the original payloads)
-    const finalPlans: FrequentWordsPlacementAnalysis[] = mergedPlans.map((p: any) => {
-        const original = allAnalysisPayloads.find(ap => ap.word === p.word);
-        return {
+    // Also final safety dedupe on the results
+    const seenWords = new Set<string>();
+
+    const finalPlans: FrequentWordsPlacementAnalysis[] = mergedPlans.reduce((acc: FrequentWordsPlacementAnalysis[], p: any) => {
+        const lower = (p.word || '').toLowerCase().trim();
+        if (!lower || seenWords.has(lower)) return acc;
+
+        seenWords.add(lower);
+
+        const original = allAnalysisPayloads.find(ap => ap.word === p.word) ||
+            allAnalysisPayloads.find(ap => (ap.word || '').toLowerCase() === lower);
+
+        acc.push({
             word: p.word,
             plan: p.plan || [],
             snippets: original ? original.snippets : [],
             exampleSentence: p.exampleSentence || ''
-        };
-    });
+        });
+        return acc;
+    }, []);
 
     return {
         data: finalPlans,

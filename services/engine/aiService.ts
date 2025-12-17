@@ -89,6 +89,61 @@ class AIService {
         }
     }
 
+    /**
+     * Run a JSON generation request with Google Search Grounding enabled
+     * Use this for queries that need real-time web information (e.g., finding local brand alternatives)
+     */
+    async runJsonWithSearch<T>(
+        prompt: string,
+        modelKey: LlmModelKey = 'FLASH',
+        schema?: any
+    ): Promise<{ data: T; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
+        const start = Date.now();
+        const model = MODEL[modelKey];
+        const config: AIRequestConfig = {
+            responseMimeType: 'application/json',
+            responseSchema: schema,
+            providerOptions: {
+                vertex: {
+                    useSearchGrounding: true,
+                },
+            },
+        };
+
+        try {
+            const response = await genAIClient.request({
+                model,
+                contents: prompt,
+                config
+            });
+
+            const { usage, cost } = calculateCost(response.usageMetadata, modelKey);
+
+            let data: T;
+            if (response.object) {
+                data = response.object as T;
+            } else {
+                try {
+                    // Clean markdown code blocks if present
+                    const cleanText = response.text.replace(/```(?:json)?\n?|\n?```/gi, '').trim();
+                    data = JSON.parse(cleanText) as T;
+                } catch (e) {
+                    throw new Error(`Failed to parse JSON response: ${response.text.substring(0, 100)}...`);
+                }
+            }
+
+            return {
+                data,
+                usage,
+                cost,
+                duration: Date.now() - start
+            };
+        } catch (error) {
+            console.error(`[AIService] runJsonWithSearch failed for ${modelKey}`, error);
+            throw error;
+        }
+    }
+
 
 }
 

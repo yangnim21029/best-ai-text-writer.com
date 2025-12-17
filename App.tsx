@@ -9,6 +9,7 @@ import { PasswordGate } from './components/PasswordGate';
 import { useProfileStore } from './store/useProfileStore';
 import { useGeneration } from './hooks/useGeneration';
 import { parseProductContext } from './services/research/productFeatureToPainPointMapper';
+import { findRegionEquivalents, localizePlanWithAI } from './services/research/regionGroundingService';
 import { SavedProfile, ScrapedImage, SectionAnalysis } from './types';
 import { useGenerationStore } from './store/useGenerationStore';
 import { useAnalysisStore } from './store/useAnalysisStore';
@@ -61,6 +62,8 @@ const App: React.FC = () => {
     const restorePromptedRef = useRef(false);
     const hydratedAnalysisRef = useRef(false);
     const planModalShownRef = useRef(false);
+    const [isSearchingAlternatives, setIsSearchingAlternatives] = useState(false);
+    const [isLocalizingPlan, setIsLocalizingPlan] = useState(false);
 
     // Logic Hooks
     const { generate, startWriting, stop } = useGeneration();
@@ -339,6 +342,55 @@ const App: React.FC = () => {
         analysisStore.setScrapedImages(updated);
     };
 
+    const handleSearchLocalAlternatives = async () => {
+        const refAnalysis = analysisStore.refAnalysis;
+        if (!refAnalysis) return;
+
+        const brands = refAnalysis.competitorBrands || [];
+        const products = refAnalysis.competitorProducts || [];
+
+        if (brands.length === 0 && products.length === 0) return;
+
+        // Convert to entity format for findRegionEquivalents
+        const entities = [
+            ...brands.map(b => ({ text: b, type: 'brand', region: 'OTHER' })),
+            ...products.map(p => ({ text: p, type: 'service', region: 'OTHER' }))
+        ];
+
+        setIsSearchingAlternatives(true);
+        try {
+            const result = await findRegionEquivalents(entities, analysisStore.targetAudience);
+            metricsStore.addCost(result.cost.totalCost, result.usage.totalTokens);
+
+            if (result.mappings.length > 0) {
+                // Merge new regional replacements with existing
+                const existingReplacements = refAnalysis.regionalReplacements || [];
+                const newReplacements = result.mappings.map(m => ({
+                    original: m.original,
+                    replacement: m.regionEquivalent,
+                    reason: m.context
+                }));
+
+                // Avoid duplicates
+                const mergedReplacements = [...existingReplacements];
+                newReplacements.forEach(nr => {
+                    if (!mergedReplacements.some(er => er.original === nr.original)) {
+                        mergedReplacements.push(nr);
+                    }
+                });
+
+                analysisStore.setRefAnalysis({
+                    ...refAnalysis,
+                    regionalReplacements: mergedReplacements
+                });
+            }
+        } catch (error) {
+            console.error('[App] Search local alternatives failed', error);
+        } finally {
+            setIsSearchingAlternatives(false);
+        }
+    };
+
     if (!isUnlocked) {
         return (
             <PasswordGate
@@ -437,6 +489,8 @@ const App: React.FC = () => {
                             brandKnowledge={analysisStore.brandKnowledge}
                             setBrandKnowledge={analysisStore.setBrandKnowledge}
                             displayScale={uiStore.displayScale}
+                            onSearchLocalAlternatives={handleSearchLocalAlternatives}
+                            isSearchingAlternatives={isSearchingAlternatives}
                         />
                     </section>
                 )}
@@ -448,12 +502,63 @@ const App: React.FC = () => {
                 sections={analysisStore.refAnalysis?.structure || []}
                 generalPlan={analysisStore.refAnalysis?.generalPlan}
                 conversionPlan={analysisStore.refAnalysis?.conversionPlan}
+                regionalReplacements={analysisStore.refAnalysis?.regionalReplacements}
+                localizedSections={analysisStore.localizedRefAnalysis?.structure}
+                localizedGeneralPlan={analysisStore.localizedRefAnalysis?.generalPlan}
+                localizedConversionPlan={analysisStore.localizedRefAnalysis?.conversionPlan}
                 onSavePlan={(updated) => {
                     const current = analysisStore.refAnalysis;
                     if (!current) return;
                     analysisStore.setRefAnalysis({ ...current, structure: updated });
                     syncPlanToGenerationStore(updated);
                 }}
+                onLocalizeAll={async () => {
+                    const current = analysisStore.refAnalysis;
+                    if (!current || !current.regionalReplacements?.length) return;
+
+                    setIsLocalizingPlan(true);
+                    try {
+                        const result = await localizePlanWithAI(
+                            {
+                                generalPlan: current.generalPlan || [],
+                                conversionPlan: current.conversionPlan || [],
+                                sections: current.structure.map(s => ({
+                                    title: s.title,
+                                    narrativePlan: s.narrativePlan,
+                                    keyFacts: s.keyFacts,
+                                    uspNotes: s.uspNotes,
+                                    subheadings: s.subheadings
+                                }))
+                            },
+                            current.regionalReplacements,
+                            analysisStore.targetAudience
+                        );
+
+                        metricsStore.addCost(result.cost.totalCost, result.usage.totalTokens);
+
+                        // Merge localized sections back with full SectionAnalysis data
+                        const localizedStructure = current.structure.map((original, idx) => ({
+                            ...original,
+                            title: result.localizedSections[idx]?.title || original.title,
+                            narrativePlan: result.localizedSections[idx]?.narrativePlan || original.narrativePlan,
+                            keyFacts: result.localizedSections[idx]?.keyFacts || original.keyFacts,
+                            uspNotes: result.localizedSections[idx]?.uspNotes || original.uspNotes,
+                            subheadings: result.localizedSections[idx]?.subheadings || original.subheadings
+                        }));
+
+                        analysisStore.setLocalizedRefAnalysis({
+                            ...current,
+                            structure: localizedStructure,
+                            generalPlan: result.localizedGeneralPlan,
+                            conversionPlan: result.localizedConversionPlan,
+                        });
+                    } catch (error) {
+                        console.error('[App] AI Plan localization failed', error);
+                    } finally {
+                        setIsLocalizingPlan(false);
+                    }
+                }}
+                isLocalizing={isLocalizingPlan}
                 onStartWriting={(selected) => {
                     const current = analysisStore.refAnalysis;
                     if (current) {
