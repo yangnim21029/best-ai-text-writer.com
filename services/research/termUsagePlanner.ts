@@ -15,7 +15,7 @@ const chunkArray = <T>(array: T[], size: number): T[][] => {
 };
 
 // Analyze Context & Generate Action Plan for keywords
-export const extractFrequentWordsPlacementAnalysis = async (
+export const extractSemanticKeywordsAnalysis = async (
     referenceContent: string,
     keywords: KeywordData[],
     targetAudience: TargetAudience
@@ -39,22 +39,14 @@ export const extractFrequentWordsPlacementAnalysis = async (
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     // BATCHING STRATEGY:
-    // Split into smaller batches (e.g. 5 items) to run in parallel.
-    // This reduces latency significantly compared to one giant sequential generation or a single massive prompt.
-    // BATCHING STRATEGY:
-    // Use smaller batches (3 items) and execute sequentially to ensure stability and avoid rate limits.
-    const BATCH_SIZE = 3;
+    // User requested "chuck" / async parallel processing.
+    // Execute multiple batches in parallel to reduce total latency.
+    const BATCH_SIZE = 5;
     const batches = chunkArray(allAnalysisPayloads, BATCH_SIZE);
 
-    console.log(`[FrequentWordsPlacement] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Sequential)...`);
+    console.log(`[SemanticKeywords] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Parallel)...`);
 
-    const results: any[] = [];
-
-    // Execute sequentially
-    for (let i = 0; i < batches.length; i++) {
-        const batchPayload = batches[i];
-        const batchIdx = i;
-
+    const batchPromises = batches.map(async (batchPayload, batchIdx) => {
         // Stringify the analysis payload for this batch
         const analysisPayloadString = JSON.stringify(batchPayload, null, 2);
 
@@ -77,22 +69,25 @@ export const extractFrequentWordsPlacementAnalysis = async (
                 }
             });
 
-            results.push({
+            return {
                 data: response.data || [],
                 usage: response.usage,
                 cost: response.cost,
                 duration: response.duration
-            });
+            };
         } catch (e) {
-            console.warn(`[FrequentWordsPlacement] Batch ${batchIdx + 1} failed`, e);
-            results.push({
+            console.warn(`[SemanticKeywords] Batch ${batchIdx + 1} failed`, e);
+            return {
                 data: [],
                 usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
                 cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
                 duration: 0
-            });
+            };
         }
-    }
+    });
+
+    // Execute all batches in parallel
+    const results = await Promise.all(batchPromises);
 
     // Merge results
     let mergedPlans: any[] = [];

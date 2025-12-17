@@ -4,7 +4,7 @@ import { useAnalysisStore } from '../../store/useAnalysisStore';
 import { useMetricsStore } from '../../store/useMetricsStore';
 import { parseProductContext, generateProblemProductMapping } from '../../services/research/productFeatureToPainPointMapper';
 import { analyzeText } from '../../services/engine/nlpService';
-import { extractFrequentWordsPlacementAnalysis } from '../../services/research/termUsagePlanner';
+import { extractSemanticKeywordsAnalysis } from '../../services/research/termUsagePlanner';
 import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { analyzeReferenceStructure } from '../../services/research/referenceAnalysisService';
 import { analyzeAuthorityTerms } from '../../services/research/authorityService';
@@ -104,7 +104,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
             generationStore.setGenerationStep('planning_keywords');
             try {
                 appendAnalysisLog(`Planning keyword strategy (top ${keywordPlanCandidates.length})...`);
-                const planRes = await extractFrequentWordsPlacementAnalysis(fullConfig.referenceContent, keywordPlanCandidates, fullConfig.targetAudience);
+                const planRes = await extractSemanticKeywordsAnalysis(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
                 console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
                 analysisStore.setKeywordPlans(planRes.data);
                 const planWords = summarizeList(planRes.data.map(p => p.word), 6);
