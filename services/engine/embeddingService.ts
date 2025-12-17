@@ -1,6 +1,11 @@
 import { EMBED_MODEL_ID } from '../../config/constants';
 import { buildAiUrl } from './genAIClient';
 
+const env =
+  (typeof import.meta !== 'undefined' && (import.meta as any).env)
+    ? (import.meta as any).env
+    : (process.env as any);
+
 interface EmbedOptions {
   taskType?: string;
   outputDimensionality?: number;
@@ -68,9 +73,17 @@ export const embedTexts = async (
     body.providerOptions = { google: providerOptions };
   }
 
+  const token = env.VITE_AI_TOKEN || env.AI_TOKEN;
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const response = await fetch(buildAiUrl('/embed'), {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
     ...(options.signal ? { signal: options.signal } : {}),
   });
