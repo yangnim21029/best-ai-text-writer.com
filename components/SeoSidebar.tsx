@@ -563,7 +563,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-indigo-50/80 to-white flex items-center gap-2">
                             <ListChecks className="w-3.5 h-3.5 text-indigo-600" />
-                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Frequently Used Words (Semantic)</h4>
+                            <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Semantic Keywords</h4>
                         </div>
                         <div className="p-3 space-y-3">
                             {filteredKeywordPlans.map((item, idx) => (

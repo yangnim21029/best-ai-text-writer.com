@@ -242,7 +242,7 @@ export const promptTemplates = {
 
       TASK:
     For each keyword, analyze its context snippets to understand the specific ** Sentence Structure ** and ** Syntactic placement **.
-    Generate a "Usage Action Plan" (Max 3 brief points).
+    Generate a "Usage Action Plan" (Max 3 actionable points).
     Extract a ** SINGLE, SHORT ** "Example Sentence" (Max 40 chars/15 words).
 
       <LanguageInstruction>
@@ -265,7 +265,7 @@ export const promptTemplates = {
     [
       {
         "word": "keyword",
-        "plan": ["brief guidance 1", "brief guidance 2", "brief guidance 3"],
+        "plan": ["actionable guidance 1", "actionable guidance 2", "actionable guidance 3"],
         "exampleSentence": "ONE short sentence (< 15 words) from the text. NO explanations."
       }
     ]

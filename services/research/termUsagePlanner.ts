@@ -41,12 +41,20 @@ export const extractFrequentWordsPlacementAnalysis = async (
     // BATCHING STRATEGY:
     // Split into smaller batches (e.g. 5 items) to run in parallel.
     // This reduces latency significantly compared to one giant sequential generation or a single massive prompt.
-    const BATCH_SIZE = 5;
+    // BATCHING STRATEGY:
+    // Use smaller batches (3 items) and execute sequentially to ensure stability and avoid rate limits.
+    const BATCH_SIZE = 3;
     const batches = chunkArray(allAnalysisPayloads, BATCH_SIZE);
 
-    console.log(`[FrequentWordsPlacement] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Parallel)...`);
+    console.log(`[FrequentWordsPlacement] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Sequential)...`);
 
-    const batchPromises = batches.map(async (batchPayload, batchIdx) => {
+    const results: any[] = [];
+
+    // Execute sequentially
+    for (let i = 0; i < batches.length; i++) {
+        const batchPayload = batches[i];
+        const batchIdx = i;
+
         // Stringify the analysis payload for this batch
         const analysisPayloadString = JSON.stringify(batchPayload, null, 2);
 
@@ -69,25 +77,22 @@ export const extractFrequentWordsPlacementAnalysis = async (
                 }
             });
 
-            return {
+            results.push({
                 data: response.data || [],
                 usage: response.usage,
                 cost: response.cost,
                 duration: response.duration
-            };
+            });
         } catch (e) {
             console.warn(`[FrequentWordsPlacement] Batch ${batchIdx + 1} failed`, e);
-            return {
+            results.push({
                 data: [],
                 usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
                 cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
                 duration: 0
-            };
+            });
         }
-    });
-
-    // Execute all batches in parallel
-    const results = await Promise.all(batchPromises);
+    }
 
     // Merge results
     let mergedPlans: any[] = [];

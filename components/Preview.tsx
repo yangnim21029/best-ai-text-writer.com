@@ -281,7 +281,7 @@ export const Preview: React.FC<PreviewProps> = ({
       case 'nlp_analysis': return '正在整理重點字詞';
       case 'extracting_structure': return '正在歸納段落架構';
       case 'analyzing_visuals': return '正在偵測圖片風格';
-      case 'planning_keywords': return '正在規劃關鍵字';
+      case 'planning_keywords': return '正在規劃常用詞與例句';
       case 'mapping_product': return '正在配對痛點與賣點';
       case 'localizing_hk': return '正在套用香港市場用語';
       default: return 'AI 正在準備';
