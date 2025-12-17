@@ -14,6 +14,10 @@ const chunkArray = <T>(array: T[], size: number): T[][] => {
     return chunked;
 };
 
+import pLimit from 'p-limit'; // v6+ is pure ESM
+
+// ... imports
+
 // Analyze Context & Generate Action Plan for keywords
 export const extractSemanticKeywordsAnalysis = async (
     referenceContent: string,
@@ -39,14 +43,25 @@ export const extractSemanticKeywordsAnalysis = async (
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     // BATCHING STRATEGY:
-    // User requested "chuck" / async parallel processing.
-    // Execute multiple batches in parallel to reduce total latency.
+    // Execute multiple batches in parallel but with a CONCURRENCY LIMIT
+    // to prevent 429 errors or network timeouts.
     const BATCH_SIZE = 5;
+    const CONCURRENCY_LIMIT = 3;
+    const limit = pLimit(CONCURRENCY_LIMIT);
+
     const batches = chunkArray(allAnalysisPayloads, BATCH_SIZE);
 
-    console.log(`[SemanticKeywords] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Parallel)...`);
+    console.log(`[SemanticKeywords] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Concurrency: ${CONCURRENCY_LIMIT})...`);
 
-    const batchPromises = batches.map(async (batchPayload, batchIdx) => {
+    const batchPromises = batches.map((batchPayload, batchIdx) => limit(async () => {
+        // STAGGER STRATEGY:
+        // Delay each batch execution by 5s * index to ensure backend metrics recording doesn't choke.
+        // Even with p-monitor/p-limit, we need to space out the START times.
+        const delayMs = batchIdx * 5000;
+        if (delayMs > 0) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+
         // Stringify the analysis payload for this batch
         const analysisPayloadString = JSON.stringify(batchPayload, null, 2);
 
@@ -57,6 +72,7 @@ export const extractSemanticKeywordsAnalysis = async (
         });
 
         try {
+            console.log(`[SemanticKeywords] Starting batch ${batchIdx + 1}/${batches.length}...`);
             const response = await aiService.runJson<any[]>(prompt, 'FLASH', {
                 type: Type.ARRAY,
                 items: {
@@ -64,7 +80,7 @@ export const extractSemanticKeywordsAnalysis = async (
                     properties: {
                         word: { type: Type.STRING },
                         plan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        exampleSentence: { type: Type.STRING } // NEW Field request
+                        exampleSentence: { type: Type.STRING }
                     }
                 }
             });
@@ -84,9 +100,9 @@ export const extractSemanticKeywordsAnalysis = async (
                 duration: 0
             };
         }
-    });
+    }));
 
-    // Execute all batches in parallel
+    // Execute all batches with the limit
     const results = await Promise.all(batchPromises);
 
     // Merge results
