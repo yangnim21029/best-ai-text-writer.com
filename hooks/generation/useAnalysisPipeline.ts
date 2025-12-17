@@ -218,24 +218,21 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         }
     };
 
-    // --- EXECUTE PARALLEL ---
-    const productPromise = productTask();
-    const keywordPromise = keywordTask();
-    const structurePromise = structureTask();
-    const visualPromise = visualTask();
-    const regionalPromise = regionalTask();
+    // --- EXECUTE ALL TASKS IN PARALLEL ---
+    // User Requirement: All analysis requests should be sent out simultaneously (Promise.all)
+    appendAnalysisLog('Dispatching all analysis tasks concurrently...');
 
-    const [productResult, structureResult, regionalResult, keywordResult] = await Promise.all([
-        productPromise,
-        structurePromise,
-        regionalPromise,
-        keywordPromise
+    const [productResult, structureResult, visualResultsPromise, regionalResult, keywordResult] = await Promise.all([
+        productTask(),
+        structureTask(),
+        visualTask(), // This does not return a value we wait on for the main flow, but we await its completion
+        regionalTask(),
+        keywordTask()
     ]);
 
-    // Merge regional result into structureResult
+    // Merge regional result into structureResult if available
     if (structureResult?.structRes?.data) {
         structureResult.structRes.data.regionalReplacements = regionalResult;
-        // Also update the store immediately if needed, though runAnalysisOnly handles final set
         if (analysisStore.refAnalysis) {
             analysisStore.setRefAnalysis({
                 ...analysisStore.refAnalysis,
@@ -244,16 +241,14 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         }
     }
 
-    appendAnalysisLog('Analysis stage completed. Preparing to write...');
-
-
-    visualPromise.catch(err => console.warn('Visual task failed (background)', err));
+    appendAnalysisLog('All analysis tasks completed. Preparing to write...');
+    generationStore.setGenerationStep('idle');
 
     return {
         productResult,
         structureResult,
-        keywordPromise, // Return promises if we need to await them later (though we awaited them above unless turbo)
-        visualPromise,
-        regionalPromise
+        keywordPromise: Promise.resolve(keywordResult),
+        visualPromise: Promise.resolve(visualResultsPromise),
+        regionalPromise: Promise.resolve(regionalResult)
     };
 };
