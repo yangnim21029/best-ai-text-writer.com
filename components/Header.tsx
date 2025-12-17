@@ -48,7 +48,7 @@ export const Header: React.FC<HeaderProps> = ({
                             className="text-[10px] text-gray-400 hover:text-blue-600 transition-colors flex items-center gap-1 w-fit group"
                         >
                             <History className="w-3 h-3 group-hover:rotate-12 transition-transform" />
-                            <span>v1.2.0 Changelog</span>
+                            <span>v1.4.0 Changelog</span>
                         </button>
                     </div>
                 </div>
