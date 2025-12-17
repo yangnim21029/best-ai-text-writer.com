@@ -810,6 +810,11 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     </LanguageInstruction>
     DEFINITION: Output language.
 
+    <ContentToAnalyze>
+    ${content}
+    </ContentToAnalyze>
+    DEFINITION: The reference text to analyze.
+
     ## Voice Strategy Analysis
     - ** regionVoiceDetect **: Detect foreign Products/Services/Brands that are inaccessible in ${targetAudience}.
       - Example: If target is "Hong Kong", flagging "Taiwan-only clinics/brands" as a mismatch because they are hard to access.
