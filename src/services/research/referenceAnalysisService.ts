@@ -37,20 +37,76 @@ export const analyzeReferenceStructure = async (
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     // Prepare Prompts
-    // Using full content as requested by the user
-    const structurePrompt = promptTemplates.narrativeStructure({ content: referenceContent, targetAudience, languageInstruction });
     const voicePrompt = promptTemplates.voiceStrategy({ content: referenceContent, targetAudience, languageInstruction });
 
     try {
-        // Run Parallel Analysis
-        const [structRes, voiceRes] = await Promise.all([
-            // 1. Structure Analysis
-            aiService.runJson<any>(structurePrompt, 'FLASH', {
+        // --- STAGE 0: Voice & Strategy Analysis (Can run in parallel with Stage 1) ---
+        const voiceResPromise = aiService.runJson<any>(voicePrompt, 'FLASH', {
+            type: Type.OBJECT,
+            properties: {
+                generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
+                competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                regionVoiceDetect: { type: Type.STRING },
+                humanWritingVoice: { type: Type.STRING },
+                toneSensation: { type: Type.STRING },
+                entryPoint: { type: Type.STRING }
+            },
+            required: ["generalPlan", "conversionPlan", "brandExclusivePoints", "regionVoiceDetect", "humanWritingVoice"]
+        });
+
+        // --- STAGE 1: Skeleton Extraction ---
+        console.log('[RefAnalysis] Stage 1: Skeleton Extraction...');
+        const outlinePrompt = promptTemplates.extractOutline({ content: referenceContent, targetAudience, languageInstruction });
+        const outlineRes = await aiService.runJson<any>(outlinePrompt, 'FLASH', {
+            type: Type.OBJECT,
+            properties: {
+                h1Title: { type: Type.STRING },
+                introText: { type: Type.STRING },
+                keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                structure: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            title: { type: Type.STRING },
+                            subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            exclude: { type: Type.BOOLEAN },
+                            excludeReason: { type: Type.STRING }
+                        },
+                        required: ["title"]
+                    }
+                }
+            },
+            required: ["h1Title", "introText", "structure", "keyInformationPoints"]
+        });
+
+        const outlineData = outlineRes.data;
+        console.log('[RefAnalysis] Outline Data:', JSON.stringify(outlineData, null, 2));
+
+        // Filter excluded sections for deep analysis
+        const sectionsToAnalyze = (outlineData.structure || []).filter((item: any) => {
+            if (item.exclude === true) return false;
+            const navKeywords = ['目錄', '導覽', '清單', '引言', '延伸閱讀', '相關文章', 'Table of Contents', 'TOC', 'Introduction'];
+            if (navKeywords.some(kw => item.title.includes(kw) && (item.title.length < 15))) return false;
+            return true;
+        });
+
+        // --- STAGE 2: Deep Narrative Logic Analysis ---
+        console.log(`[RefAnalysis] Stage 2: Deep Logic Analysis for ${sectionsToAnalyze.length} sections...`);
+        const logicPrompt = promptTemplates.analyzeNarrativeLogic({
+            content: referenceContent,
+            outlineJson: JSON.stringify(sectionsToAnalyze),
+            targetAudience,
+            languageInstruction
+        });
+
+        const [logicRes, voiceRes] = await Promise.all([
+            aiService.runJson<any>(logicPrompt, 'FLASH', {
                 type: Type.OBJECT,
                 properties: {
-                    h1Title: { type: Type.STRING },
-                    introText: { type: Type.STRING },
-                    keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
                     structure: {
                         type: Type.ARRAY,
                         items: {
@@ -58,84 +114,42 @@ export const analyzeReferenceStructure = async (
                             properties: {
                                 title: { type: Type.STRING },
                                 narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                coreQuestion: { type: Type.STRING },
-                                difficulty: { type: Type.STRING, description: "easy | medium | unclear" },
-                                exclude: { type: Type.BOOLEAN },
-                                excludeReason: { type: Type.STRING },
-                                writingMode: { type: Type.STRING, description: "direct | multi_solutions" },
-                                solutionAngles: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                logicalFlow: { type: Type.STRING },
+                                coreFocus: { type: Type.STRING },
                                 keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                coreQuestion: { type: Type.STRING },
+                                difficulty: { type: Type.STRING },
+                                writingMode: { type: Type.STRING },
                                 uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                isChecklist: { type: Type.BOOLEAN },
                                 suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                augment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                sentenceStartFeatures: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                sentenceEndFeatures: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                augment: { type: Type.ARRAY, items: { type: Type.STRING } }
                             },
-                            required: ["title", "narrativePlan", "coreQuestion", "writingMode", "keyFacts"]
+                            required: ["title", "narrativePlan", "logicalFlow", "keyFacts", "coreQuestion", "coreFocus"]
                         }
                     }
                 },
-                required: ["h1Title", "introText", "structure", "keyInformationPoints"]
+                required: ["structure"]
             }),
-            // 2. Voice & Strategy Analysis
-            aiService.runJson<any>(voicePrompt, 'FLASH', {
-                type: Type.OBJECT,
-                properties: {
-                    generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    regionVoiceDetect: { type: Type.STRING },
-                    humanWritingVoice: { type: Type.STRING }
-                },
-                required: ["generalPlan", "conversionPlan", "brandExclusivePoints", "regionVoiceDetect", "humanWritingVoice"]
-            })
+            voiceResPromise
         ]);
 
-        const structData = structRes.data;
+        const logicData = logicRes.data;
         const voiceData = voiceRes.data;
 
-        console.log('[RefAnalysis] Raw AI Structure Data:', JSON.stringify(structData, null, 2));
-        console.log('[RefAnalysis] Raw AI Voice Data:', JSON.stringify(voiceData, null, 2));
+        // --- DATA MERGING ---
+        const normalizedStructure = logicData.structure.map((logicItem: any) => {
+            // Find original skeleton item to get subheadings
+            const skeletonItem = outlineData.structure.find((s: any) => s.title === logicItem.title);
 
-        // Filter excluded sections
-        const filteredStructure = (structData.structure || []).filter((item: any) => {
-            if (item.exclude === true) {
-                console.log(`[RefAnalysis] AI Excluded section: "${item.title}" - Reason: ${item.excludeReason || 'irrelevant'}`);
-                return false;
-            }
-            // HARDCODED FALLBACK: Exclude common navigational sections that AI might miss
-            const navKeywords = ['目錄', '導覽', '清單', '引言', '延伸閱讀', '相關文章', 'Table of Contents', 'TOC', 'Introduction'];
-            if (navKeywords.some(kw => item.title.includes(kw) && (item.title.length < 15))) {
-                console.log(`[RefAnalysis] Auto-Excluding navigational section: "${item.title}"`);
-                return false;
-            }
-            return true;
-        });
-
-        const normalizedStructure = filteredStructure.map((item: any) => {
-            const normalized = {
-                ...item,
-                subheadings: Array.isArray(item.subheadings) ? item.subheadings : [],
-                keyFacts: Array.isArray(item.keyFacts) ? item.keyFacts : [],
-                uspNotes: Array.isArray(item.uspNotes) ? item.uspNotes : [],
-                suppress: Array.isArray(item.suppress) ? item.suppress : [],
-                augment: Array.isArray(item.augment) ? item.augment : [],
-                narrativePlan: Array.isArray(item.narrativePlan) ? item.narrativePlan : [],
-                sentenceStartFeatures: Array.isArray(item.sentenceStartFeatures) ? item.sentenceStartFeatures : [],
-                sentenceEndFeatures: Array.isArray(item.sentenceEndFeatures) ? item.sentenceEndFeatures : [],
+            return {
+                ...logicItem,
+                subheadings: skeletonItem?.subheadings || [],
+                uspNotes: logicItem.uspNotes || [],
+                suppress: logicItem.suppress || [],
+                augment: logicItem.augment || [],
+                difficulty: logicItem.difficulty || 'easy',
+                writingMode: logicItem.writingMode || 'direct'
             };
-
-            // STRICT VALIDATION: If a section is included, it MUST have a plan and facts
-            if (normalized.narrativePlan.length === 0 || normalized.keyFacts.length === 0) {
-                console.error(`[RefAnalysis] Section "${item.title}" failed validation: Missing Narrative Plan or Key Facts.`);
-                throw new Error(`Invalid Narrative Structure: Section "${item.title}" is missing required content (Plan/Facts).`);
-            }
-
-            return normalized;
         });
 
         const combinedRules = [
@@ -143,27 +157,25 @@ export const analyzeReferenceStructure = async (
             ...(voiceData.competitorProducts || [])
         ];
 
-        // Combine Token Usage & Cost
+        // Total usage including all 3 calls (Outline, Logic, Voice)
         const totalUsage = {
-            inputTokens: (structRes.usage?.inputTokens || 0) + (voiceRes.usage?.inputTokens || 0),
-            outputTokens: (structRes.usage?.outputTokens || 0) + (voiceRes.usage?.outputTokens || 0),
-            totalTokens: (structRes.usage?.totalTokens || 0) + (voiceRes.usage?.totalTokens || 0),
+            inputTokens: (outlineRes.usage?.inputTokens || 0) + (logicRes.usage?.inputTokens || 0) + (voiceRes.usage?.inputTokens || 0),
+            outputTokens: (outlineRes.usage?.outputTokens || 0) + (logicRes.usage?.outputTokens || 0) + (voiceRes.usage?.outputTokens || 0),
+            totalTokens: (outlineRes.usage?.totalTokens || 0) + (logicRes.usage?.totalTokens || 0) + (voiceRes.usage?.totalTokens || 0),
         };
 
         const totalCost = {
-            inputCost: (structRes.cost?.inputCost || 0) + (voiceRes.cost?.inputCost || 0),
-            outputCost: (structRes.cost?.outputCost || 0) + (voiceRes.cost?.outputCost || 0),
-            totalCost: (structRes.cost?.totalCost || 0) + (voiceRes.cost?.totalCost || 0),
+            inputCost: (outlineRes.cost?.inputCost || 0) + (logicRes.cost?.inputCost || 0) + (voiceRes.cost?.inputCost || 0),
+            outputCost: (outlineRes.cost?.outputCost || 0) + (logicRes.cost?.outputCost || 0) + (voiceRes.cost?.outputCost || 0),
+            totalCost: (outlineRes.cost?.totalCost || 0) + (logicRes.cost?.totalCost || 0) + (voiceRes.cost?.totalCost || 0),
         };
 
         return {
             data: {
-                h1Title: structData.h1Title || '',
-                introText: structData.introText || '',
+                h1Title: outlineData.h1Title || '',
+                introText: outlineData.introText || '',
                 structure: normalizedStructure,
-                keyInformationPoints: structData.keyInformationPoints || [],
-
-                // From Voice Analysis
+                keyInformationPoints: outlineData.keyInformationPoints || [],
                 generalPlan: voiceData.generalPlan || [],
                 conversionPlan: voiceData.conversionPlan || [],
                 brandExclusivePoints: voiceData.brandExclusivePoints || [],
@@ -171,7 +183,9 @@ export const analyzeReferenceStructure = async (
                 competitorBrands: voiceData.competitorBrands || [],
                 competitorProducts: voiceData.competitorProducts || [],
                 regionVoiceDetect: voiceData.regionVoiceDetect,
-                humanWritingVoice: voiceData.humanWritingVoice
+                humanWritingVoice: voiceData.humanWritingVoice,
+                toneSensation: voiceData.toneSensation,
+                entryPoint: voiceData.entryPoint
             },
             usage: totalUsage,
             cost: totalCost,

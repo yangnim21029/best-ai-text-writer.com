@@ -423,14 +423,30 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                 )}
 
                 {/* Card 1: Voice & Strategy */}
-                {referenceAnalysis && (referenceAnalysis.generalPlan.length > 0 || referenceAnalysis.humanWritingVoice) && (
+                {referenceAnalysis && (referenceAnalysis.generalPlan.length > 0 || referenceAnalysis.humanWritingVoice || referenceAnalysis.toneSensation) && (
                     <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_4px_rgba(0,0,0,0.02)] overflow-hidden group hover:shadow-md transition-all duration-300">
                         <div className="px-4 py-2.5 border-b border-gray-50 bg-gradient-to-r from-purple-50/80 to-white flex items-center gap-2">
                             <Target className="w-3.5 h-3.5 text-purple-600" />
                             <h4 className="text-xs font-extrabold text-gray-700 uppercase tracking-wider">Voice Strategy</h4>
                         </div>
                         <div className="p-3">
-                            <div className="space-y-2">
+                            {/* Detailed Metrics */}
+                            <div className="grid grid-cols-1 gap-2.5 mb-4">
+                                {referenceAnalysis.toneSensation && (
+                                    <div className="bg-purple-50 p-2.5 rounded-lg border border-purple-100/50 flex items-start gap-2">
+                                        <div className="p-1 px-1.5 bg-white rounded shadow-sm text-purple-600 font-bold text-[10px] flex-shrink-0">語感</div>
+                                        <p className="text-[11px] text-purple-900 font-medium leading-relaxed">{referenceAnalysis.toneSensation}</p>
+                                    </div>
+                                )}
+                                {referenceAnalysis.entryPoint && (
+                                    <div className="bg-slate-50 p-2.5 rounded-lg border border-slate-200/50 flex items-start gap-2">
+                                        <div className="p-1 px-1.5 bg-white rounded shadow-sm text-slate-500 font-bold text-[10px] flex-shrink-0">切入點</div>
+                                        <p className="text-[11px] text-slate-700 font-medium leading-relaxed">{referenceAnalysis.entryPoint}</p>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="space-y-2 border-t border-purple-50 pt-3">
                                 {referenceAnalysis.generalPlan.map((point, idx) => (
                                     <div key={idx} className="flex gap-2.5 items-start">
                                         <div className="w-1 h-1 mt-2 rounded-full bg-purple-400 flex-shrink-0"></div>

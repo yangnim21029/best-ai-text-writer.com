@@ -29,6 +29,8 @@ export interface SectionAnalysis {
   isChecklist?: boolean; // Should render as checklist/listicle
   suppress?: string[]; // Points to avoid in this section
   augment?: string[]; // Points to add/borrow into this section
+  logicalFlow?: string; // NEW: The strategic narrative arc/logic chain for this section
+  coreFocus?: string;  // NEW: The primary emphasis or emotional hook for this section (傳達側重)
   sentenceStartFeatures?: string[]; // NEW: Characteristics of sentence beginnings in this section
   sentenceEndFeatures?: string[];   // NEW: Characteristics of sentence endings in this section
 }
@@ -49,6 +51,10 @@ export interface ReferenceAnalysis {
   // NEW: Voice Strategy Enhancements
   regionVoiceDetect?: string;    // Percentage composition (e.g., "70% HK / 30% TW")
   humanWritingVoice?: string;    // Reasoning for why it sounds human-written
+
+  // Detailed Voice Metrics
+  toneSensation?: string;        // 語感 (Tone/Voice vibe)
+  entryPoint?: string;           // 切入點 (Angle/Entry point)
 }
 
 export interface AuthorityAnalysis {
@@ -129,6 +135,7 @@ export interface ArticleConfig {
 
   // NEW: The Visual Identity
   visualStyle?: string;
+  writingStyle?: string;
 }
 
 export type GenerationStatus = 'idle' | 'analyzing' | 'analysis_ready' | 'streaming' | 'completed' | 'error';
@@ -187,7 +194,10 @@ export interface ContentScore {
 
 // NEW: Tracking injection in individual sections
 export interface SectionGenerationResult {
-  content: string;
+  title: string;          // Section title
+  content: string;        // Final content (chosen or default)
+  rawContent?: string;    // Original first-pass draft
+  refinedContent?: string; // Second-pass refined version
   usedPoints: string[];
   injectedCount: number; // Number of times product was mentioned
 }
