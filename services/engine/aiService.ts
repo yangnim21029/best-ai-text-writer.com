@@ -1,13 +1,19 @@
-import { genAIClient } from './genAIClient';
+import { genAIClient, buildAiUrl } from './genAIClient';
 import { MODEL } from '../../config/constants';
 import { calculateCost } from './promptService';
 import { TokenUsage, CostBreakdown, AIRequestConfig, AIResponse } from '../../types';
+import { useSettingsStore } from '../../store/useSettingsStore';
 
 export type LlmModelKey = keyof typeof MODEL;
 
-
-
 class AIService {
+    private getModel(key: LlmModelKey): string {
+        const settings = useSettingsStore.getState();
+        if (key === 'FLASH') return settings.modelFlash;
+        if (key === 'IMAGE_PREVIEW') return settings.modelImage;
+        return MODEL[key];
+    }
+
     /**
      * Run a text generation request
      */
@@ -17,7 +23,7 @@ class AIService {
         config?: AIRequestConfig
     ): Promise<{ text: string; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
         const start = Date.now();
-        const model = MODEL[modelKey];
+        const model = this.getModel(modelKey);
 
         try {
             const response = await genAIClient.request({
@@ -49,7 +55,7 @@ class AIService {
         schema?: any
     ): Promise<{ data: T; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
         const start = Date.now();
-        const model = MODEL[modelKey];
+        const model = this.getModel(modelKey);
         const config: AIRequestConfig = {
             responseMimeType: 'application/json',
             responseSchema: schema
@@ -99,7 +105,7 @@ class AIService {
         schema?: any
     ): Promise<{ data: T; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
         const start = Date.now();
-        const model = MODEL[modelKey];
+        const model = this.getModel(modelKey);
         const config: AIRequestConfig = {
             responseMimeType: 'application/json',
             responseSchema: schema,
@@ -143,7 +149,6 @@ class AIService {
             throw error;
         }
     }
-
 
 }
 

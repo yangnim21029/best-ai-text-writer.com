@@ -22,12 +22,13 @@ const DEFAULT_RETRY: Required<RetryOptions> = {
 
 const DEFAULT_TIMEOUT = AI_DEFAULTS.TIMEOUT_MS;
 
-const env =
+// Exported for reuse in other services
+export const env =
     (typeof import.meta !== 'undefined' && (import.meta as any).env)
         ? (import.meta as any).env
         : (process.env as any);
 
-const AI_BASE_URL = (env.VITE_AI_BASE_URL || env.AI_BASE_URL || '').replace(/\/$/, '');
+const AI_BASE_URL = (env.DEV ? '' : (env.VITE_AI_BASE_URL || env.AI_BASE_URL || '')).replace(/\/$/, '');
 const AI_PATH = (env.VITE_AI_PATH || env.AI_PATH || '/ai').replace(/\/$/, '');
 
 export const buildAiUrl = (path: string) => {
@@ -35,6 +36,17 @@ export const buildAiUrl = (path: string) => {
         ? (AI_PATH.startsWith('/') ? AI_PATH : `/${AI_PATH}`)
         : '';
     return `${AI_BASE_URL}${prefix}${path}`;
+};
+
+export const getAiHeaders = () => {
+    const token = env.VITE_AI_TOKEN || env.AI_TOKEN;
+    const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+    };
+    if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+    }
+    return headers;
 };
 
 const extractTextFromCandidates = (candidates: any[] | undefined): string => {
@@ -318,13 +330,7 @@ export class GenAIClient {
                 console.log('[GenAIClient] Request payload:', JSON.stringify(payload, null, 2));
                 console.log('[GenAIClient] Request URL:', buildAiUrl('/generate'));
 
-                const token = env.VITE_AI_TOKEN || env.AI_TOKEN;
-                const headers: Record<string, string> = {
-                    'Content-Type': 'application/json',
-                };
-                if (token) {
-                    headers['Authorization'] = `Bearer ${token}`;
-                }
+                const headers = getAiHeaders();
 
                 const doRequest = async (path: string) => fetch(buildAiUrl(path), {
                     method: 'POST',
