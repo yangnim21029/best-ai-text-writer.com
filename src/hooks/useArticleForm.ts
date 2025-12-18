@@ -43,8 +43,6 @@ export const useArticleForm = ({
             authorityTerms: '',
             websiteType: '',
             targetAudience: 'zh-TW',
-            useRag: false,
-            autoImagePlan: false,
             productRawText: '',
             urlInput: '',
             productUrlList: ''
