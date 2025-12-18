@@ -7,7 +7,7 @@ import { KeyPointsPanel } from './editor/KeyPointsPanel';
 import { MetaPanel } from './editor/MetaPanel';
 import { VisualAssetPlanningModal } from './editor/VisualAssetPlanningModal';
 import { QuickInsertPanel } from './editor/QuickInsertPanel';
-import { AskAiSelection } from './AskAiSelection';
+import { AskAiSelection, AskAiSelectionHandle } from './AskAiSelection';
 import { useImageEditor } from '../hooks/useImageEditor';
 import { useMetaGenerator } from '../hooks/useMetaGenerator';
 import { useOptionalEditorContext } from './editor/EditorContext';
@@ -59,6 +59,12 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 }) => {
     const ctx = useOptionalEditorContext();
     const [html, setHtml] = useState(initialHtml);
+    const [selectionData, setSelectionData] = useState<{
+        text: string;
+        html: string;
+        rect: DOMRect | null;
+        range: { from: number; to: number } | null;
+    }>({ text: '', html: '', rect: null, range: null });
     const [charCount, setCharCount] = useState(0);
     const [wordCount, setWordCount] = useState(0);
     const [showKeyPoints, setShowKeyPoints] = useState(false);
@@ -67,7 +73,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const effectiveScale = displayScale ?? ctx?.displayScale ?? 1;
 
     const editorContainerRef = useRef<HTMLDivElement>(null);
-    const askAiBadgeContainerRef = useRef<HTMLDivElement>(null);
     const hasRestoredDraftRef = useRef(false);
     const [showCleanupModal, setShowCleanupModal] = useState(false);
     const [cleanupSummary, setCleanupSummary] = useState({ boldMarks: 0, blockquotes: 0, quoteChars: 0 });
@@ -106,6 +111,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         editor?: any;
     } | null>(null);
     const [localModelAppearance, setLocalModelAppearance] = useState<ImageAssetPlan['modelAppearance']>('Asian');
+    const askAiRef = useRef<AskAiSelectionHandle>(null);
 
     useEffect(() => {
         setHtml(initialHtml);
@@ -454,7 +460,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     showMetaPanel={showMetaPanel}
                     onUndo={() => tiptapApi?.undo()}
                     onRedo={() => tiptapApi?.redo()}
-                    askAiBadgeSlotRef={askAiBadgeContainerRef}
                 />
             </div>
 
@@ -478,6 +483,17 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                                     updateCounts(plain);
                                     recordHtml(api.getHtml());
                                 }}
+                                onSelectionChange={(data) => {
+                                    setSelectionData({
+                                        text: data.text,
+                                        html: data.html,
+                                        rect: data.rect,
+                                        range: data.range
+                                    });
+                                }}
+                                onAskAiClick={(taskId) => {
+                                    askAiRef.current?.openTask(taskId);
+                                }}
                                 containerRef={editorContainerRef}
                                 className="min-h-[420px]"
                                 placeholder=""
@@ -488,6 +504,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
                     {/* Editor Overlays */}
                     <AskAiSelection
+                        ref={askAiRef}
                         onRunAction={runAskAiAction}
                         onInsert={(html, taskId) => {
                             handleAskAiInsert(html, taskId);
@@ -497,7 +514,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                             // Ensure the saved task gets a persistent highlight in the editor.
                             highlightAskAiTarget(taskId);
                         }}
-                        badgeContainerRef={askAiBadgeContainerRef}
+                        selectionText={selectionData.text}
+                        selectionHtml={selectionData.html}
+                        selectionRect={selectionData.rect}
+                        selectionRange={selectionData.range}
                     />
 
                     {showCleanupModal && (
@@ -621,9 +641,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         onDeletePlan={deletePlan}
                         onInject={injectImageIntoEditor}
                         modelAppearance={localModelAppearance}
-                        setModelAppearance={setLocalModelAppearance}
+                        setModelAppearance={(v) => setLocalModelAppearance(v as any)}
                         designStyle={localDesignStyle}
-                        setDesignStyle={setLocalDesignStyle}
+                        setDesignStyle={(v) => setLocalDesignStyle(v as any)}
                     />
                 </div>
 

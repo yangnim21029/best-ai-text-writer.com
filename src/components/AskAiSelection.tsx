@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useImperativeHandle, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import {
     Wand2,
@@ -38,6 +38,7 @@ type FormatId =
 
 interface RunActionInput {
     selectedText: string;
+    selectedHtml?: string;
     mode: AskAiMode;
     preset?: PresetId | FormatId;
     prompt?: string;
@@ -48,46 +49,75 @@ interface AskAiSelectionProps {
     onRunAction?: (input: RunActionInput) => Promise<string>;
     onInsert?: (html: string, taskId?: string) => void;
     onLockSelectionRange?: (taskId: string) => void;
-    badgeContainerRef?: React.RefObject<HTMLElement>;
     onHighlightTask?: (taskId: string) => void;
+    selectionText?: string;
+    selectionHtml?: string;
+    selectionRect?: DOMRect | null;
+    selectionRange?: { from: number; to: number } | null;
+    badgeContainerRef?: React.RefObject<HTMLElement>;
+}
+
+export interface AskAiSelectionHandle {
+    openTask: (taskId: string) => void;
 }
 
 /**
  * Floating Ask AI UI for acting on highlighted text.
  * Designed as a standalone component so we can mount it in any editor surface.
  */
-export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
+export const AskAiSelection = React.forwardRef<AskAiSelectionHandle, AskAiSelectionProps>(({
     onRunAction,
     onInsert,
     onLockSelectionRange,
     badgeContainerRef,
     onHighlightTask,
-}) => {
+    selectionText: propsSelectionText = '',
+    selectionHtml: propsSelectionHtml = '',
+    selectionRect: propsSelectionRect = null,
+    selectionRange: propsSelectionRange = null,
+}, ref) => {
     const askAiRootAttr = { 'data-askai-ui': 'true' };
-    const [selectionText, setSelectionText] = useState('');
-    const [selectionRect, setSelectionRect] = useState<DOMRect | null>(null);
     const [mode, setMode] = useState<AskAiMode>('edit');
     const [showFormatMenu, setShowFormatMenu] = useState(false);
     const [customPrompt, setCustomPrompt] = useState('');
     const [previewTitle, setPreviewTitle] = useState('');
     const [isPreviewOpen, setIsPreviewOpen] = useState(false);
     const [taskSelectionText, setTaskSelectionText] = useState('');
+    const [taskSelectionHtml, setTaskSelectionHtml] = useState('');
     const [tasks, setTasks] = useState<AskAiTask[]>([]);
     const [activeTaskId, setActiveTaskId] = useState<string | null>(null);
     const selectionRangeRef = useRef<Range | null>(null);
-    const taskRangesRef = useRef<Record<string, Range | null>>({});
+    const taskRangesRef = useRef<Record<string, { from: number; to: number } | Range | null>>({});
     const toolbarRef = useRef<HTMLDivElement | null>(null);
     const previewRef = useRef<HTMLDivElement | null>(null);
     const [toolbarSize, setToolbarSize] = useState({ width: 72, height: 200 });
     const [previewHtml, setPreviewHtml] = useState<string | null>(null);
 
-    interface AskAiTask {
+    useImperativeHandle(ref, () => ({
+        openTask: (taskId: string) => {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                setActiveTaskId(taskId);
+                setIsPreviewOpen(true);
+            }
+        }
+    }), [tasks]);
+
+    interface AskAiAttempt {
         id: string;
         title: string;
-        selectionText: string;
         status: 'running' | 'done' | 'error';
         html?: string | null;
         mode: AskAiMode;
+        prompt?: string;
+    }
+
+    interface AskAiTask {
+        id: string;
+        selectionText: string;
+        selectionHtml: string;
+        attempts: AskAiAttempt[];
+        activeAttemptId: string | null;
     }
 
     const editPresets: { id: PresetId; label: string }[] = [
@@ -110,27 +140,38 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
         { id: 'markdown-clean', label: 'Markdown clean-up', icon: <Sparkles className="w-4 h-4" /> },
     ];
 
-    const toolbarVisible = selectionText.length > 0 && !!selectionRect;
+    const toolbarVisible = propsSelectionText.length > 0 && !!propsSelectionRect;
 
     const viewportSafeArea = 12;
     const activeTask = activeTaskId ? tasks.find(t => t.id === activeTaskId) : null;
-    const completedCount = tasks.filter(t => t.status === 'done').length;
+    const activeAttempt = activeTask?.attempts.find(a => a.id === activeTask.activeAttemptId);
+
+    const completedCount = tasks.filter(t => t.attempts.some(a => a.status === 'done')).length;
     const totalCount = tasks.length;
-    const isActiveLoading = activeTask?.status === 'running';
+    const isActiveLoading = activeAttempt?.status === 'running';
 
     const toolbarPosition = useMemo(() => {
-        if (!selectionRect) return { top: viewportSafeArea, left: viewportSafeArea };
-        const toolbarWidth = toolbarSize.width || 72;
-        const toolbarHeight = toolbarSize.height || 200;
-        const baseLeft = selectionRect.right + 8; // position to the right of selection
+        if (!propsSelectionRect) return { top: viewportSafeArea, left: viewportSafeArea };
+        const toolbarWidth = toolbarSize.width || 240;
+        const toolbarHeight = toolbarSize.height || 48;
+
+        // Horizontal position: centered relative to selection or clamped
+        const selectionCenter = propsSelectionRect.left + propsSelectionRect.width / 2;
+        const baseLeft = selectionCenter - toolbarWidth / 2;
         const maxLeft = window.innerWidth - toolbarWidth - viewportSafeArea;
         const clampedLeft = Math.max(viewportSafeArea, Math.min(baseLeft, maxLeft));
-        const baseTop =
-            selectionRect.top + selectionRect.height / 2 - toolbarHeight / 2; // vertical center to selection
+
+        // Vertical position: above selection if room, otherwise below
+        const spaceAbove = propsSelectionRect.top - viewportSafeArea;
+        const baseTop = spaceAbove > toolbarHeight + 12
+            ? propsSelectionRect.top - toolbarHeight - 12
+            : propsSelectionRect.bottom + 12;
+
         const maxTop = window.innerHeight - toolbarHeight - viewportSafeArea;
         const clampedTop = Math.max(viewportSafeArea, Math.min(baseTop, maxTop));
+
         return { top: clampedTop, left: clampedLeft };
-    }, [selectionRect, toolbarSize]);
+    }, [propsSelectionRect, toolbarSize]);
 
     const isInsideUi = (target: EventTarget | null | undefined) => {
         return target instanceof Element && target.closest('[data-askai-ui="true"]');
@@ -148,82 +189,9 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
         return new DOMRect(left, top, right - left, bottom - top);
     };
 
-    const resetFloatingUi = () => {
-        setSelectionText('');
-        setSelectionRect(null);
-        selectionRangeRef.current = null;
-        setShowFormatMenu(false);
+    const captureSelectionRange = () => {
+        return propsSelectionRange;
     };
-
-    const hidePanels = () => {
-        setIsPreviewOpen(false);
-        setActiveTaskId(null);
-    };
-
-    const captureSelection = () => {
-        requestAnimationFrame(() => {
-            const sel = window.getSelection();
-            if (!sel || sel.rangeCount === 0) {
-                resetFloatingUi();
-                return;
-            }
-            const text = sel.toString().trim();
-            if (!text) {
-                resetFloatingUi();
-                return;
-            }
-            const range = sel.getRangeAt(0);
-            const rect = resolveSelectionRect(range);
-            if (!rect) {
-                resetFloatingUi();
-                return;
-            }
-            setSelectionText(text);
-            setSelectionRect(rect);
-            selectionRangeRef.current = range.cloneRange();
-        });
-    };
-
-    const refreshSelectionRect = () => {
-        const range = selectionRangeRef.current;
-        if (!range) return;
-        const rect = resolveSelectionRect(range);
-        if (rect) {
-            setSelectionRect(rect);
-        }
-    };
-
-    useEffect(() => {
-        const handler = (e: MouseEvent | KeyboardEvent) => {
-            if (isInsideUi(e.target)) return;
-            captureSelection();
-        };
-        const selectionChangeHandler = () => {
-            const activeEl = document.activeElement;
-            const sel = window.getSelection();
-            const anchorElement =
-                sel?.anchorNode instanceof Element ? sel.anchorNode : sel?.anchorNode?.parentElement;
-            if (isInsideUi(activeEl) || isInsideUi(anchorElement)) {
-                return;
-            }
-            captureSelection();
-        };
-        const scrollHandler = () => {
-            refreshSelectionRect();
-        };
-        document.addEventListener('selectionchange', selectionChangeHandler);
-        document.addEventListener('mouseup', handler);
-        document.addEventListener('keyup', handler);
-        window.addEventListener('scroll', scrollHandler, true);
-        window.addEventListener('resize', scrollHandler);
-        return () => {
-            document.removeEventListener('selectionchange', selectionChangeHandler);
-            document.removeEventListener('mouseup', handler);
-            document.removeEventListener('keyup', handler);
-            window.removeEventListener('scroll', scrollHandler, true);
-            window.removeEventListener('resize', scrollHandler);
-        };
-    }, []);
 
     useEffect(() => {
         if (!toolbarRef.current) return;
@@ -234,128 +202,153 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                 return { width: rect.width, height: rect.height };
             });
         }
-    }, [toolbarVisible, selectionText, showFormatMenu]);
+    }, [toolbarVisible, propsSelectionText, showFormatMenu]);
 
     // Keep panel content pinned to the selected task; do not auto-switch on task updates.
     useEffect(() => {
-        if (!activeTaskId) return;
-        const current = tasks.find(t => t.id === activeTaskId);
-        if (current) {
-            setPreviewTitle(prev => prev || current.title);
-            setMode(current.mode);
-        }
-    }, [activeTaskId, tasks]);
+        if (!activeAttempt) return; // Use activeAttempt directly
+        setPreviewTitle(prev => prev || activeAttempt.title);
+        setMode(activeAttempt.mode);
+    }, [activeAttempt]); // Depend on activeAttempt
 
     const dropdownAnchor = useMemo(() => {
         const menuWidth = 256; // w-64
-        const desiredLeft = toolbarPosition.left + toolbarSize.width + 12;
+        const desiredLeft = toolbarPosition.left;
         const maxLeft = window.innerWidth - menuWidth - viewportSafeArea;
         return {
-            top: toolbarPosition.top,
+            top: toolbarPosition.top + toolbarSize.height + 8,
             left: Math.max(viewportSafeArea, Math.min(desiredLeft, maxLeft)),
         };
     }, [toolbarPosition, toolbarSize]);
 
-    const lockTaskSelection = (overrideText?: string) => {
-        // ALWAYS prefer the current selectionText if we are starting a fresh action (no active task)
-        // or if an override is provided.
-        // We only use taskSelectionText if we are specifically iterating on an existing locked task.
-        const text = (overrideText || selectionText || taskSelectionText).trim();
+    const lockTaskSelection = (override?: { text?: string; html?: string }) => {
+        // Use override if provided (e.g. from a task), otherwise use current props
+        const text = (override?.text || propsSelectionText || taskSelectionText).trim();
+        const html = (override?.html || propsSelectionHtml).trim();
 
-        if (!text) {
+        if (!text && !html) {
             alert('請先選取要調整的文字。');
-            return '';
+            return null;
         }
 
-        // Update the locked text for consistency
-        if (text !== taskSelectionText) {
+        // Update the locked text for consistency if we are starting from the toolbar
+        if (!override && text !== taskSelectionText) {
             setTaskSelectionText(text);
-            // Clear custom prompt if the text context changed completely
+            setTaskSelectionHtml(html);
             setCustomPrompt('');
         }
-        return text;
+        return { text, html };
     };
 
     const runAction = async (input: RunActionInput) => {
-        const effectiveText = lockTaskSelection(input.selectedText);
-        if (!effectiveText) return;
-        setMode(input.mode);
-        setIsPreviewOpen(false);
-        setPreviewTitle(labelForAction(input));
-        setPreviewHtml(null);
+        const selection = lockTaskSelection({ text: input.selectedText, html: input.selectedHtml });
+        if (!selection) return;
 
-        const taskId = `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-        if (selectionRangeRef.current) {
-            taskRangesRef.current[taskId] = selectionRangeRef.current.cloneRange();
-        }
-        onLockSelectionRange?.(taskId);
-        onHighlightTask?.(taskId);
-        const nextTask: AskAiTask = {
-            id: taskId,
+        const { text: effectiveText, html: effectiveHtml } = selection;
+        const taskId = input.taskId || `${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+        const attemptId = `${Date.now()}-${Math.random().toString(36).slice(2, 4)}`;
+
+        const newAttempt: AskAiAttempt = {
+            id: attemptId,
             title: labelForAction(input),
-            selectionText: effectiveText,
             status: 'running',
             mode: input.mode,
+            prompt: input.prompt,
         };
-        setTasks(prev => [...prev, nextTask]);
-        setActiveTaskView(taskId);
 
-        const mockResponse = () => {
-            if (input.mode === 'format') {
-                if (input.preset === 'bullet') {
-                    return `<ul class="list-disc pl-5"><li>${effectiveText}</li><li>第二點</li></ul>`;
+        setTasks(prev => {
+            const existingTask = prev.find(t => t.id === taskId);
+            if (existingTask) {
+                return prev.map(t => t.id === taskId ? {
+                    ...t,
+                    attempts: [...t.attempts, newAttempt],
+                    activeAttemptId: attemptId
+                } : t);
+            } else {
+                onLockSelectionRange?.(taskId);
+                onHighlightTask?.(taskId);
+                if (propsSelectionRange) {
+                    (taskRangesRef.current as any)[taskId] = propsSelectionRange;
                 }
-                if (input.preset?.toString().startsWith('table')) {
-                    const cols = input.preset === 'table-3' ? 3 : 2;
-                    const headers = Array.from({ length: cols }, (_, i) => `Column ${i + 1}`).join('</th><th>');
-                    return `<table class="table-auto border-collapse w-full"><thead><tr><th>${headers}</th></tr></thead><tbody><tr>${Array.from({ length: cols }, () => '<td>Value</td>').join('')}</tr></tbody></table>`;
-                }
-                if (input.preset === 'checklist') {
-                    return `<ul class="list-none pl-0"><li>☐ ${effectiveText}</li><li>☐ 下一步</li></ul>`;
-                }
-                if (input.preset === 'quote') {
-                    return `<blockquote class="border-l-4 pl-3 italic text-gray-700">${effectiveText}</blockquote>`;
-                }
-                return `<div>${effectiveText}</div>`;
+                return [...prev, {
+                    id: taskId,
+                    selectionText: effectiveText,
+                    selectionHtml: effectiveHtml,
+                    attempts: [newAttempt],
+                    activeAttemptId: attemptId
+                }];
             }
-            const promptHint = input.prompt ? `（${input.prompt}）` : '';
-            return `<p>${effectiveText}${promptHint ? ' ' + promptHint : ''}</p>`;
-        };
+        });
+
+        setActiveTaskView(taskId, attemptId);
 
         try {
-            const html = await (onRunAction ? onRunAction({ ...input, selectedText: effectiveText, taskId }) : Promise.resolve(mockResponse()));
+            const htmlResult = await (onRunAction
+                ? onRunAction({ ...input, selectedText: effectiveHtml || effectiveText, taskId })
+                : Promise.resolve(`<p>${effectiveText}</p>`)
+            );
             setTasks(prev =>
                 prev.map(t =>
-                    t.id === taskId ? { ...t, html, status: 'done' } : t
+                    t.id === taskId ? {
+                        ...t,
+                        attempts: t.attempts.map(a => a.id === attemptId ? { ...a, html: htmlResult, status: 'done' } : a)
+                    } : t
                 )
             );
-            if (activeTaskId === taskId) {
-                setPreviewHtml(html);
-                setPreviewTitle(labelForAction(input));
-            }
         } catch (err) {
             console.error('Ask AI run failed', err);
             const errorHtml = '<p class="text-red-500">AI 輸出失敗，請重試。</p>';
             setTasks(prev =>
                 prev.map(t =>
-                    t.id === taskId ? { ...t, html: errorHtml, status: 'error' } : t
+                    t.id === taskId ? {
+                        ...t,
+                        attempts: t.attempts.map(a => a.id === attemptId ? { ...a, html: errorHtml, status: 'error' } : a)
+                    } : t
                 )
             );
-            if (activeTaskId === taskId) {
-                setPreviewHtml(errorHtml);
-                setPreviewTitle(labelForAction(input));
-            }
         }
     };
 
-    const setActiveTaskView = (taskId: string | null) => {
+    const setActiveTaskView = (taskId: string | null, attemptId?: string) => {
         setActiveTaskId(taskId);
         if (!taskId) return;
-        const task = tasks.find(t => t.id === taskId);
-        if (!task) return;
-        setPreviewTitle(task.title);
-        setPreviewHtml(task.html || null);
-        setMode(task.mode);
+
+        setTasks(prev => prev.map(t => {
+            if (t.id === taskId) {
+                const targetAttemptId = attemptId || t.activeAttemptId || t.attempts[t.attempts.length - 1]?.id;
+                return { ...t, activeAttemptId: targetAttemptId };
+            }
+            return t;
+        }));
+    };
+
+    const deleteTask = (taskId: string, e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setTasks(prev => {
+            const next = prev.filter(t => t.id !== taskId);
+            if (activeTaskId === taskId) {
+                if (next.length > 0) {
+                    setActiveTaskView(next[next.length - 1].id);
+                } else {
+                    hidePanels();
+                }
+            }
+            return next;
+        });
+    };
+
+    const clearAllTasks = (e?: React.MouseEvent) => {
+        e?.stopPropagation();
+        setTasks([]);
+        setActiveTaskId(null);
+        setIsPreviewOpen(false);
+        setPreviewHtml(null);
+        setTaskSelectionText('');
+    };
+
+    const hidePanels = () => {
+        setIsPreviewOpen(false);
+        setActiveTaskId(null);
     };
 
     const openEditPanel = () => {
@@ -378,9 +371,9 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     };
 
     const handleInsert = () => {
-        const activeTask = tasks.find(t => t.id === activeTaskId);
-        const htmlToInsert = activeTask?.html || previewHtml;
+        const htmlToInsert = activeAttempt?.html;
         if (!htmlToInsert) return;
+
         if (onInsert) {
             onInsert(htmlToInsert, activeTaskId || undefined);
             setActiveTaskId(null);
@@ -388,19 +381,23 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
             clearSelectionHighlight();
             return;
         }
+
+        // DOM-based fallback (for non-Tiptap environments if any)
         const range = activeTaskId ? taskRangesRef.current[activeTaskId] : selectionRangeRef.current;
-        if (!range) return;
-        const fragment = document.createDocumentFragment();
-        const temp = document.createElement('div');
-        temp.innerHTML = htmlToInsert;
-        while (temp.firstChild) {
-            fragment.appendChild(temp.firstChild);
+        if (range && range instanceof Range) {
+            const fragment = document.createDocumentFragment();
+            const temp = document.createElement('div');
+            temp.innerHTML = htmlToInsert;
+            while (temp.firstChild) {
+                fragment.appendChild(temp.firstChild);
+            }
+            range.deleteContents();
+            range.insertNode(fragment);
+            if (activeTaskId) {
+                delete taskRangesRef.current[activeTaskId];
+            }
         }
-        range.deleteContents();
-        range.insertNode(fragment);
-        if (activeTaskId) {
-            delete taskRangesRef.current[activeTaskId];
-        }
+
         setActiveTaskId(null);
         setIsPreviewOpen(false);
         clearSelectionHighlight();
@@ -418,37 +415,55 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
         return (
             <div
                 data-askai-ui="true"
-                className="fixed z-30 flex flex-col bg-white border border-gray-200 shadow-lg rounded-full py-3 px-2 gap-3"
+                className="fixed z-30 flex items-center bg-white/80 backdrop-blur-md border border-gray-200/50 shadow-[0_8px_32px_rgba(0,0,0,0.12)] rounded-2xl p-1.5 gap-1 transition-all duration-200 animate-in fade-in slide-in-from-bottom-2"
                 style={{ top: toolbarPosition.top, left: toolbarPosition.left }}
                 ref={toolbarRef}
             >
-                <ToolbarIcon
-                    icon={<PenLine className="w-4 h-4" />}
-                    label="Edit"
-                    onClick={() => {
-                        setShowFormatMenu(false);
-                        openEditPanel();
-                    }}
-                />
-                <ToolbarIcon
-                    icon={<Sparkles className="w-4 h-4" />}
-                    label="Format"
-                    active={showFormatMenu}
-                    onClick={() => {
-                        setShowFormatMenu(v => !v);
-                        setMode('format');
-                    }}
-                />
-                <ToolbarIcon
-                    icon={<Smile className="w-4 h-4" />}
-                    label="Shorten"
-                    onClick={() => runAction({ mode: 'edit', preset: 'shorten', selectedText: selectionText })}
-                />
-                <ToolbarIcon
-                    icon={<MessageSquarePlus className="w-4 h-4" />}
-                    label="Add note"
-                    onClick={() => runAction({ mode: 'edit', preset: 'elaborate', selectedText: selectionText })}
-                />
+                <div className="flex items-center gap-1 border-r border-gray-200/50 pr-1 mr-1">
+                    <ToolbarIcon
+                        icon={<PenLine className="w-4 h-4" />}
+                        label="Edit"
+                        onClick={() => {
+                            setShowFormatMenu(false);
+                            openEditPanel();
+                        }}
+                    />
+                    <ToolbarIcon
+                        icon={<Sparkles className="w-4 h-4" />}
+                        label="Format"
+                        active={showFormatMenu}
+                        onClick={() => {
+                            setShowFormatMenu(v => !v);
+                            setMode('format');
+                        }}
+                    />
+                </div>
+                <div className="flex items-center gap-1">
+                    <button
+                        className="h-8 px-3 rounded-xl text-xs font-medium text-gray-700 hover:bg-gray-100/80 transition-colors flex items-center gap-1.5"
+                        onClick={() => runAction({
+                            mode: 'edit',
+                            preset: 'shorten',
+                            selectedText: propsSelectionText,
+                            selectedHtml: propsSelectionHtml
+                        })}
+                    >
+                        <Smile className="w-3.5 h-3.5 text-blue-500" />
+                        Shorten
+                    </button>
+                    <button
+                        className="h-8 px-3 rounded-xl text-xs font-medium text-gray-700 hover:bg-gray-100/80 transition-colors flex items-center gap-1.5"
+                        onClick={() => runAction({
+                            mode: 'edit',
+                            preset: 'elaborate',
+                            selectedText: propsSelectionText,
+                            selectedHtml: propsSelectionHtml
+                        })}
+                    >
+                        <MessageSquarePlus className="w-3.5 h-3.5 text-purple-500" />
+                        Add note
+                    </button>
+                </div>
             </div>
         );
     };
@@ -465,7 +480,12 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                             label={template.label}
                             icon={template.icon}
                             onClick={() => {
-                                runAction({ mode: 'format', preset: template.id, selectedText: taskSelectionText || selectionText });
+                                runAction({
+                                    mode: 'format',
+                                    preset: template.id,
+                                    selectedText: activeTask?.selectionText || taskSelectionText || propsSelectionText,
+                                    selectedHtml: activeTask?.selectionHtml || taskSelectionHtml || propsSelectionHtml
+                                });
                                 setShowFormatMenu(false);
                             }}
                         />
@@ -476,73 +496,104 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
     };
 
     const handleRunCustomPrompt = () => {
-        runAction({ mode: 'edit', preset: undefined, prompt: customPrompt, selectedText: activeTask?.selectionText || taskSelectionText || selectionText });
+        runAction({
+            mode: 'edit',
+            preset: undefined,
+            prompt: customPrompt,
+            taskId: activeTaskId || undefined,
+            selectedText: activeTask?.selectionText || taskSelectionText || propsSelectionText,
+            selectedHtml: activeTask?.selectionHtml || taskSelectionHtml || propsSelectionHtml
+        });
     };
 
     const renderPreview = () => {
         if (!isPreviewOpen) return null;
         return (
-            <div data-askai-ui="true" className="fixed inset-0 z-40 flex items-start justify-center overflow-y-auto px-3 py-6">
-                <div className="absolute inset-0 bg-black/5 backdrop-blur-[1px]" />
+            <div data-askai-ui="true" className="fixed inset-0 z-50 flex items-center justify-center p-4">
                 <div
-                    className="relative w-[min(780px,92vw)] bg-white shadow-2xl border border-gray-200 rounded-2xl p-4 max-h-[80vh] flex flex-col overflow-hidden"
+                    className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm transition-opacity duration-300"
+                    onClick={() => hidePanels()}
+                />
+                <div
+                    className="relative w-full max-w-4xl bg-white shadow-[0_32px_64px_rgba(0,0,0,0.2)] border border-gray-100 rounded-3xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 duration-300"
                     ref={previewRef}
                 >
-                    <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-2 text-sm font-semibold text-gray-900">
-                            <Wand2 className="w-4 h-4 text-purple-500" />
-                            <span>{previewTitle || (mode === 'format' ? 'Format' : 'Edit')}</span>
-                            {isActiveLoading && <Loader2 className="w-4 h-4 animate-spin text-gray-400" />}
+                    {/* Header */}
+                    <div className="bg-gradient-to-r from-purple-50 via-white to-blue-50 px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 rounded-2xl bg-gradient-to-br from-purple-600 to-blue-600 flex items-center justify-center shadow-lg shadow-purple-200">
+                                <Wand2 className="w-5 h-5 text-white" />
+                            </div>
+                            <div>
+                                <h3 className="text-base font-bold text-gray-900 leading-tight">
+                                    {activeAttempt?.title || (mode === 'format' ? 'Format' : 'Edit')}
+                                </h3>
+                                <div className="text-[11px] text-gray-500 font-medium flex items-center gap-1.5 uppercase tracking-wider">
+                                    AI-Powered Content Optimization
+                                    {isActiveLoading && <Loader2 className="w-3 h-3 animate-spin text-purple-500" />}
+                                </div>
+                            </div>
                         </div>
                         <button
-                            className="p-1 text-gray-500 hover:text-gray-700 rounded-full hover:bg-gray-100"
+                            className="w-8 h-8 flex items-center justify-center text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-full transition-all"
                             onClick={() => hidePanels()}
                         >
-                            <X className="w-4 h-4" />
+                            <X className="w-5 h-5" />
                         </button>
                     </div>
 
-                    {totalCount > 1 && (
-                        <div className="mb-3">
-                            <select
-                                className="w-full px-3 py-2 text-sm border rounded-lg text-gray-700"
-                                value={activeTaskId || ''}
-                                onChange={e => {
-                                    const next = e.target.value;
-                                    if (!next) return;
-                                    setActiveTaskView(next);
-                                }}
-                            >
-                                {tasks.map((t, idx) => (
-                                    <option key={t.id} value={t.id}>
-                                        Task {idx + 1} — {t.title} ({t.status})
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                    )}
-
-                    <div className="flex-1 overflow-y-auto space-y-4 pr-1 custom-scrollbar">
-                        <div className="grid md:grid-cols-2 gap-3">
-                            <div className="border border-gray-100 rounded-xl p-3 bg-gray-50 max-h-64 overflow-y-auto custom-scrollbar">
-                                <div className="text-xs font-semibold text-gray-500 mb-2">Before</div>
-                                <div className="text-sm text-gray-800 whitespace-pre-wrap">{activeTask?.selectionText || taskSelectionText || selectionText}</div>
-                            </div>
-                            <div className="border border-purple-100 rounded-xl p-3 bg-purple-50/60 min-h-[140px] max-h-64 overflow-y-auto custom-scrollbar">
-                                <div className="text-xs font-semibold text-purple-600 mb-2">After</div>
-                                <div
-                                    className="text-sm text-gray-900 leading-relaxed"
-                                    dangerouslySetInnerHTML={{ __html: previewHtml || '<p class="text-gray-400">等待生成...</p>' }}
-                                />
-                            </div>
-                        </div>
-
-                        <div className="flex flex-col gap-3">
-                            {mode === 'edit' && (
+                    <div className="flex-1 overflow-hidden flex flex-col">
+                        {/* Comparison Area */}
+                        <div className="flex-1 overflow-y-auto p-6 bg-gray-50/30">
+                            <div className="grid lg:grid-cols-2 gap-6 h-full">
+                                {/* Before */}
                                 <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between px-1">
+                                        <span className="text-xs font-bold text-gray-400 uppercase tracking-widest">Original</span>
+                                    </div>
+                                    <div className="flex-1 bg-white border border-gray-100 rounded-2xl p-5 shadow-sm overflow-y-auto max-h-[300px] lg:max-h-none">
+                                        <div
+                                            className="prose prose-sm prose-gray max-w-none opacity-60 leading-relaxed"
+                                            dangerouslySetInnerHTML={{ __html: activeTask?.selectionHtml || activeTask?.selectionText || taskSelectionText || propsSelectionHtml || propsSelectionText }}
+                                        />
+                                    </div>
+                                </div>
+                                {/* After */}
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center justify-between px-1">
+                                        <span className="text-xs font-bold text-purple-600 uppercase tracking-widest">AI Suggestion</span>
+                                        {previewHtml && (
+                                            <span className="text-[10px] bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-bold">PREVIEW</span>
+                                        )}
+                                    </div>
+                                    <div className="flex-1 bg-white border-2 border-purple-100 rounded-2xl p-5 shadow-[0_8px_24px_rgba(147,51,234,0.05)] overflow-y-auto max-h-[300px] lg:max-h-none">
+                                        {isActiveLoading ? (
+                                            <div className="h-full flex flex-col items-center justify-center gap-3 py-12">
+                                                <div className="flex gap-1.5">
+                                                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce" />
+                                                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.15s]" />
+                                                    <div className="w-2 h-2 rounded-full bg-purple-400 animate-bounce [animation-delay:-0.3s]" />
+                                                </div>
+                                                <p className="text-xs font-semibold text-purple-600 animate-pulse">Generating your content...</p>
+                                            </div>
+                                        ) : (
+                                            <div
+                                                className="prose prose-sm prose-purple max-w-none text-gray-900 leading-relaxed"
+                                                dangerouslySetInnerHTML={{ __html: activeAttempt?.html || '<p class="text-gray-400 italic">Waiting for AI suggestion...</p>' }}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Refine / Prompt Area */}
+                        <div className="bg-white border-t border-gray-100 p-6 flex flex-col gap-4">
+                            {mode === 'edit' && (
+                                <div className="relative group">
                                     <textarea
-                                        className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[96px] resize-y"
-                                        placeholder="在這裡輸入更長的提示，或貼上具體的修改說明"
+                                        className="w-full bg-gray-50 border border-gray-100 rounded-2xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-300 min-h-[100px] resize-none transition-all placeholder:text-gray-400"
+                                        placeholder="Add instructions (e.g., 'Make it more exciting', 'Use simpler words'...)"
                                         value={customPrompt}
                                         onChange={e => setCustomPrompt(e.target.value)}
                                         onKeyDown={e => {
@@ -552,100 +603,159 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
                                             }
                                         }}
                                     />
-                                    <div className="flex flex-wrap items-center gap-2">
-                                        <button
-                                            className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-                                            onClick={handleRunCustomPrompt}
-                                            disabled={!customPrompt.trim() || isActiveLoading}
-                                        >
-                                            Generate
-                                        </button>
-                                        <select
-                                            className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                            onChange={e => {
-                                                const preset = e.target.value as PresetId;
-                                                if (!preset) return;
-                                                runAction({ mode: 'edit', preset, selectedText: activeTask?.selectionText || taskSelectionText || selectionText });
-                                                e.currentTarget.value = '';
-                                            }}
-                                            defaultValue=""
-                                        >
-                                            <option value="" disabled>
-                                                Quick refine
-                                            </option>
-                                            {editPresets.map(p => (
-                                                <option key={p.id} value={p.id}>
-                                                    {p.label}
-                                                </option>
-                                            ))}
-                                        </select>
+                                    <div className="absolute top-2 right-2 flex gap-1.5">
+                                        {editPresets.slice(0, 3).map(p => (
+                                            <button
+                                                key={p.id}
+                                                className="px-2.5 py-1 rounded-lg bg-white border border-gray-200 text-[11px] font-bold text-gray-600 hover:border-gray-300 hover:shadow-sm transition-all"
+                                                onClick={() => runAction({
+                                                    mode: 'edit',
+                                                    preset: p.id,
+                                                    selectedText: activeTask?.selectionText || taskSelectionText || propsSelectionText,
+                                                    selectedHtml: activeTask?.selectionHtml || taskSelectionHtml || propsSelectionHtml
+                                                })}
+                                            >
+                                                {p.label}
+                                            </button>
+                                        ))}
                                     </div>
                                 </div>
                             )}
+
+                            <div className="flex items-center justify-between gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className="flex items-center gap-2 bg-gray-50 rounded-xl px-2 py-1.5 border border-gray-100">
+                                        <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter pl-1">History</span>
+                                        <div className="flex items-center gap-1">
+                                            <select
+                                                className="bg-transparent text-xs font-bold text-gray-700 focus:outline-none cursor-pointer"
+                                                value={activeAttempt?.id || ''}
+                                                onChange={e => setActiveTaskView(activeTaskId, e.target.value)}
+                                            >
+                                                {activeTask?.attempts.map((a, idx) => (
+                                                    <option key={a.id} value={a.id}>
+                                                        Ver {idx + 1}: {a.title}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                            {activeTaskId && (
+                                                <button
+                                                    onClick={(e) => deleteTask(activeTaskId, e)}
+                                                    className="p-1 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                                                    title="Delete this version"
+                                                >
+                                                    <X className="w-3.5 h-3.5" />
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-3">
+                                    {mode === 'edit' ? (
+                                        <button
+                                            className="h-11 px-6 rounded-2xl bg-purple-600 text-white text-sm font-bold shadow-lg shadow-purple-100 hover:bg-purple-700 hover:shadow-purple-200 transition-all active:scale-[0.98] disabled:opacity-50"
+                                            onClick={handleRunCustomPrompt}
+                                            disabled={!customPrompt.trim() || isActiveLoading}
+                                        >
+                                            Generate Suggestion
+                                        </button>
+                                    ) : (
+                                        <div className="flex items-center gap-2">
+                                            <span className="text-xs font-bold text-gray-400 mr-1">TWEAK</span>
+                                            {editPresets.slice(0, 3).map(p => (
+                                                <button
+                                                    key={p.id}
+                                                    className="h-9 px-4 rounded-xl border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50 transition-all"
+                                                    onClick={() => runAction({
+                                                        mode: 'edit',
+                                                        preset: p.id,
+                                                        selectedText: activeTask?.selectionText || taskSelectionText || propsSelectionText,
+                                                        selectedHtml: activeTask?.selectionHtml || taskSelectionHtml || propsSelectionHtml
+                                                    })}
+                                                >
+                                                    {p.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
+
+                                    <div className="w-px h-6 bg-gray-100 mx-1" />
+
+                                    <button
+                                        className="h-11 px-6 rounded-2xl bg-emerald-600 text-white text-sm font-black shadow-lg shadow-emerald-100 hover:bg-emerald-700 hover:shadow-emerald-200 transition-all active:scale-[0.98] flex items-center gap-2 disabled:opacity-50"
+                                        onClick={handleInsert}
+                                        disabled={!activeAttempt?.html || isActiveLoading}
+                                    >
+                                        Apply Changes
+                                        <ArrowRight className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                    <div className="mt-3 flex items-center gap-2 justify-end flex-wrap border-t border-gray-100 pt-3 bg-white">
-                        {mode !== 'edit' && (
-                            <select
-                                className="px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
-                                onChange={e => {
-                                    const preset = e.target.value as PresetId;
-                                    if (!preset) return;
-                                    runAction({ mode: 'edit', preset, selectedText: activeTask?.selectionText || taskSelectionText || selectionText });
-                                    e.currentTarget.value = '';
-                                }}
-                                defaultValue=""
-                            >
-                                <option value="" disabled>
-                                    Refine
-                                </option>
-                                {editPresets.map(p => (
-                                    <option key={p.id} value={p.id}>
-                                        {p.label}
-                                    </option>
-                                ))}
-                            </select>
-                        )}
-                        {!isActiveLoading && (
-                            <button
-                                className="px-4 py-2 rounded-lg text-sm font-semibold flex items-center gap-1 bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                                onClick={handleInsert}
-                                disabled={!previewHtml}
-                            >
-                                Replace
-                                <ArrowRight className="w-4 h-4" />
-                            </button>
-                        )}
                     </div>
                 </div>
             </div>
         );
     };
+
     const renderTaskBadge = (placement: 'floating' | 'inline') => {
+        if (placement === 'floating') return null;
         if (totalCount === 0 || isPreviewOpen) return null;
         const isInline = placement === 'inline';
         const layoutClasses = isInline
-            ? 'inline-flex items-center gap-2 px-3 py-1.5 rounded-md text-xs font-semibold shadow-sm whitespace-nowrap flex-shrink-0'
-            : 'fixed z-30 bottom-4 left-4 w-16 h-16 rounded-full flex flex-col items-center justify-center gap-1 shadow-lg';
+            ? 'inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold shadow-sm whitespace-nowrap flex-shrink-0 border border-purple-100 bg-white group'
+            : 'fixed z-30 bottom-6 left-6 w-16 h-16 rounded-3xl flex flex-col items-center justify-center gap-1 shadow-[0_12px_32px_rgba(147,51,234,0.25)] border border-purple-300/30 bg-purple-600 text-white animate-in zoom-in slide-in-from-bottom-4 duration-500';
+
         return (
-            <button
-                type="button"
+            <div
                 data-askai-ui="true"
-                className={`${layoutClasses} bg-purple-600 text-white transition-colors hover:bg-purple-500`}
-                onClick={() => {
-                    const lastTask = tasks[tasks.length - 1];
-                    if (lastTask) {
-                        setActiveTaskView(lastTask.id);
-                        setIsPreviewOpen(true);
-                    }
-                }}
-                title="Ask AI Tasking"
+                className={`${layoutClasses} group`}
             >
-                <span className="text-[10px] leading-none uppercase tracking-wide">Ask AI</span>
-                <span className="text-xs font-semibold leading-none">
-                    {completedCount}/{totalCount}
-                </span>
-            </button>
+                <button
+                    type="button"
+                    className="flex flex-col items-center justify-center gap-1 w-full h-full rounded-[inherit] hover:scale-105 active:scale-95 transition-all duration-300 focus:outline-none"
+                    onClick={(e) => {
+                        const lastTask = tasks[tasks.length - 1];
+                        if (lastTask) {
+                            setActiveTaskView(lastTask.id);
+                            setIsPreviewOpen(true);
+                        }
+                    }}
+                >
+                    {isInline ? (
+                        <>
+                            <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-purple-500 to-blue-500 flex items-center justify-center shadow-sm">
+                                <Sparkles className="w-3.5 h-3.5 text-white" />
+                            </div>
+                            <div className="flex flex-col items-start leading-tight">
+                                <span className="text-gray-900 group-hover:text-purple-600 transition-colors">AI Processing</span>
+                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{completedCount}/{totalCount} Completed</span>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <Wand2 className="w-5 h-5" />
+                            <span className="text-[10px] font-black">{completedCount}/{totalCount}</span>
+                        </>
+                    )}
+                </button>
+
+                <button
+                    type="button"
+                    onClick={(e) => {
+                        e.stopPropagation();
+                        clearAllTasks();
+                    }}
+                    className={isInline
+                        ? "ml-auto p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                        : "absolute -top-2 -right-2 w-5 h-5 rounded-full bg-white text-gray-400 border border-gray-200 flex items-center justify-center hover:text-red-500 hover:border-red-200 transition-all opacity-0 group-hover:opacity-100 shadow-sm"
+                    }
+                    title={isInline ? "Clear all tasks" : "Clear all suggestions"}
+                >
+                    <X className={isInline ? "w-4 h-4" : "w-3 h-3"} />
+                </button>
+            </div>
         );
     };
 
@@ -667,7 +777,7 @@ export const AskAiSelection: React.FC<AskAiSelectionProps> = ({
             {badgeNode && createPortal(badgeNode, badgeTarget || document.body)}
         </>
     );
-};
+});
 
 export type AskAiRunActionInput = RunActionInput;
 
@@ -679,7 +789,9 @@ const ToolbarIcon: React.FC<{
 }> = ({ icon, label, active, onClick }) => {
     return (
         <button
-            className={`w-10 h-10 inline-flex items-center justify-center rounded-full border transition-colors ${active ? 'border-blue-500 bg-blue-50 text-blue-600' : 'border-gray-200 hover:border-blue-300 text-gray-600'
+            className={`w-9 h-9 inline-flex items-center justify-center rounded-xl transition-all duration-200 ${active
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-200'
+                : 'text-gray-600 hover:bg-gray-100/80 hover:text-gray-900'
                 }`}
             onMouseDown={e => e.preventDefault()}
             onClick={onClick}
@@ -697,7 +809,7 @@ const DropdownCard: React.FC<{ anchor: { top: number; left: number }; children: 
     return (
         <div
             data-askai-ui="true"
-            className="fixed z-40 w-64 bg-white border border-gray-200 shadow-xl rounded-2xl p-3"
+            className="fixed z-40 w-64 bg-white/90 backdrop-blur-xl border border-gray-100 shadow-[0_16px_48px_rgba(0,0,0,0.1)] rounded-2xl p-4 animate-in fade-in zoom-in-95 duration-200"
             style={{ top: anchor.top, left: anchor.left }}
         >
             {children}
@@ -714,14 +826,16 @@ const MenuItem: React.FC<{
     return (
         <button
             disabled={disabled}
-            className={`w-full flex items-center gap-2 px-2 py-2 rounded-lg text-sm ${disabled
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${disabled
                 ? 'text-gray-300 cursor-not-allowed'
-                : 'text-gray-800 hover:bg-gray-50 active:bg-gray-100'
+                : 'text-gray-700 hover:bg-purple-50 hover:text-purple-700 active:scale-[0.97]'
                 }`}
             onMouseDown={e => e.preventDefault()}
             onClick={onClick}
         >
-            {icon || <PenLine className="w-4 h-4" />}
+            <div className={`p-1.5 rounded-lg transition-colors ${disabled ? 'bg-gray-50' : 'bg-gray-50 group-hover:bg-purple-100'}`}>
+                {icon || <PenLine className="w-4 h-4" />}
+            </div>
             <span>{label}</span>
         </button>
     );

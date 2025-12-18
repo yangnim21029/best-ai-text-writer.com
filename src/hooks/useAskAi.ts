@@ -56,54 +56,56 @@ export const useAskAi = ({
             let task = '';
             switch (input.preset) {
                 case 'bullet':
-                    task = 'Convert to a bullet list.';
+                    task = 'Convert the text into a clean, well-structured bulleted list.';
                     break;
                 case 'ordered':
-                    task = 'Convert to an ordered (numbered) list.';
+                    task = 'Convert the text into a clean, numbered list.';
                     break;
                 case 'table-2':
-                    task = 'Present as a 2-column table (Header + Row values).';
+                    task = 'Present the data as an HTML table with 2 columns (Header and Values).';
                     break;
                 case 'table-3':
-                    task = 'Present as a 3-column table (Header + Row values).';
+                    task = 'Present the data as an HTML table with 3 columns.';
                     break;
                 case 'checklist':
-                    task = 'Convert to a checklist with unchecked boxes.';
+                    task = 'Convert into a checklist format using [ ] or <ul> with checkboxes.';
                     break;
                 case 'quote':
-                    task = 'Wrap as a highlighted quote block.';
+                    task = 'Format this text as a high-impact blockquote.';
                     break;
                 case 'markdown-clean':
-                    task = 'Clean up Markdown/HTML, fix nesting, and keep structure minimal.';
+                    task = 'Clean up any messy HTML/Markdown formatting while strictly preserving the text content and semantics.';
                     break;
                 default:
-                    task = 'Reformat cleanly.';
+                    task = 'Reformat the following text for better readability and structure.';
             }
-            return `TARGET CONTENT: """${text}"""\nTASK: ${task} Return ONLY the formatted HTML/Markdown.\n\n${languageInstruction}`;
+            return `CONTEXT: Article for ${targetAudience}\nTARGET CONTENT: """${text}"""\nTASK: ${task} Return ONLY the improved HTML snippet.\n\n${languageInstruction}`;
         }
 
         const presetInstruction = (() => {
             switch (input.preset) {
                 case 'rephrase':
-                    return 'Rephrase for clarity while keeping meaning. Ensure the tone is natural and professional.';
+                    return 'Rephrase for better clarity and impact while strictly maintaining the original meaning.';
                 case 'shorten':
-                    return 'CRITICAL: Condense the text by 30-50%. Remove all fluff, redundancy, and filler words. Keep ONLY the core message.';
+                    return 'Condense the text significantly (30-50% reduction) by removing wordiness and filler, keeping only the core message.';
                 case 'elaborate':
-                    return 'Expand with 1-2 concise sentences to add clarity.';
+                    return 'Expand slightly on these points with relevant supporting details or clearer explanations.';
                 case 'formal':
-                    return 'Rewrite in a more formal tone.';
+                    return 'Rewrite in a professional and sophisticated tone suitable for business or academic contexts.';
                 case 'casual':
-                    return 'Rewrite in a friendlier, more casual tone.';
+                    return 'Rewrite in a friendly, conversational, and engaging tone.';
                 case 'bulletise':
-                    return 'Convert into concise bullet points.';
+                    return 'Extract the key points and present them as a concise bulleted list.';
                 case 'summarise':
-                    return 'Summarise into a brief paragraph or 2 bullets.';
+                    return 'Summarise the main ideas into a single, punchy paragraph.';
                 default:
-                    return input.prompt || 'Improve the text with better flow.';
+                    return input.prompt || 'Optimise this text for flow, grammar, and engagement.';
             }
         })();
 
-        return `TARGET TEXT: """${text}"""\nINSTRUCTION: ${presetInstruction}${input.prompt ? `\nCUSTOM PROMPT: ${input.prompt}` : ''}\n\n${languageInstruction}\n\nTASK: Return ONLY the rewritten result in HTML/Markdown.`;
+        const mediaInstruction = 'IMPORTANT: If the target text contains any <img> tags or other media elements, you MUST preserve them exactly as they are in their relative positions. DO NOT strip them out.';
+
+        return `CONTEXT: Article for ${targetAudience}\nTARGET TEXT: """${text}"""\nINSTRUCTION: ${presetInstruction}${input.prompt ? `\nCUSTOM USER INPUT: ${input.prompt}` : ''}\n\n${mediaInstruction}\n\n${languageInstruction}\n\nTASK: Return ONLY the rewritten result as an HTML snippet. Do not include any preamble or extra commentary.`;
     }, [targetAudience]);
 
     const lockAskAiRange = useCallback((taskId?: string) => {
@@ -124,36 +126,30 @@ export const useAskAi = ({
             alert('Editor not ready.');
             throw new Error('Editor not ready');
         }
-        const selectionRange =
-            (input.taskId ? tiptapApi.findAskAiRange?.(input.taskId) : null) ||
-            (input.taskId ? askAiRangesRef.current[input.taskId] : null) ||
-            lastRangeRef.current ||
-            tiptapApi.getSelectionRange?.() ||
-            null;
-        lastActionModeRef.current = input.mode;
-        if (selectionRange) {
-            lastRangeRef.current = selectionRange;
-            if (input.taskId) {
-                askAiRangesRef.current[input.taskId] = selectionRange;
-            }
-        }
-        const selectedText = (input.selectedText || tiptapApi.getSelectedText?.() || '').trim();
-        if (!selectedText) {
+
+        // selectedText here is expected to be the structural context (HTML or preserved spaces)
+        const contentContext = (input.selectedText || tiptapApi.getSelectedText?.() || '').trim();
+
+        if (!contentContext) {
             alert('請先選取要調整的文字。');
             throw new Error('No selection');
         }
-        if (selectionRange && input.taskId) {
-            tiptapApi.markAskAiRange?.(selectionRange, input.taskId);
-        }
-        const promptToSend = buildAskAiPrompt(input, selectedText);
+
+        const promptToSend = buildAskAiPrompt(input, contentContext);
 
         pendingCountRef.current += 1;
         setIsAiLoading(true);
         try {
             const res = await generateSnippet(promptToSend, targetAudience as TargetAudience);
-            const htmlSnippet = marked.parse(res.data || '', { async: false }) as string;
+
+            // If the AI returns markdown, parse it to HTML
+            let htmlResult = res.data || '';
+            if (htmlResult.includes('```') || htmlResult.startsWith('#')) {
+                htmlResult = marked.parse(htmlResult, { async: false }) as string;
+            }
+
             onAddCost?.(res.cost, res.usage);
-            return htmlSnippet;
+            return htmlResult;
         } catch (error) {
             console.error("AI Edit failed", error);
             alert("Failed to generate content. Please try again.");

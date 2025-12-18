@@ -1,4 +1,4 @@
-import { Editor } from '@tiptap/core';
+import { Editor, getHTMLFromFragment } from '@tiptap/core';
 import Image from '@tiptap/extension-image';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
@@ -53,6 +53,8 @@ interface TiptapAdapterProps {
         focus: () => void;
         editor: Editor;
     }) => void;
+    onSelectionChange?: (data: { text: string; html: string; rect: DOMRect | null; range: { from: number; to: number } | null }) => void;
+    onAskAiClick?: (taskId: string) => void;
     containerRef?: React.RefObject<HTMLDivElement>;
 }
 
@@ -65,6 +67,8 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
     contentStyle,
     onChange,
     onReady,
+    onSelectionChange,
+    onAskAiClick,
     containerRef,
 }) => {
     const editorElementRef = useRef<HTMLDivElement>(null);
@@ -81,6 +85,14 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
     useEffect(() => {
         onReadyRef.current = onReady;
     }, [onReady]);
+    const onSelectionChangeRef = useRef(onSelectionChange);
+    useEffect(() => {
+        onSelectionChangeRef.current = onSelectionChange;
+    }, [onSelectionChange]);
+    const onAskAiClickRef = useRef(onAskAiClick);
+    useEffect(() => {
+        onAskAiClickRef.current = onAskAiClick;
+    }, [onAskAiClick]);
 
     const extensions = useMemo(
         () => [
@@ -140,11 +152,61 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                     ),
                     style: contentStyle as any,
                 },
+                handleDOMEvents: {
+                    click: (view, event) => {
+                        const target = event.target as HTMLElement;
+                        const mark = target.closest('mark.ask-ai-highlight');
+                        if (mark) {
+                            const taskId = mark.getAttribute('data-ask-ai-task');
+                            if (taskId) {
+                                onAskAiClickRef.current?.(taskId);
+                                return true; // Consume event
+                            }
+                        }
+                        return false;
+                    },
+                },
             },
             onUpdate: ({ editor }) => {
                 const html = editor.getHTML();
                 const text = editor.state.doc.textBetween(0, editor.state.doc.content.size, ' ');
                 onChangeRef.current?.(html, text);
+            },
+            onSelectionUpdate: ({ editor }) => {
+                const { from, to } = editor.state.selection;
+                const isCollapsed = from === to;
+
+                // Use \n\n for clear separation between paragraphs in plain text
+                const text = isCollapsed ? '' : editor.state.doc.textBetween(from, to, '\n\n');
+
+                // Get the structured HTML content of the selection
+                let html = '';
+                if (!isCollapsed) {
+                    const slice = editor.state.selection.content();
+                    html = getHTMLFromFragment(slice.content, editor.schema);
+                }
+
+                let rect: DOMRect | null = null;
+                if (!isCollapsed) {
+                    try {
+                        const { view } = editor;
+                        const start = view.coordsAtPos(from);
+                        const end = view.coordsAtPos(to);
+                        rect = new DOMRect(
+                            start.left,
+                            start.top,
+                            end.right - start.left,
+                            end.bottom - start.top || 24 // fallback height
+                        );
+                    } catch (e) { }
+                }
+
+                onSelectionChangeRef.current?.({
+                    text,
+                    html,
+                    rect,
+                    range: isCollapsed ? null : { from, to }
+                });
             },
         });
 

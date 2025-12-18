@@ -19,7 +19,7 @@ export const QuickInsertPanel: React.FC<QuickInsertPanelProps> = ({
     if (readyPlans.length === 0) return null;
 
     return (
-        <aside className="w-20 border-l border-gray-100 bg-gray-50/30 flex flex-col items-center py-4 gap-4 overflow-y-auto custom-scrollbar group/panel transition-all hover:w-24">
+        <aside className="w-20 border-l border-gray-100 bg-gray-50/30 flex flex-col items-center py-4 gap-4 overflow-y-auto custom-scrollbar group/panel transition-all">
             <button
                 onClick={onOpenPlanning}
                 className="w-10 h-10 rounded-xl bg-white border border-gray-200 shadow-sm flex items-center justify-center text-gray-400 hover:text-blue-600 hover:border-blue-200 transition-all group"
@@ -42,10 +42,7 @@ export const QuickInsertPanel: React.FC<QuickInsertPanelProps> = ({
                             <Plus className="w-5 h-5 text-white opacity-0 group-hover/item:opacity-100 drop-shadow-md" />
                         </div>
                     </button>
-                    {/* Small Status indicator */}
-                    <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full border-2 border-white flex items-center justify-center shadow-sm">
-                        <CheckCircle2 className="w-2.5 h-2.5 text-white" />
-                    </div>
+
                 </div>
             ))}
 

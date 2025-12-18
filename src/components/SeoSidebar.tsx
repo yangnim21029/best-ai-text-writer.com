@@ -2,6 +2,7 @@
 
 import React, { useMemo, useState } from 'react';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
+import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAppStore } from '@/store/useAppStore';
 import { BrainCircuit, Layers, Target, ShieldCheck, Database, ListChecks, Zap, Hash, BarChart2, FileSearch, BookOpen, UploadCloud, X, ShoppingBag, ArrowRight, Gem, Square, Languages, Copy, Check } from 'lucide-react';
 import { GenerationStatus, FrequentWordsPlacementAnalysis, ReferenceAnalysis, AuthorityAnalysis, ProblemProductMapping, ProductBrief, TargetAudience } from '@/types';
@@ -57,6 +58,23 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     const [activeTab, setActiveTab] = useState<Tab>('analysis');
     const [showLangDetails, setShowLangDetails] = useState(false);
     const [copied, setCopied] = useState(false);
+    const content = useGenerationStore(state => state.content);
+    const lowercaseContent = useMemo(() => (content || '').toLowerCase(), [content]);
+
+    const detectedBrands = useMemo(() => {
+        return (referenceAnalysis?.competitorBrands || []).filter(brand =>
+            brand && lowercaseContent.includes(brand.toLowerCase())
+        );
+    }, [referenceAnalysis?.competitorBrands, lowercaseContent]);
+
+    const detectedProducts = useMemo(() => {
+        return (referenceAnalysis?.competitorProducts || []).filter(product =>
+            product && lowercaseContent.includes(product.toLowerCase())
+        );
+    }, [referenceAnalysis?.competitorProducts, lowercaseContent]);
+
+    const totalDetectedCount = detectedBrands.length + detectedProducts.length;
+
     const filteredKeywordPlans = useMemo(() => {
         const MAGIC_MAX_WORDS = 3;
         const MAGIC_MAX_LENGTH = 15;
@@ -363,20 +381,20 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                     <div className={`space-y-2 ${referenceAnalysis.regionalReplacements?.length ? 'pt-2 border-t border-gray-100' : ''}`}>
                                         <div className="flex items-center justify-between">
                                             <h5 className="text-xs font-bold text-gray-400 uppercase flex items-center gap-1">
-                                                Blocked Terms
+                                                Detected Blocked Terms
                                                 <span className="bg-red-100 text-red-700 px-1.5 py-0.5 rounded-full text-[10px]">
-                                                    {(referenceAnalysis.competitorBrands?.length || 0) + (referenceAnalysis.competitorProducts?.length || 0)}
+                                                    {totalDetectedCount}
                                                 </span>
                                             </h5>
                                         </div>
 
                                         {/* Recommendation Banner */}
-                                        {((referenceAnalysis.competitorBrands?.length || 0) + (referenceAnalysis.competitorProducts?.length || 0)) >= 3 && (
+                                        {totalDetectedCount >= 1 && (
                                             <div className="bg-blue-50 border border-blue-200 rounded-lg p-2.5 space-y-2">
                                                 <div className="flex items-start gap-2">
                                                     <span className="text-blue-600 text-sm">💡</span>
                                                     <p className="text-xs text-blue-700 leading-relaxed">
-                                                        偵測到 <strong>{(referenceAnalysis.competitorBrands?.length || 0) + (referenceAnalysis.competitorProducts?.length || 0)}</strong> 個品牌/產品需要本地替換
+                                                        偵測到 <strong>{totalDetectedCount}</strong> 個競爭品牌/產品出現在文章中
                                                     </p>
                                                 </div>
                                                 <button
@@ -389,33 +407,39 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                                     ) : (
                                                         <Search className="w-3.5 h-3.5" />
                                                     )}
-                                                    搜尋本地替代品牌
+                                                    代換為本地品牌
                                                 </button>
                                             </div>
                                         )}
 
                                         <ul className="space-y-1.5">
                                             {/* Brand items */}
-                                            {referenceAnalysis.competitorBrands?.map((brand, idx) => (
-                                                <li key={`brand-${idx}`} className="text-xs text-gray-600 flex items-center justify-between gap-2 bg-gray-50 rounded px-2 py-1.5 border border-gray-100">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-red-400 font-bold">[-]</span>
-                                                        <span className="break-words font-medium">{brand}</span>
+                                            {detectedBrands.map((brand, idx) => (
+                                                <li key={`brand-${idx}`} className="text-xs text-gray-600 flex items-center justify-between gap-2 bg-red-50/50 rounded px-2 py-1.5 border border-red-100/50">
+                                                    <div className="flex items-center gap-2 font-black">
+                                                        <span className="text-red-500">[-]</span>
+                                                        <span className="break-words">{brand}</span>
                                                     </div>
                                                     <span className="px-1.5 py-0.5 bg-purple-100 text-purple-700 text-[10px] font-semibold rounded-full">品牌</span>
                                                 </li>
                                             ))}
                                             {/* Product items */}
-                                            {referenceAnalysis.competitorProducts?.map((product, idx) => (
-                                                <li key={`product-${idx}`} className="text-xs text-gray-600 flex items-center justify-between gap-2 bg-gray-50 rounded px-2 py-1.5 border border-gray-100">
-                                                    <div className="flex items-center gap-2">
-                                                        <span className="text-red-400 font-bold">[-]</span>
-                                                        <span className="break-words font-medium">{product}</span>
+                                            {detectedProducts.map((product, idx) => (
+                                                <li key={`product-${idx}`} className="text-xs text-gray-600 flex items-center justify-between gap-2 bg-red-50/50 rounded px-2 py-1.5 border border-red-100/50">
+                                                    <div className="flex items-center gap-2 font-black">
+                                                        <span className="text-red-500">[-]</span>
+                                                        <span className="break-words">{product}</span>
                                                     </div>
                                                     <span className="px-1.5 py-0.5 bg-amber-100 text-amber-700 text-[10px] font-semibold rounded-full">產品</span>
                                                 </li>
                                             ))}
                                         </ul>
+                                        {totalDetectedCount === 0 && (
+                                            <div className="flex items-center gap-2 px-3 py-2 bg-emerald-50 text-emerald-700 rounded-lg border border-emerald-100">
+                                                <Check className="w-4 h-4" />
+                                                <span className="text-xs font-bold">文章中未偵測到競爭品牌。</span>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                         </div>

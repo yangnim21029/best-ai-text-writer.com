@@ -12,6 +12,8 @@ import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Im
 import { useArticleForm } from '@/hooks/useArticleForm';
 import { useSemanticFilter } from '@/hooks/useSemanticFilter';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
+import { useAppStore } from '@/store/useAppStore';
+import { useGenerationStore } from '@/store/useGenerationStore';
 import { EMBED_MODEL_ID } from '@/config/constants';
 
 interface InputFormProps {
@@ -144,6 +146,7 @@ export const InputForm: React.FC<InputFormProps> = ({
     } = useSemanticFilter();
 
     const analysisStore = useAnalysisStore();
+    const { useRag, autoImagePlan } = useAppStore();
 
     const semanticThresholdValue = useMemo(() => {
         const parsed = parseFloat(semanticThresholdInput);
@@ -167,8 +170,8 @@ export const InputForm: React.FC<InputFormProps> = ({
             authorityTerms: data.authorityTerms,
             websiteType: data.websiteType,
             targetAudience: data.targetAudience,
-            useRag: data.useRag,
-            autoImagePlan: data.autoImagePlan,
+            useRag: useRag,
+            autoImagePlan: autoImagePlan,
             productRawText: data.productRawText,
             brandKnowledge: undefined,
             scrapedImages: usableImages,
@@ -311,55 +314,7 @@ export const InputForm: React.FC<InputFormProps> = ({
                         canSemanticFilter={(watchedValues.referenceContent || '').trim().length > 0}
                     />
 
-                    <div className="space-y-2">
-                        <h3 className="text-[10px] font-bold uppercase text-gray-400 tracking-wider px-1 flex items-center gap-1">
-                            <Settings2 className="w-3 h-3" /> Advanced Settings
-                        </h3>
-                        <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-3 space-y-3">
-                            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${watchedValues.useRag ? 'bg-indigo-100 text-indigo-600' : 'bg-gray-100 text-gray-400'}`}>
-                                        <BookOpen className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-800">Knowledge Base (RAG)</p>
-                                        <p className="text-[10px] text-gray-500">Use uploaded brand docs for accuracy</p>
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setValue('useRag', !watchedValues.useRag)}
-                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 ${watchedValues.useRag ? 'bg-indigo-600' : 'bg-gray-200'}`}
-                                >
-                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${watchedValues.useRag ? 'translate-x-4.5' : 'translate-x-1'}`} />
-                                </button>
-                            </div>
 
-                            <div className="flex items-center justify-between p-2 rounded-lg hover:bg-gray-50 transition-colors">
-                                <div className="flex items-center gap-3">
-                                    <div className={`w-8 h-8 rounded-full flex items-center justify-center ${watchedValues.autoImagePlan ? 'bg-emerald-100 text-emerald-600' : 'bg-gray-100 text-gray-400'}`}>
-                                        <ImageIcon className="w-4 h-4" />
-                                    </div>
-                                    <div>
-                                        <p className="text-xs font-bold text-gray-800">Auto Visual Plan</p>
-                                        <p className="text-[10px] text-gray-500">寫完後自動規劃並生成圖片</p>
-                                    </div>
-                                </div>
-                                <button
-                                    type="button"
-                                    onClick={() => setValue('autoImagePlan', !watchedValues.autoImagePlan)}
-                                    className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2 ${watchedValues.autoImagePlan ? 'bg-emerald-600' : 'bg-gray-200'}`}
-                                >
-                                    <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition ${watchedValues.autoImagePlan ? 'translate-x-4.5' : 'translate-x-1'}`} />
-                                </button>
-                            </div>
-                            <p className="text-[10px] text-gray-500 px-1">
-                                關閉可避免尚未按下圖片生成按鈕時就提前觸發。
-                            </p>
-
-
-                        </div>
-                    </div>
 
                 </div>
 
