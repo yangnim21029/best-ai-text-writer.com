@@ -8,7 +8,7 @@ import { summarizeBrandContent } from '@/services/research/productFeatureToPainP
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
-import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Image as ImageIcon } from 'lucide-react';
+import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Image as ImageIcon, ChevronDown, Database, FileText } from 'lucide-react';
 import { useArticleForm } from '@/hooks/useArticleForm';
 import { useSemanticFilter } from '@/hooks/useSemanticFilter';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
@@ -249,9 +249,24 @@ export const InputForm: React.FC<InputFormProps> = ({
             {/* Header Area */}
             <div className="p-4 pb-2 flex-shrink-0 border-b border-gray-100 bg-white/80 backdrop-blur-sm z-10">
                 <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-gray-800">
-                        <LayoutTemplate className="w-4 h-4 text-blue-600" />
-                        <h2 className="text-sm font-bold tracking-tight">Writer Config</h2>
+                    <div className="flex items-center gap-4 text-gray-800">
+                        <div className="flex items-center gap-2">
+                            <LayoutTemplate className="w-4 h-4 text-blue-600" />
+                            <h2 className="text-sm font-bold tracking-tight">Writer Config</h2>
+                        </div>
+
+                        {/* Compact Language Selector */}
+                        <div className="relative group/lang">
+                            <select
+                                {...register('targetAudience')}
+                                className="pl-2 pr-6 py-1 bg-gray-50 border border-gray-200 rounded-lg text-[10px] font-bold text-gray-600 appearance-none cursor-pointer hover:bg-white hover:border-indigo-300 transition-all outline-none"
+                            >
+                                <option value="zh-TW">🇹🇼 TW</option>
+                                <option value="zh-HK">🇭🇰 HK</option>
+                                <option value="zh-MY">🇲🇾 MY</option>
+                            </select>
+                            <ChevronDown className="absolute right-1.5 top-1.5 w-3 h-3 text-gray-400 pointer-events-none group-hover/lang:text-indigo-500 transition-colors" />
+                        </div>
                     </div>
                     <button onClick={handleClear} className="text-[10px] text-gray-400 hover:text-red-500 flex items-center gap-1 transition-colors px-2 py-1 hover:bg-red-50 rounded">
                         <Trash2 className="w-3 h-3" /> Clear
@@ -263,40 +278,130 @@ export const InputForm: React.FC<InputFormProps> = ({
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-24">
 
-                    <WebsiteProfileSection
-                        register={register}
-                        targetAudience={watchedValues.targetAudience}
-                        websiteType={watchedValues.websiteType}
-                        authorityTerms={watchedValues.authorityTerms}
-                        savedProfiles={savedProfiles}
-                        activeProfile={activeProfile}
-                        brandKnowledge={brandKnowledge}
-                        onCreateProfile={(name) => createProfile(name, watchedValues)}
-                        onUpdateProfile={() => updateProfile(watchedValues)}
-                        onDeleteProfile={deleteProfile}
-                        onLoadProfile={(profile) => {
-                            applyProfileToForm(profile);
-                            setProductMode('text');
-                        }}
-                    />
+                    {/* NEW: Knowledge Hub Section */}
+                    <div className="space-y-4">
+                        <div className="flex items-center gap-2 px-1">
+                            <Database className="w-3.5 h-3.5 text-indigo-600" />
+                            <h3 className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider">Knowledge Hub</h3>
+                        </div>
 
-                    <ServiceProductSection
-                        register={register}
-                        productMode={productMode}
-                        setProductMode={setProductMode}
-                        productRawText={watchedValues.productRawText}
-                        isSummarizingProduct={isSummarizingProduct}
-                        canAnalyzeFromUrls={Boolean(watchedValues.productUrlList)}
-                        savedProfiles={savedProfiles}
-                        activeProfile={activeProfile}
-                        onCreateProfile={(name) => createProfile(name, watchedValues)}
-                        onUpdateProfile={() => updateProfile(watchedValues)}
-                        onLoadProductFromProfile={(profile) => {
-                            loadProductFromProfile(profile);
-                            setProductMode('text');
-                        }}
-                        onAnalyzeFromUrls={handleImportProductUrls}
-                    />
+                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                            {/* Analysis Documents / Knowledge Objects */}
+                            <div className="p-3 border-b border-gray-50 bg-indigo-50/30">
+                                <label className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 uppercase mb-2">
+                                    <FileText className="w-3 h-3" /> Analysis Documents
+                                </label>
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
+                                    {analysisStore.analysisDocuments.length === 0 ? (
+                                        <p className="text-[10px] text-gray-400 italic py-2 text-center">No knowledge objects yet. Run Step 1 to create one.</p>
+                                    ) : (
+                                        analysisStore.analysisDocuments.map(doc => {
+                                            const isSelected = analysisStore.selectedDocumentIds.includes(doc.id);
+                                            return (
+                                                <div
+                                                    key={doc.id}
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => analysisStore.toggleDocumentSelection(doc.id)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            analysisStore.toggleDocumentSelection(doc.id);
+                                                        }
+                                                    }}
+                                                    className={`w-full text-left p-2 rounded-lg border transition-all flex items-center gap-2 group/doc cursor-pointer ${isSelected
+                                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                                        : 'bg-white border-gray-100 text-gray-700 hover:border-indigo-200 hover:bg-indigo-50/50'
+                                                        }`}
+                                                >
+                                                    <div className={`w-3 h-3 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-white border-white' : 'border-gray-300'}`}>
+                                                        {isSelected && <div className="w-1.5 h-1.5 bg-indigo-600 rounded-sm" />}
+                                                    </div>
+                                                    <div className="min-w-0 flex-1">
+                                                        <div className="text-[11px] font-bold truncate">{doc.title}</div>
+                                                        <div className={`text-[9px] ${isSelected ? 'text-indigo-100' : 'text-gray-400'}`}>
+                                                            {new Date(doc.timestamp).toLocaleString()}
+                                                        </div>
+                                                    </div>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Delete this analysis document?')) {
+                                                                analysisStore.deleteDocument(doc.id);
+                                                            }
+                                                        }}
+                                                        className={`p-1 rounded hover:bg-white/20 transition-opacity ${isSelected ? 'opacity-80' : 'opacity-0 group-hover/doc:opacity-100 text-gray-300 hover:text-red-500'
+                                                            }`}
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                </div>
+                                            );
+                                        })
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Existing Sections moved here */}
+                            <div className="divide-y divide-gray-50">
+                                <div className="p-1">
+                                    <WebsiteProfileSection
+                                        register={register}
+                                        targetAudience={watchedValues.targetAudience}
+                                        websiteType={watchedValues.websiteType}
+                                        authorityTerms={watchedValues.authorityTerms}
+                                        savedProfiles={savedProfiles}
+                                        activeProfile={activeProfile}
+                                        brandKnowledge={brandKnowledge} // Still using the prop for now
+                                        onCreateProfile={(name) => createProfile(name, watchedValues)}
+                                        onUpdateProfile={() => updateProfile(watchedValues)}
+                                        onDeleteProfile={deleteProfile}
+                                        onLoadProfile={(profile) => {
+                                            applyProfileToForm(profile);
+                                            setProductMode('text');
+                                        }}
+                                    />
+                                </div>
+                                <div className="p-1">
+                                    <ServiceProductSection
+                                        register={register}
+                                        productMode={productMode}
+                                        setProductMode={setProductMode}
+                                        productRawText={watchedValues.productRawText}
+                                        isSummarizingProduct={isSummarizingProduct}
+                                        canAnalyzeFromUrls={Boolean(watchedValues.productUrlList)}
+                                        savedProfiles={savedProfiles}
+                                        activeProfile={activeProfile}
+                                        onCreateProfile={(name) => createProfile(name, watchedValues)}
+                                        onUpdateProfile={() => updateProfile(watchedValues)}
+                                        onLoadProductFromProfile={(profile) => {
+                                            loadProductFromProfile(profile);
+                                            setProductMode('text');
+                                        }}
+                                        onAnalyzeFromUrls={handleImportProductUrls}
+                                    />
+                                </div>
+
+                                {/* Brand Knowledge Area directly in Hub */}
+                                <div className="p-4 bg-slate-50/50">
+                                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase mb-2">
+                                        <BookOpen className="w-3 h-3" /> Brand Knowledge (RAG)
+                                    </label>
+                                    <textarea
+                                        value={analysisStore.brandKnowledge}
+                                        onChange={(e) => analysisStore.setBrandKnowledge(e.target.value)}
+                                        placeholder="Paste brand guidelines, whitepapers, or specific facts here..."
+                                        className="w-full h-24 p-3 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 outline-none focus:border-indigo-500 transition-all resize-none custom-scrollbar"
+                                    />
+                                    <div className="mt-1 flex justify-between items-center text-[9px] text-gray-400 font-mono">
+                                        <span>{analysisStore.brandKnowledge.length} characters</span>
+                                        {analysisStore.brandKnowledge.length > 0 && <span className="text-green-600 font-bold">RAG ACTIVE</span>}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                     <SourceMaterialSection
                         register={register}

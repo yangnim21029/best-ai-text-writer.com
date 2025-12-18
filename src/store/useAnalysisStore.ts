@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import {
+    AnalysisDocument,
     AuthorityAnalysis,
     FrequentWordsPlacementAnalysis,
     ProblemProductMapping,
@@ -46,6 +47,9 @@ interface AnalysisState {
     showGroundingModal: boolean;
     // NEW: Localized plan stored separately
     localizedRefAnalysis: ReferenceAnalysis | null;
+    analysisDocuments: AnalysisDocument[];
+    selectedDocumentIds: string[];
+
     setKeywordPlans: (plans: FrequentWordsPlacementAnalysis[]) => void;
     setRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     setAuthAnalysis: (analysis: AuthorityAnalysis | null) => void;
@@ -67,17 +71,23 @@ interface AnalysisState {
     }[]) => void;
     setLanguageInstruction: (instruction: string) => void;
     setHKGroundingResult: (result: AnalysisState['hkGroundingResult']) => void;
-    // NEW: Pending grounding actions
     setPendingGroundingResult: (result: AnalysisState['pendingGroundingResult']) => void;
     setShowGroundingModal: (show: boolean) => void;
     toggleGroundingIssueSelection: (index: number) => void;
     setLocalizedRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
+    saveCurrentToDocument: () => Promise<void>;
+    setSelectedDocumentIds: (ids: string[]) => void;
+    toggleDocumentSelection: (id: string) => void;
+    deleteDocument: (id: string) => Promise<void>;
+    loadDocumentsFromDb: () => Promise<void>;
     reset: () => void;
 }
 
+import { db } from '../db/analysisDb';
+
 export const useAnalysisStore = create<AnalysisState>()(
     persist(
-        (set) => ({
+        (set, get) => ({
             keywordPlans: [],
             refAnalysis: null,
             authAnalysis: null,
@@ -95,6 +105,9 @@ export const useAnalysisStore = create<AnalysisState>()(
             pendingGroundingResult: null,
             showGroundingModal: false,
             localizedRefAnalysis: null,
+            analysisDocuments: [],
+            selectedDocumentIds: [],
+
             setKeywordPlans: (plans) => set({ keywordPlans: plans }),
             setRefAnalysis: (analysis) => set({ refAnalysis: analysis }),
             setAuthAnalysis: (analysis) => set({ authAnalysis: analysis }),
@@ -126,6 +139,49 @@ export const useAnalysisStore = create<AnalysisState>()(
                 };
             }),
             setLocalizedRefAnalysis: (analysis) => set({ localizedRefAnalysis: analysis }),
+            saveCurrentToDocument: async () => {
+                const state = get();
+                if (!state.refAnalysis && state.keywordPlans.length === 0) return;
+                const newDoc: AnalysisDocument = {
+                    id: crypto.randomUUID(),
+                    timestamp: Date.now(),
+                    title: state.articleTitle || `Analysis ${new Date().toLocaleString()}`,
+                    keywordPlans: [...state.keywordPlans],
+                    refAnalysis: state.refAnalysis ? { ...state.refAnalysis } : null,
+                    authAnalysis: state.authAnalysis ? { ...state.authAnalysis } : null,
+                    visualStyle: state.visualStyle,
+                    productMapping: [...state.productMapping],
+                    productBrief: state.activeProductBrief ? { ...state.activeProductBrief } : undefined,
+                    targetAudience: state.targetAudience,
+                    languageInstruction: state.languageInstruction,
+                };
+
+                await db.documents.add(newDoc);
+                const allDocs = await db.documents.orderBy('timestamp').reverse().toArray();
+                set({
+                    analysisDocuments: allDocs,
+                    selectedDocumentIds: [newDoc.id]
+                });
+            },
+            setSelectedDocumentIds: (ids) => set({ selectedDocumentIds: ids }),
+            toggleDocumentSelection: (id) => set((state) => {
+                const ids = state.selectedDocumentIds.includes(id)
+                    ? state.selectedDocumentIds.filter(i => i !== id)
+                    : [...state.selectedDocumentIds, id];
+                return { selectedDocumentIds: ids };
+            }),
+            deleteDocument: async (id) => {
+                await db.documents.delete(id);
+                const allDocs = await db.documents.orderBy('timestamp').reverse().toArray();
+                set((state) => ({
+                    analysisDocuments: allDocs,
+                    selectedDocumentIds: state.selectedDocumentIds.filter(i => i !== id)
+                }));
+            },
+            loadDocumentsFromDb: async () => {
+                const allDocs = await db.documents.orderBy('timestamp').reverse().toArray();
+                set({ analysisDocuments: allDocs });
+            },
             reset: () => set({
                 keywordPlans: [],
                 refAnalysis: null,
@@ -134,7 +190,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 visualStyle: '',
                 brandKnowledge: '',
                 coveredPoints: [],
-                targetAudience: 'zh-TW',
+                // targetAudience: 'zh-TW', // Keep audience
                 productMapping: [],
                 activeProductBrief: undefined,
                 articleTitle: '',
@@ -144,6 +200,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 pendingGroundingResult: null,
                 showGroundingModal: false,
                 localizedRefAnalysis: null,
+                selectedDocumentIds: [],
             }),
         }),
         {
@@ -164,6 +221,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 productMapping: state.productMapping,
                 activeProductBrief: state.activeProductBrief,
                 localizedRefAnalysis: state.localizedRefAnalysis,
+                selectedDocumentIds: state.selectedDocumentIds,
             }),
         }
     )

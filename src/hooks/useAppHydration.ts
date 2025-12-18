@@ -9,6 +9,10 @@ export function useAppHydration() {
     const hydratedAnalysisRef = useRef(false);
 
     useEffect(() => {
+        analysisStore.loadDocumentsFromDb();
+    }, []);
+
+    useEffect(() => {
         if (restorePromptedRef.current || typeof window === 'undefined') return;
         const persistedKeys = [
             'pro_content_writer_analysis',
