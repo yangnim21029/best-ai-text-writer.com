@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, ImageIcon, Sparkles, Wand2, Settings2, Trash2, PlayCircle, Loader2, ArrowRight, Eye, Layout, Palette, User, CheckCircle2 } from 'lucide-react';
+import { X, ImageIcon, Sparkles, Wand2, Settings2, Trash2, PlayCircle, Loader2, ArrowRight, Eye, Layout, Palette, User, CheckCircle2, Download } from 'lucide-react';
 import { ImageAssetPlan } from '../../types';
 import { cn } from '../../utils/cn';
+import { downloadImage } from '../../utils/imageUtils';
 
 interface VisualAssetPlanningModalProps {
     open: boolean;
@@ -88,6 +89,24 @@ export const VisualAssetPlanningModal: React.FC<VisualAssetPlanningModalProps> =
                         >
                             {isBatchProcessing ? <Loader2 className="w-4 h-4 animate-spin" /> : <PlayCircle className="w-4 h-4" />}
                             Generate All ({stats.pending})
+                        </button>
+
+                        <button
+                            onClick={() => {
+                                imagePlans
+                                    .filter(p => p.status === 'done' && p.url)
+                                    .forEach((p, idx) => {
+                                        // Small staggered delay to prevent browser download caps/popups in some environments
+                                        setTimeout(() => {
+                                            downloadImage(p.url!, `image-asset-${p.id}.png`);
+                                        }, idx * 200);
+                                    });
+                            }}
+                            disabled={stats.ready === 0}
+                            className="px-4 py-2 bg-white border border-gray-200 text-gray-700 rounded-2xl text-sm font-bold shadow-sm hover:bg-gray-50 transition-all flex items-center gap-2 disabled:opacity-50"
+                        >
+                            <Download className="w-4 h-4 text-green-500" />
+                            Download All ({stats.ready})
                         </button>
 
                         <div className="w-px h-8 bg-gray-100 mx-2" />
@@ -243,6 +262,16 @@ export const VisualAssetPlanningModal: React.FC<VisualAssetPlanningModalProps> =
                                                             >
                                                                 <Eye className="w-6 h-6 text-white" />
                                                             </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    downloadImage(plan.url!, `image-asset-${plan.id}.png`);
+                                                                }}
+                                                                className="absolute bottom-2 right-2 p-1.5 bg-white/20 hover:bg-white/40 text-white rounded-lg opacity-0 group-hover/preview:opacity-100 transition-opacity backdrop-blur-md"
+                                                                title="Download Image"
+                                                            >
+                                                                <Download className="w-4 h-4" />
+                                                            </button>
                                                         </>
                                                     ) : plan.status === 'generating' ? (
                                                         <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
@@ -318,12 +347,24 @@ export const VisualAssetPlanningModal: React.FC<VisualAssetPlanningModalProps> =
                     className="fixed inset-0 z-[110] flex items-center justify-center p-8 bg-black/90 backdrop-blur-xl animate-in fade-in duration-300"
                     onClick={() => setPreviewImageUrl(null)}
                 >
-                    <button
-                        onClick={() => setPreviewImageUrl(null)}
-                        className="absolute top-8 right-8 p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all"
-                    >
-                        <X className="w-8 h-8" />
-                    </button>
+                    <div className="absolute top-8 right-8 flex items-center gap-3">
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                downloadImage(previewImageUrl, 'preview-image.png');
+                            }}
+                            className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all flex items-center gap-2"
+                        >
+                            <Download className="w-6 h-6" />
+                            <span className="text-sm font-bold pr-2">Download</span>
+                        </button>
+                        <button
+                            onClick={() => setPreviewImageUrl(null)}
+                            className="p-3 bg-white/10 hover:bg-white/20 text-white rounded-2xl transition-all"
+                        >
+                            <X className="w-8 h-8" />
+                        </button>
+                    </div>
                     <img
                         src={previewImageUrl}
                         className="max-w-full max-h-full object-contain rounded-2xl shadow-2xl animate-in zoom-in-95 duration-300"
