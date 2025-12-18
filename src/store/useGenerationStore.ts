@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ArticleConfig, GenerationStatus, GenerationStep, SectionGenerationResult } from '../types';
+import { ArticleConfig, GenerationStatus, GenerationStep, SectionGenerationResult, ImageAssetPlan } from '../types';
 
 interface GenerationState {
     content: string;
@@ -20,8 +20,12 @@ interface GenerationState {
     setSectionResults: (results: (SectionGenerationResult & { id: string })[]) => void;
     addSectionResult: (result: SectionGenerationResult & { id: string }) => void;
     updateSectionResult: (id: string, updates: Partial<SectionGenerationResult>) => void;
+    imageAssetPlans: ImageAssetPlan[];
     stopGeneration: () => void;
     resetGeneration: () => void;
+    setImageAssetPlans: (plans: ImageAssetPlan[] | ((prev: ImageAssetPlan[]) => ImageAssetPlan[])) => void;
+    updateImageAssetPlan: (id: string, updates: Partial<ImageAssetPlan>) => void;
+    deleteImageAssetPlan: (id: string) => void;
 }
 
 export const useGenerationStore = create<GenerationState>()(
@@ -35,6 +39,7 @@ export const useGenerationStore = create<GenerationState>()(
             analysisResults: null,
             lastConfig: null,
             sectionResults: [],
+            imageAssetPlans: [],
             setContent: (content) => set((state) => ({
                 content: typeof content === 'function' ? content(state.content) : content
             })),
@@ -52,8 +57,18 @@ export const useGenerationStore = create<GenerationState>()(
                 isStopped: false,
                 analysisResults: null,
                 lastConfig: null,
-                sectionResults: []
+                sectionResults: [],
+                imageAssetPlans: []
             }),
+            setImageAssetPlans: (plans) => set((state) => ({
+                imageAssetPlans: typeof plans === 'function' ? plans(state.imageAssetPlans) : plans
+            })),
+            updateImageAssetPlan: (id, updates) => set((state) => ({
+                imageAssetPlans: state.imageAssetPlans.map(p => p.id === id ? { ...p, ...updates } : p)
+            })),
+            deleteImageAssetPlan: (id) => set((state) => ({
+                imageAssetPlans: state.imageAssetPlans.filter(p => p.id !== id)
+            })),
             setSectionResults: (results) => set({ sectionResults: results }),
             addSectionResult: (result) => set((state) => ({
                 sectionResults: [...state.sectionResults, result]
@@ -65,9 +80,24 @@ export const useGenerationStore = create<GenerationState>()(
         {
             name: 'pro_content_writer_generation',
             storage: createJSONStorage(() => localStorage),
-            partialize: (state) => ({
-                content: state.content,
-            }),
+            partialize: (state) => {
+                const stripImages = (html: string) =>
+                    (html || '').replace(/src="data:image\/[^"]+"/g, 'src=""');
+
+                return {
+                    content: stripImages(state.content),
+                    sectionResults: (state.sectionResults || []).map(r => ({
+                        ...r,
+                        content: stripImages(r.content || ''),
+                        rawContent: stripImages(r.rawContent || ''),
+                        refinedContent: stripImages(r.refinedContent || '')
+                    })),
+                    imageAssetPlans: (state.imageAssetPlans || []).map(p => ({
+                        ...p,
+                        url: (p.url || '').startsWith('data:') ? '' : p.url
+                    }))
+                };
+            },
         }
     )
 );

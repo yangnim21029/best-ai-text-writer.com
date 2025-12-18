@@ -33,3 +33,64 @@ export const dedupeScrapedImages = (images: ScrapedImage[]) => {
         return true;
     });
 };
+
+/**
+ * Get a compressed version of an image URL using images.weserv.nl proxy.
+ */
+export const getCompressedImageUrl = (url: string, quality = 85): string => {
+    if (!url || url.startsWith('data:')) return url;
+    // Proxies through weserv.nl for compression
+    return `https://images.weserv.nl/?url=${encodeURIComponent(url)}&q=${quality}&output=webp&we`;
+};
+
+/**
+ * Compress a Data URL (base64) by drawing to a canvas and re-exporting.
+ */
+export const compressImageDataUrl = async (dataUrl: string, quality = 0.8, maxWidth = 1200): Promise<string> => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => {
+            let width = img.width;
+            let height = img.height;
+
+            if (width > maxWidth) {
+                height = (height * maxWidth) / width;
+                width = maxWidth;
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+
+            const ctx = canvas.getContext('2d');
+            ctx?.drawImage(img, 0, 0, width, height);
+
+            resolve(canvas.toDataURL('image/webp', quality));
+        };
+        img.onerror = () => resolve(dataUrl); // Fallback to original
+        img.src = dataUrl;
+    });
+};
+
+/**
+ * High-level compression that handles both URLs and Data URLs.
+ */
+export const compressImage = async (path: string): Promise<string> => {
+    if (path.startsWith('data:')) {
+        return compressImageDataUrl(path);
+    }
+
+    try {
+        const compressedUrl = getCompressedImageUrl(path);
+        const res = await fetch(compressedUrl);
+        if (!res.ok) return path;
+        const blob = await res.blob();
+        return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+        });
+    } catch {
+        return path;
+    }
+};

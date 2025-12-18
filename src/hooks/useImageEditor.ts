@@ -1,6 +1,10 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useEffect, useRef } from 'react';
 import { TargetAudience, CostBreakdown, TokenUsage, ScrapedImage, ImageAssetPlan } from '../types';
 import { generateImagePromptFromContext, generateImage, planImagesForArticle } from '../services/generation/imageService';
+import { useAppStore } from '../store/useAppStore';
+import { useGenerationStore } from '../store/useGenerationStore';
+import { compressImage } from '../utils/imageUtils';
+import { saveImageToCache, getImageFromCache, deleteImageFromCache } from '../utils/storage/db';
 
 interface UseImageEditorParams {
     editorRef: React.RefObject<HTMLDivElement>;
@@ -9,6 +13,8 @@ interface UseImageEditorParams {
         getPlainText?: () => string;
         getHtml?: () => string;
         setHtml?: (html: string) => void;
+        insertHtml?: (html: string) => void;
+        getSelectionRange?: () => { from: number; to: number };
     };
     imageContainerRef?: React.RefObject<HTMLElement>;
     targetAudience: TargetAudience;
@@ -33,23 +39,90 @@ export const useImageEditor = ({
     restoreSelection,
 }: UseImageEditorParams) => {
     const [showImageModal, setShowImageModal] = useState(false);
-    const [imagePrompt, setImagePrompt] = useState('');
+    const [imagePrompts, setImagePrompts] = useState<string[]>([]);
     const [isImageLoading, setIsImageLoading] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
-    const [imagePlans, setImagePlans] = useState<ImageAssetPlan[]>([]);
-    const [isPlanning, setIsPlanning] = useState(false);
-    const [isBatchProcessing, setIsBatchProcessing] = useState(false);
+    const [showBatchModal, setShowBatchModal] = useState(false);
+
+    const {
+        imageAssetPlans: imagePlans,
+        setImageAssetPlans: setImagePlans,
+        updateImageAssetPlan: updatePlanPromptStore,
+        deleteImageAssetPlan: deletePlanStore,
+        status: generationStatus,
+        setStatus
+    } = useGenerationStore();
+
+    const isPlanning = generationStatus === 'analyzing';
+    const isBatchProcessing = generationStatus === 'streaming';
+
+    const updatePlanPrompt = useCallback((id: string, updates: Partial<ImageAssetPlan>) => {
+        updatePlanPromptStore(id, updates);
+    }, [updatePlanPromptStore]);
+
+    const deletePlan = useCallback(async (id: string) => {
+        deletePlanStore(id);
+        await deleteImageFromCache(id);
+    }, [deletePlanStore]);
+
+    // Local session style overrides
+    const { defaultModelAppearance, defaultDesignStyle } = useAppStore();
+    const [localModelAppearance, setLocalModelAppearance] = useState(defaultModelAppearance);
+    const [localDesignStyle, setLocalDesignStyle] = useState(defaultDesignStyle);
+    const hasHydratedImages = useRef(false);
+
+    // HYDRATION: Load cached images from IndexedDB when plans become available
+    useEffect(() => {
+        if (hasHydratedImages.current || imagePlans.length === 0) return;
+
+        const hydrate = async () => {
+            const needsHydration = imagePlans.some(p => p.status === 'done' && !p.url);
+            if (!needsHydration) {
+                hasHydratedImages.current = true;
+                return;
+            }
+
+            const updatedPlans = await Promise.all(imagePlans.map(async (p) => {
+                if (p.status === 'done' && !p.url) {
+                    const cached = await getImageFromCache(p.id);
+                    if (cached) return { ...p, url: cached };
+                }
+                return p;
+            }));
+
+            const changed = updatedPlans.some((p, idx) => p.url !== imagePlans[idx].url);
+            if (changed) {
+                setImagePlans(updatedPlans);
+            }
+            hasHydratedImages.current = true;
+        };
+
+        hydrate();
+    }, [imagePlans.length, setImagePlans]); // Re-run if plans length changes (e.g. initial load)
+
+    // Sync from store when they change (if needed)
+    useEffect(() => {
+        setLocalModelAppearance(defaultModelAppearance);
+    }, [defaultModelAppearance]);
+
+    useEffect(() => {
+        setLocalDesignStyle(defaultDesignStyle);
+    }, [defaultDesignStyle]);
 
     const openImageModal = useCallback(async () => {
+        const { defaultModelAppearance } = useAppStore.getState();
         saveSelection();
         setShowImageModal(true);
         setIsImageLoading(true);
-        setImagePrompt('Analyzing context...');
+        setImagePrompts(['Analyzing context...']);
 
         let contextText = '';
         if (tiptapApi?.getPlainText) {
             const text = tiptapApi.getPlainText();
-            contextText = text.substring(0, 200);
+            const { from } = tiptapApi.getSelectionRange();
+            const start = Math.max(0, from - 500);
+            const end = Math.min(text.length, from + 500);
+            contextText = text.substring(start, end);
         } else if (editorRef.current) {
             const fullText = editorRef.current.innerText;
             const selection = window.getSelection();
@@ -59,51 +132,79 @@ export const useImageEditor = ({
                 preCaretRange.selectNodeContents(editorRef.current);
                 preCaretRange.setEnd(range.startContainer, range.startOffset);
                 const startOffset = preCaretRange.toString().length;
-                const start = Math.max(0, startOffset - 100);
-                const end = Math.min(fullText.length, startOffset + 100);
+                const start = Math.max(0, startOffset - 500);
+                const end = Math.min(fullText.length, startOffset + 500);
                 contextText = fullText.substring(start, end);
             } else {
-                contextText = fullText.substring(0, 200);
+                contextText = fullText.substring(0, 500);
             }
         }
 
         try {
-            const res = await generateImagePromptFromContext(contextText, targetAudience, visualStyle || '');
-            setImagePrompt(res.data);
+            const res = await generateImagePromptFromContext(
+                contextText,
+                targetAudience,
+                visualStyle || '',
+                defaultModelAppearance
+            );
+            setImagePrompts(res.data);
             onAddCost?.(res.cost, res.usage);
         } catch (e) {
-            setImagePrompt('Create a realistic image relevant to this article.');
+            setImagePrompts(['Create a realistic image relevant to this article.']);
         } finally {
             setIsImageLoading(false);
         }
-    }, [editorRef, onAddCost, saveSelection, targetAudience, visualStyle]);
+    }, [editorRef, onAddCost, saveSelection, targetAudience, visualStyle, tiptapApi]);
 
     const generateImageFromPrompt = useCallback(async (prompt: string) => {
         if (!prompt) return;
-        setIsImageLoading(true);
+
+        const anchorId = Math.random().toString(36).substring(2, 9);
+        const anchorText = `[Generating Image... id:${anchorId}]`;
+        const anchorHtml = `<p id="anchor-${anchorId}" style="color: #db2777; font-weight: bold; padding: 12px; background: #fdf2f8; border-radius: 12px; border: 2px dashed #f9a8d4; text-align: center; margin: 20px 0;">${anchorText}</p>`;
+
+        if (tiptapApi) {
+            tiptapApi.insertHtml(anchorHtml);
+        } else {
+            restoreSelection();
+            document.execCommand('insertHTML', false, anchorHtml);
+        }
+
+        setShowImageModal(false);
+        setIsImageLoading(false); // Modal loading is done, but image generation is background
+
         try {
             const res = await generateImage(prompt);
             if (res.data) {
                 const imgHtml = `<img src="${res.data}" alt="${prompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0;" /><br/>`;
-                if (tiptapApi) {
-                    tiptapApi.insertImage(res.data, prompt);
-                } else {
-                    restoreSelection();
-                    document.execCommand('insertHTML', false, imgHtml);
-                    if (editorRef.current) handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
+
+                const replaceAnchor = (html: string) => {
+                    const target = `id="anchor-${anchorId}"`;
+                    if (html.includes(target)) {
+                        // Find the whole <p> tag containing this ID
+                        const regex = new RegExp(`<p[^>]*${target}[^>]*>.*?</p>`, 'i');
+                        return html.replace(regex, imgHtml);
+                    }
+                    return html + imgHtml;
+                };
+
+                if (tiptapApi && tiptapApi.getHtml && tiptapApi.setHtml) {
+                    const currentHtml = tiptapApi.getHtml();
+                    tiptapApi.setHtml(replaceAnchor(currentHtml));
+                } else if (editorRef.current) {
+                    editorRef.current.innerHTML = replaceAnchor(editorRef.current.innerHTML);
+                    handleInput({ currentTarget: editorRef.current } as React.FormEvent<HTMLDivElement>);
                 }
+
                 onAddCost?.(res.cost, res.usage);
-                setShowImageModal(false);
             } else {
                 alert('Image generation returned no data.');
             }
         } catch (e) {
             console.error('Image generation error', e);
             alert('Failed to generate image.');
-        } finally {
-            setIsImageLoading(false);
         }
-    }, [editorRef, handleInput, onAddCost, restoreSelection]);
+    }, [editorRef, handleInput, onAddCost, restoreSelection, tiptapApi]);
 
     const downloadImages = useCallback(async () => {
         const container = imageContainerRef?.current || editorRef.current || document.body;
@@ -155,9 +256,7 @@ export const useImageEditor = ({
         }
     }, [editorRef]);
 
-    const updatePlanPrompt = useCallback((id: string, newPrompt: string) => {
-        setImagePlans((prev) => prev.map((p) => (p.id === id ? { ...p, generatedPrompt: newPrompt } : p)));
-    }, []);
+
 
     const injectImageIntoEditor = useCallback((plan: ImageAssetPlan, method: 'auto' | 'cursor' = 'auto') => {
         if (!plan.url) return;
@@ -224,28 +323,40 @@ export const useImageEditor = ({
         if (plan.status === 'generating') return;
         setImagePlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: 'generating' } : p)));
         try {
-            const imgRes = await generateImage(plan.generatedPrompt);
+            // Consolidate prompt with styles
+            let finalPrompt = plan.generatedPrompt;
+            if (plan.category === 'BRANDED_LIFESTYLE' || plan.category === 'PRODUCT_DETAIL') {
+                finalPrompt += `, ${localModelAppearance}`;
+            } else if (plan.category === 'INFOGRAPHIC' || plan.category === 'PRODUCT_INFOGRAPHIC') {
+                finalPrompt += `, style: ${localDesignStyle}`;
+            }
+
+            const imgRes = await generateImage(finalPrompt);
             if (imgRes.data) {
-                const updatedPlan = { ...plan, status: 'done' as const, url: imgRes.data || undefined };
-                setImagePlans((prev) => prev.map((p) => (p.id === plan.id ? updatedPlan : p)));
+                // COMPRESSION & CACHING
+                const compressed = await compressImage(imgRes.data);
+                await saveImageToCache(plan.id, compressed);
+
+                const updatedPlan = { ...plan, status: 'done' as const, url: compressed };
+                updatePlanPrompt(plan.id, updatedPlan);
                 onAddCost?.(imgRes.cost, imgRes.usage);
             } else {
-                setImagePlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: 'error' } : p)));
+                updatePlanPrompt(plan.id, { status: 'error' });
             }
         } catch (e) {
             console.error('Single generation failed', e);
-            setImagePlans((prev) => prev.map((p) => (p.id === plan.id ? { ...p, status: 'error' } : p)));
+            updatePlanPrompt(plan.id, { status: 'error' });
         }
-    }, [onAddCost]);
+    }, [onAddCost, localModelAppearance, localDesignStyle, updatePlanPrompt]);
 
     const handleBatchProcess = useCallback(async () => {
         if (isBatchProcessing) return;
-        setIsBatchProcessing(true);
+        setStatus('streaming');
         const plansToProcess = imagePlans.filter((p) => p.status !== 'done');
         const promises = plansToProcess.map((plan) => generateSinglePlan(plan));
         await Promise.all(promises);
-        setIsBatchProcessing(false);
-    }, [generateSinglePlan, imagePlans, isBatchProcessing]);
+        setStatus('completed');
+    }, [generateSinglePlan, imagePlans, isBatchProcessing, setStatus]);
 
     const autoPlanImages = useCallback(async () => {
         const getContent = () => {
@@ -253,25 +364,25 @@ export const useImageEditor = ({
             return editorRef.current?.innerText || '';
         };
         if (isPlanning) return;
-        setIsPlanning(true);
+        setStatus('analyzing');
         try {
             const content = getContent();
             const res = await planImagesForArticle(content, scrapedImages, targetAudience, visualStyle || '');
             setImagePlans(res.data);
             onAddCost?.(res.cost, res.usage);
+            setStatus('analysis_ready');
         } catch (e) {
             console.error('Auto-plan failed', e);
             alert('Failed to plan images.');
-        } finally {
-            setIsPlanning(false);
+            setStatus('error');
         }
-    }, [editorRef, onAddCost, scrapedImages, targetAudience, visualStyle, isPlanning]);
+    }, [editorRef, onAddCost, scrapedImages, targetAudience, visualStyle, isPlanning, setStatus, setImagePlans]);
 
     return {
         showImageModal,
         setShowImageModal,
-        imagePrompt,
-        setImagePrompt,
+        imagePrompts,
+        setImagePrompts,
         isImageLoading,
         isDownloadingImages,
         imagePlans,
@@ -282,8 +393,15 @@ export const useImageEditor = ({
         downloadImages,
         autoPlanImages,
         updatePlanPrompt,
+        deletePlan,
         injectImageIntoEditor,
         generateSinglePlan,
         handleBatchProcess,
+        showBatchModal,
+        setShowBatchModal,
+        localModelAppearance,
+        setLocalModelAppearance,
+        localDesignStyle,
+        setLocalDesignStyle,
     };
 };

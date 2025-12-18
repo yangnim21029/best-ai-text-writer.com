@@ -24,6 +24,8 @@ interface AppState {
     keywordCharDivisor: number;
     minKeywords: number;
     maxKeywords: number;
+    defaultModelAppearance: string;
+    defaultDesignStyle: string;
 
     // Profile Slice
     savedProfiles: SavedProfile[];
@@ -48,6 +50,8 @@ interface AppState {
     setKeywordCharDivisor: (divisor: number) => void;
     setMinKeywords: (min: number) => void;
     setMaxKeywords: (max: number) => void;
+    setDefaultModelAppearance: (appearance: string) => void;
+    setDefaultDesignStyle: (style: string) => void;
     resetSettings: () => void;
 
     setSavedProfiles: (profiles: SavedProfile[]) => void;
@@ -78,6 +82,8 @@ export const useAppStore = create<AppState>()(
             keywordCharDivisor: KEYWORD_CHAR_DIVISOR,
             minKeywords: MIN_KEYWORDS,
             maxKeywords: SEMANTIC_KEYWORD_LIMIT,
+            defaultModelAppearance: 'Asian female, professional attire, natural lighting, high quality photography',
+            defaultDesignStyle: 'Minimalist, flat design, clean lines, professional corporate color palette, high resolution infographic style',
 
             savedProfiles: [],
             activeProfile: null,
@@ -104,12 +110,16 @@ export const useAppStore = create<AppState>()(
             setKeywordCharDivisor: (divisor) => set({ keywordCharDivisor: divisor }),
             setMinKeywords: (min) => set({ minKeywords: min }),
             setMaxKeywords: (max) => set({ maxKeywords: max }),
+            setDefaultModelAppearance: (appearance) => set({ defaultModelAppearance: appearance }),
+            setDefaultDesignStyle: (style) => set({ defaultDesignStyle: style }),
             resetSettings: () => set({
                 modelFlash: MODEL.FLASH,
                 modelImage: MODEL.IMAGE_PREVIEW,
                 keywordCharDivisor: KEYWORD_CHAR_DIVISOR,
                 minKeywords: MIN_KEYWORDS,
                 maxKeywords: SEMANTIC_KEYWORD_LIMIT,
+                defaultModelAppearance: 'Asian female, professional attire, natural lighting, high quality photography',
+                defaultDesignStyle: 'Minimalist, flat design, clean lines, professional corporate color palette, high resolution infographic style',
             }),
 
             setSavedProfiles: (profiles) => set({ savedProfiles: profiles }),

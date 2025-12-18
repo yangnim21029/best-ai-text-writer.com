@@ -4,9 +4,9 @@ import { TargetAudience, CostBreakdown, TokenUsage, ScrapedImage, ImageAssetPlan
 import { TiptapAdapter } from './TiptapAdapter';
 import { EditorToolbar } from './editor/EditorToolbar';
 import { KeyPointsPanel } from './editor/KeyPointsPanel';
-import { VisualAssetsPanel } from './editor/VisualAssetsPanel';
 import { MetaPanel } from './editor/MetaPanel';
-import { ImageGeneratorModal } from './editor/ImageGeneratorModal';
+import { VisualAssetPlanningModal } from './editor/VisualAssetPlanningModal';
+import { QuickInsertPanel } from './editor/QuickInsertPanel';
 import { AskAiSelection } from './AskAiSelection';
 import { useImageEditor } from '../hooks/useImageEditor';
 import { useMetaGenerator } from '../hooks/useMetaGenerator';
@@ -62,7 +62,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     const [charCount, setCharCount] = useState(0);
     const [wordCount, setWordCount] = useState(0);
     const [showKeyPoints, setShowKeyPoints] = useState(false);
-    const [showVisualAssets, setShowVisualAssets] = useState(false);
     const [showMetaPanel, setShowMetaPanel] = useState(false);
     const [isAiRunning, setIsAiRunning] = useState(false);
     const effectiveScale = displayScale ?? ctx?.displayScale ?? 1;
@@ -104,7 +103,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         clearAskAiMarks: (taskId?: string) => void;
         findAskAiRange: (taskId: string) => { from: number; to: number } | null;
         focus: () => void;
+        editor?: any;
     } | null>(null);
+    const [localModelAppearance, setLocalModelAppearance] = useState<ImageAssetPlan['modelAppearance']>('Asian');
 
     useEffect(() => {
         setHtml(initialHtml);
@@ -289,7 +290,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
             case 'formatBlock':
                 if (value === '<h2>') return tiptapApi.toggleHeading(2);
                 if (value === '<h3>') return tiptapApi.toggleHeading(3);
-                if (value === '<blockquote>') return tiptapApi.toggleBlockquote();
+                if (value === 'blockquote') return tiptapApi.toggleBlockquote();
                 return tiptapApi.toggleHeading(1);
             case 'undo': return tiptapApi.undo();
             case 'redo': return tiptapApi.redo();
@@ -305,23 +306,24 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     };
 
     const {
-        showImageModal,
-        setShowImageModal,
-        imagePrompt,
-        setImagePrompt,
-        isImageLoading,
         isDownloadingImages,
         imagePlans,
         isPlanning,
         isBatchProcessing,
-        generateImageFromPrompt,
-        downloadImages,
         openImageModal,
-        autoPlanImages,
+        downloadImages,
         updatePlanPrompt,
+        deletePlan,
         injectImageIntoEditor,
+        autoPlanImages,
         generateSinglePlan,
         handleBatchProcess,
+        showBatchModal,
+        setShowBatchModal,
+        localModelAppearance: imageEditorModelAppearance,
+        setLocalModelAppearance: setImageEditorModelAppearance,
+        localDesignStyle,
+        setLocalDesignStyle,
     } = useImageEditor({
         editorRef: editorContainerRef,
         tiptapApi,
@@ -436,18 +438,15 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                 <EditorToolbar
                     onCommand={handleToolbarCommand}
                     onRemoveBold={handleOpenCleanupModal}
-                    onOpenImageModal={openImageModal}
+                    onOpenBatchVisuals={() => setShowBatchModal(true)}
                     onDownloadAllImages={downloadImages}
                     isDownloadingImages={isDownloadingImages}
                     onToggleKeyPoints={() => {
                         if (!showKeyPoints) autoCheckKeyPoints();
                         setShowKeyPoints(!showKeyPoints);
-                        setShowVisualAssets(false);
                     }}
                     showKeyPoints={showKeyPoints}
                     hasKeyPoints={totalPoints > 0}
-                    onToggleVisualAssets={() => { setShowVisualAssets(!showVisualAssets); setShowKeyPoints(false); }}
-                    showVisualAssets={showVisualAssets}
                     onRebrand={() => { }}
                     isRebranding={false}
                     productName={effectiveProductBrief?.productName}
@@ -609,13 +608,22 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         />
                     )}
 
-                    <ImageGeneratorModal
-                        show={showImageModal}
-                        imagePrompt={imagePrompt}
-                        onPromptChange={setImagePrompt}
-                        onSubmit={() => generateImageFromPrompt(imagePrompt)}
-                        isLoading={isImageLoading}
-                        onClose={() => setShowImageModal(false)}
+                    <VisualAssetPlanningModal
+                        open={showBatchModal}
+                        onClose={() => setShowBatchModal(false)}
+                        imagePlans={imagePlans}
+                        isPlanning={isPlanning}
+                        isBatchProcessing={isBatchProcessing}
+                        onAutoPlan={autoPlanImages}
+                        onBatchProcess={handleBatchProcess}
+                        onGenerateSingle={generateSinglePlan}
+                        onUpdatePlan={updatePlanPrompt}
+                        onDeletePlan={deletePlan}
+                        onInject={injectImageIntoEditor}
+                        modelAppearance={localModelAppearance}
+                        setModelAppearance={setLocalModelAppearance}
+                        designStyle={localDesignStyle}
+                        setDesignStyle={setLocalDesignStyle}
                     />
                 </div>
 
@@ -636,22 +644,11 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                     />
                 )}
 
-                {showVisualAssets && (
-                    <VisualAssetsPanel
-                        scrapedImages={effectiveScrapedImages}
-                        onToggleImage={onRemoveScrapedImage || ctx?.onRemoveScrapedImage || (() => { })}
-                        imagePlans={imagePlans as ImageAssetPlan[]}
-                        isPlanning={isPlanning}
-                        isBatchProcessing={isBatchProcessing}
-                        onBatchProcess={handleBatchProcess}
-                        onAutoPlan={autoPlanImages}
-                        onGenerateSinglePlan={generateSinglePlan}
-                        onUpdatePlanPrompt={updatePlanPrompt}
-                        onInjectImage={injectImageIntoEditor}
-                        useTiptap
-                        isTiptapReady={Boolean(tiptapApi)}
-                    />
-                )}
+                <QuickInsertPanel
+                    imagePlans={imagePlans}
+                    onInject={injectImageIntoEditor}
+                    onOpenPlanning={() => setShowBatchModal(true)}
+                />
             </div>
 
             {isAiRunning && (
