@@ -245,7 +245,9 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
     }
 
     appendAnalysisLog('All analysis tasks completed. Preparing to write...');
+    generationStore.setStatus('analysis_ready'); // Ensure status is set
     generationStore.setGenerationStep('idle');
+    analysisStore.saveCurrentToDocument();
 
     return {
         productResult,

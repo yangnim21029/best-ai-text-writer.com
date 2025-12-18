@@ -218,8 +218,6 @@ export default function AppPage() {
                             isLoading={generationStore.status === 'analyzing'}
                             status={generationStore.status}
                             onStop={stop}
-                            brandKnowledge={analysisStore.brandKnowledge}
-                            setBrandKnowledge={analysisStore.setBrandKnowledge}
                             displayScale={app.displayScale}
                             onSearchLocalAlternatives={handleSearchLocalAlternatives}
                             isSearchingAlternatives={isSearchingAlternatives}
@@ -243,9 +241,13 @@ export default function AppPage() {
                     if (!current) return;
                     analysisStore.setRefAnalysis({ ...current, structure: updated });
                 }}
+                onSearchLocalAlternatives={handleSearchLocalAlternatives}
+                isSearchingAlternatives={isSearchingAlternatives}
+                humanWritingVoice={analysisStore.refAnalysis?.humanWritingVoice}
+                localizedHumanWritingVoice={analysisStore.localizedRefAnalysis?.humanWritingVoice}
                 onLocalizeAll={async () => {
                     const current = analysisStore.refAnalysis;
-                    if (!current || !current.regionalReplacements?.length) return;
+                    if (!current) return;
 
                     setIsLocalizingPlan(true);
                     try {
@@ -253,13 +255,8 @@ export default function AppPage() {
                             {
                                 generalPlan: current.generalPlan || [],
                                 conversionPlan: current.conversionPlan || [],
-                                sections: current.structure.map(s => ({
-                                    title: s.title,
-                                    narrativePlan: s.narrativePlan,
-                                    keyFacts: s.keyFacts,
-                                    uspNotes: s.uspNotes,
-                                    subheadings: s.subheadings
-                                }))
+                                sections: current.structure,
+                                humanWritingVoice: current.humanWritingVoice
                             },
                             current.regionalReplacements,
                             analysisStore.targetAudience
@@ -269,11 +266,7 @@ export default function AppPage() {
 
                         const localizedStructure = current.structure.map((original, idx) => ({
                             ...original,
-                            title: result.localizedSections[idx]?.title || original.title,
-                            narrativePlan: result.localizedSections[idx]?.narrativePlan || original.narrativePlan,
-                            keyFacts: result.localizedSections[idx]?.keyFacts || original.keyFacts,
-                            uspNotes: result.localizedSections[idx]?.uspNotes || original.uspNotes,
-                            subheadings: result.localizedSections[idx]?.subheadings || original.subheadings
+                            ...result.localizedSections[idx]
                         }));
 
                         analysisStore.setLocalizedRefAnalysis({
@@ -281,6 +274,7 @@ export default function AppPage() {
                             structure: localizedStructure,
                             generalPlan: result.localizedGeneralPlan,
                             conversionPlan: result.localizedConversionPlan,
+                            humanWritingVoice: result.localizedHumanWritingVoice,
                         });
                     } catch (error) {
                         console.error('[App] AI Plan localization failed', error);

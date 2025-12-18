@@ -14,11 +14,15 @@ interface SectionPlanModalProps {
     localizedSections?: SectionAnalysis[];
     localizedGeneralPlan?: string[];
     localizedConversionPlan?: string[];
+    localizedHumanWritingVoice?: string;
     isLocalizing?: boolean; // Loading state from parent
     onStartWriting?: (sections: SectionAnalysis[]) => void;
     onSavePlan?: (sections: SectionAnalysis[]) => void;
-    onLocalizeAll?: () => Promise<void>; // Now just triggers parent to do AI localization
-    onSaveReplacements?: (items: EditedReplacementItem[]) => void; // Callback to save edited replacements
+    onSearchLocalAlternatives?: () => Promise<void>; // Stage 1
+    onLocalizeAll?: () => Promise<void>; // Stage 2
+    isSearchingAlternatives?: boolean; // Loading state for Stage 1
+    onSaveReplacements?: (items: EditedReplacementItem[]) => void;
+    humanWritingVoice?: string;
 }
 
 type DraftSection = SectionAnalysis & {
@@ -64,8 +68,12 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
     isLocalizing = false,
     onStartWriting,
     onSavePlan,
+    onSearchLocalAlternatives,
     onLocalizeAll,
+    isSearchingAlternatives = false,
     onSaveReplacements,
+    humanWritingVoice,
+    localizedHumanWritingVoice,
 }) => {
     const [drafts, setDrafts] = useState<DraftSection[]>([]);
     const [editingIds, setEditingIds] = useState<Set<number>>(new Set());
@@ -79,13 +87,21 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
     const activeSections = useLocalizedPlan && hasLocalizedPlan ? localizedSections! : sections;
     const activeGeneralPlan = useLocalizedPlan && hasLocalizedPlan ? (localizedGeneralPlan || []) : generalPlan;
     const activeConversionPlan = useLocalizedPlan && hasLocalizedPlan ? (localizedConversionPlan || []) : conversionPlan;
+    const activeHumanVoice = useLocalizedPlan && hasLocalizedPlan ? localizedHumanWritingVoice : humanWritingVoice;
 
     // Handle localize all plans - trigger parent to do AI localization
     const handleLocalizeAll = async () => {
-        if (regionalReplacements.length === 0 || !onLocalizeAll) return;
-        await onLocalizeAll();
-        // Auto-switch to localized view after localizing
-        setUseLocalizedPlan(true);
+        // Stage 1: Search for alternatives if not already done
+        if (regionalReplacements.length === 0 && onSearchLocalAlternatives) {
+            await onSearchLocalAlternatives();
+            return; // Stay in modal, user sees replacements now
+        }
+
+        // Stage 2: AI Localization of the sections
+        if (onLocalizeAll) {
+            await onLocalizeAll();
+            setUseLocalizedPlan(true);
+        }
     };
 
     useEffect(() => {
@@ -198,11 +214,14 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                         </button>
                         <button
                             onClick={handleLocalizeAll}
-                            className="px-3 py-2 text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-200 rounded-lg hover:bg-amber-100 transition flex items-center gap-1.5 disabled:opacity-50"
-                            disabled={regionalReplacements.length === 0 || isLocalizing}
+                            className={`px-3 py-2 text-sm font-bold rounded-lg border flex items-center gap-1.5 transition shadow-sm ${regionalReplacements.length === 0
+                                ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600'
+                                : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600'
+                                } disabled:opacity-50`}
+                            disabled={isLocalizing || isSearchingAlternatives}
                         >
-                            <Languages className="w-4 h-4" />
-                            {isLocalizing ? '處理中...' : '全部段落本地化'}
+                            <Languages className={`w-4 h-4 ${(isLocalizing || isSearchingAlternatives) ? 'animate-spin' : ''}`} />
+                            {isSearchingAlternatives ? '掃描中...' : isLocalizing ? '本地化中...' : regionalReplacements.length === 0 ? '第一步：掃描需替換詞彙' : '第二步：全部段落本地化'}
                         </button>
                         <button
                             onClick={() => handleSave(true)}
@@ -265,6 +284,22 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                     <p className="text-sm text-gray-400">尚未有轉換策略。</p>
                                 )}
                             </div>
+
+                            {/* Human Writing Voice */}
+                            {activeHumanVoice && (
+                                <div className="pt-4 border-t border-gray-100">
+                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
+                                        <Sparkles className="w-4 h-4 text-purple-600" />
+                                        Human Voice Blueprint
+                                        {useLocalizedPlan && hasLocalizedPlan && localizedHumanWritingVoice && (
+                                            <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">本地化</span>
+                                        )}
+                                    </div>
+                                    <p className="mt-2 text-[11px] text-purple-800 bg-purple-50 p-2 rounded-lg border border-purple-100 italic leading-relaxed">
+                                        "{activeHumanVoice}"
+                                    </p>
+                                </div>
+                            )}
 
                             {/* Regional Replacements */}
                             {regionalReplacements.length > 0 && (
@@ -409,6 +444,11 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                                         <span className="px-2 py-0.5 text-[11px] font-bold rounded-full border bg-teal-50 text-teal-700 border-teal-100 flex items-center gap-1">
                                                             <CheckSquare className="w-3 h-3" />
                                                             Checklist
+                                                        </span>
+                                                    )}
+                                                    {section.data.writingMode && (
+                                                        <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border border-dashed ${section.data.writingMode === 'direct' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-purple-50 text-purple-600 border-purple-200'}`}>
+                                                            {section.data.writingMode.toUpperCase()}
                                                         </span>
                                                     )}
                                                     {difficultyBadge(section.data.difficulty)}

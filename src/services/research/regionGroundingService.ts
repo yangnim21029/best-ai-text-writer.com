@@ -5,7 +5,7 @@
  */
 
 import { aiService } from '../engine/aiService';
-import { TokenUsage, CostBreakdown, TargetAudience } from '../../types';
+import { TokenUsage, CostBreakdown, TargetAudience, SectionAnalysis } from '../../types';
 
 export interface RegionIssue {
     type: 'entity' | 'brand' | 'regulation' | 'currency' | 'location' | 'service';
@@ -388,14 +388,16 @@ export const localizePlanWithAI = async (
     data: {
         generalPlan: string[];
         conversionPlan: string[];
-        sections: { title: string; narrativePlan?: string[]; keyFacts?: string[]; uspNotes?: string[]; subheadings?: string[] }[];
+        sections: SectionAnalysis[];
+        humanWritingVoice?: string;
     },
     replacements: { original: string; replacement: string; reason?: string }[],
     targetAudience: TargetAudience
 ): Promise<{
     localizedGeneralPlan: string[];
     localizedConversionPlan: string[];
-    localizedSections: typeof data.sections;
+    localizedSections: SectionAnalysis[];
+    localizedHumanWritingVoice?: string;
     usage: TokenUsage;
     cost: CostBreakdown;
     duration: number;
@@ -406,6 +408,7 @@ export const localizePlanWithAI = async (
             localizedGeneralPlan: data.generalPlan,
             localizedConversionPlan: data.conversionPlan,
             localizedSections: data.sections,
+            localizedHumanWritingVoice: data.humanWritingVoice,
             usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
             cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
             duration: 0
@@ -423,12 +426,24 @@ export const localizePlanWithAI = async (
     const plansJson = JSON.stringify({
         generalPlan: data.generalPlan,
         conversionPlan: data.conversionPlan,
+        humanWritingVoice: data.humanWritingVoice || '',
         sections: data.sections.map(s => ({
             title: s.title,
             narrativePlan: s.narrativePlan || [],
+            coreQuestion: s.coreQuestion || '',
+            difficulty: s.difficulty || 'easy',
+            writingMode: s.writingMode || 'direct',
+            solutionAngles: s.solutionAngles || [],
+            subheadings: s.subheadings || [],
             keyFacts: s.keyFacts || [],
             uspNotes: s.uspNotes || [],
-            subheadings: s.subheadings || []
+            isChecklist: s.isChecklist || false,
+            suppress: s.suppress || [],
+            augment: s.augment || [],
+            logicalFlow: s.logicalFlow || '',
+            coreFocus: s.coreFocus || '',
+            sentenceStartFeatures: s.sentenceStartFeatures || [],
+            sentenceEndFeatures: s.sentenceEndFeatures || []
         }))
     }, null, 2);
 
@@ -442,23 +457,35 @@ ${replacementGuide}
 ${plansJson}
 
 **本地化規則：**
-1. 應用上述替換指引，將非${config.name}的品牌/服務/實體替換為適當的替代
-2. 如果替換後句子不通順，請適度改寫使其自然
-3. 如果某詞需要刪除，請重寫該句子使其意思完整，不要留下空白
-4. 保持原有的結構和格式（數組、標題等）
-5. 對於 generalPlan 和 conversionPlan，確保策略仍然適用於${config.name}市場
+1. 應用上述替換指引，將指令或計劃中的非${config.name}的品牌/服務/實體替換為本地選項
+2. 保持原有的 JSON 結構，對每個字段內容進行市場適應性改寫
+3. 如果替換後導致句子或邏輯不連貫，請調整上下文
+4. 對於寫作模式 (writingMode) 和難度 (difficulty) 字段，除非替換內容顯著改變了寫作難度，否則保持原樣
+5. 本地化 humanWritingVoice，確保語調建議符合${config.name}讀者的文化習慣
 
 **請輸出 JSON，格式與輸入相同：**
 {
-  "generalPlan": ["本地化後的策略..."],
-  "conversionPlan": ["本地化後的轉換策略..."],
+  "generalPlan": [...],
+  "conversionPlan": [...],
+  "humanWritingVoice": "...",
   "sections": [
     {
-      "title": "本地化後的標題",
-      "narrativePlan": ["本地化後的敘事計劃..."],
-      "keyFacts": ["本地化後的關鍵事實..."],
-      "uspNotes": ["本地化後的賣點..."],
-      "subheadings": ["本地化後的子標題..."]
+      "title": "...",
+      "narrativePlan": [...],
+      "coreQuestion": "...",
+      "difficulty": "easy|medium|unclear",
+      "writingMode": "direct|multi_solutions",
+      "solutionAngles": [...],
+      "subheadings": [...],
+      "keyFacts": [...],
+      "uspNotes": [...],
+      "isChecklist": boolean,
+      "suppress": [...],
+      "augment": [...],
+      "logicalFlow": "...",
+      "coreFocus": "...",
+      "sentenceStartFeatures": [...],
+      "sentenceEndFeatures": [...]
     }
   ]
 }
@@ -470,6 +497,7 @@ ${plansJson}
         properties: {
             generalPlan: { type: 'array', items: { type: 'string' } },
             conversionPlan: { type: 'array', items: { type: 'string' } },
+            humanWritingVoice: { type: 'string' },
             sections: {
                 type: 'array',
                 items: {
@@ -477,26 +505,39 @@ ${plansJson}
                     properties: {
                         title: { type: 'string' },
                         narrativePlan: { type: 'array', items: { type: 'string' } },
+                        coreQuestion: { type: 'string' },
+                        difficulty: { type: 'string', enum: ['easy', 'medium', 'unclear'] },
+                        writingMode: { type: 'string', enum: ['direct', 'multi_solutions'] },
+                        solutionAngles: { type: 'array', items: { type: 'string' } },
+                        subheadings: { type: 'array', items: { type: 'string' } },
                         keyFacts: { type: 'array', items: { type: 'string' } },
                         uspNotes: { type: 'array', items: { type: 'string' } },
-                        subheadings: { type: 'array', items: { type: 'string' } }
+                        isChecklist: { type: 'boolean' },
+                        suppress: { type: 'array', items: { type: 'string' } },
+                        augment: { type: 'array', items: { type: 'string' } },
+                        logicalFlow: { type: 'string' },
+                        coreFocus: { type: 'string' },
+                        sentenceStartFeatures: { type: 'array', items: { type: 'string' } },
+                        sentenceEndFeatures: { type: 'array', items: { type: 'string' } }
                     }
                 }
             }
         },
-        required: ['generalPlan', 'conversionPlan', 'sections']
+        required: ['generalPlan', 'conversionPlan', 'sections', 'humanWritingVoice']
     };
 
     const response = await aiService.runJson<{
         generalPlan: string[];
         conversionPlan: string[];
-        sections: typeof data.sections;
+        humanWritingVoice: string;
+        sections: SectionAnalysis[];
     }>(prompt, 'FLASH', schema);
 
     return {
         localizedGeneralPlan: response.data.generalPlan || data.generalPlan,
         localizedConversionPlan: response.data.conversionPlan || data.conversionPlan,
         localizedSections: response.data.sections || data.sections,
+        localizedHumanWritingVoice: response.data.humanWritingVoice || data.humanWritingVoice,
         usage: response.usage,
         cost: response.cost,
         duration: response.duration

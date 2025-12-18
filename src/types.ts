@@ -225,3 +225,16 @@ export interface HeadingResult {
   h3?: HeadingH3[];
   needs_manual?: boolean;
 }
+export interface AnalysisDocument {
+  id: string;
+  timestamp: number;
+  title: string;
+  keywordPlans: FrequentWordsPlacementAnalysis[];
+  refAnalysis: ReferenceAnalysis | null;
+  authAnalysis: AuthorityAnalysis | null;
+  visualStyle: string;
+  productMapping: ProblemProductMapping[];
+  productBrief: ProductBrief | undefined;
+  targetAudience: TargetAudience;
+  languageInstruction: string;
+}
