@@ -1,259 +1,40 @@
-import { ArticleConfig, SectionAnalysis } from '../../types';
+import { ArticleConfig } from '../../types';
 import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
-import { parseProductContext, generateProblemProductMapping } from '@/services/research/productFeatureToPainPointMapper';
-import { analyzeText } from '@/services/engine/nlpService';
-import { extractSemanticKeywordsAnalysis } from '@/services/research/termUsagePlanner';
-import { SEMANTIC_KEYWORD_LIMIT } from '@/config/constants';
-import { analyzeReferenceStructure } from '@/services/research/referenceAnalysisService';
-import { analyzeAuthorityTerms } from '../../services/research/authorityService';
-import { analyzeVisualStyle } from '../../services/generation/imageService';
-import { appendAnalysisLog, summarizeList } from './generationLogger';
-import { getLanguageInstruction } from '../../services/engine/promptService';
-
-import { cleanHeadingText } from '../../utils/textUtils';
-import { analyzeRegionalTerms } from '../../services/research/regionalAnalysisService';
-
-
-const isStopped = () => useGenerationStore.getState().isStopped;
-const audienceLabel = (aud: ArticleConfig['targetAudience']) => {
-    switch (aud) {
-        case 'zh-HK': return '繁體中文（香港）';
-        case 'zh-MY': return '簡體中文（馬來西亞）';
-        case 'zh-TW':
-        default:
-            return '繁體中文（台灣）';
-    }
-};
-
-
+import { runAnalysisPipelineService } from '@/services/generation/analysisCoordinator';
 
 export const runAnalysisPipeline = async (config: ArticleConfig) => {
     const generationStore = useGenerationStore.getState();
     const analysisStore = useAnalysisStore.getState();
     const appStore = useAppStore.getState();
 
-    // Reset State for Analysis
-    generationStore.setStatus('analyzing');
-    analysisStore.setScrapedImages(config.scrapedImages || []);
-    analysisStore.setTargetAudience(config.targetAudience);
-    analysisStore.setArticleTitle(config.title || '');
-    const languageInstruction = getLanguageInstruction(config.targetAudience);
-    analysisStore.setLanguageInstruction(languageInstruction);
-    console.info('[LangConfig]', { targetAudience: config.targetAudience, languageInstruction });
-    appendAnalysisLog(`語言設定：${audienceLabel(config.targetAudience)}（${config.targetAudience}）`);
-    appendAnalysisLog('Starting analysis...');
-
-    const fullConfig = {
-        ...config,
-        brandKnowledge: analysisStore.brandKnowledge
-    };
-
-    // Task 1: Product Context
-    const productTask = async () => {
-        let parsedProductBrief = config.productBrief;
-        let generatedMapping: any[] = [];
-
-        if (!parsedProductBrief && config.productRawText && config.productRawText.length > 5) {
-            if (isStopped()) return { mapping: [] };
-            generationStore.setGenerationStep('parsing_product');
-            appendAnalysisLog('Parsing product brief and CTA...');
-            const parseRes = await parseProductContext(config.productRawText);
-            console.log(`[Timer] Product Context Parse: ${parseRes.duration}ms`);
-            parsedProductBrief = parseRes.data;
-            appendAnalysisLog('Product brief parsed.');
-            appStore.addCost(parseRes.cost.totalCost, parseRes.usage.totalTokens);
+    return runAnalysisPipelineService(config, {
+        generationStore: {
+            setStatus: (status) => useGenerationStore.getState().setStatus(status),
+            setGenerationStep: (step) => useGenerationStore.getState().setGenerationStep(step),
+            isStopped: useGenerationStore.getState().isStopped
+        },
+        analysisStore: {
+            setScrapedImages: (images) => useAnalysisStore.getState().setScrapedImages(images),
+            setTargetAudience: (audience) => useAnalysisStore.getState().setTargetAudience(audience),
+            setArticleTitle: (title) => useAnalysisStore.getState().setArticleTitle(title),
+            setLanguageInstruction: (instruction) => useAnalysisStore.getState().setLanguageInstruction(instruction),
+            setProductMapping: (mapping) => useAnalysisStore.getState().setProductMapping(mapping),
+            setActiveProductBrief: (brief) => useAnalysisStore.getState().setActiveProductBrief(brief),
+            setKeywordPlans: (plans) => useAnalysisStore.getState().setKeywordPlans(plans),
+            setRefAnalysis: (analysis) => useAnalysisStore.getState().setRefAnalysis(analysis),
+            setAuthAnalysis: (analysis) => useAnalysisStore.getState().setAuthAnalysis(analysis),
+            setVisualStyle: (style) => useAnalysisStore.getState().setVisualStyle(style),
+            saveCurrentToDocument: () => useAnalysisStore.getState().saveCurrentToDocument(),
+            brandKnowledge: analysisStore.brandKnowledge,
+            refAnalysis: analysisStore.refAnalysis,
+        },
+        appStore: {
+            addCost: (cost, tokens) => useAppStore.getState().addCost(cost, tokens),
+            keywordCharDivisor: appStore.keywordCharDivisor,
+            minKeywords: appStore.minKeywords,
+            maxKeywords: appStore.maxKeywords,
         }
-
-        if (parsedProductBrief && parsedProductBrief.productName) {
-            if (isStopped()) return { brief: parsedProductBrief, mapping: [] };
-            generationStore.setGenerationStep('mapping_product');
-            appendAnalysisLog('Mapping pain points to product features...');
-            const mapRes = await generateProblemProductMapping(parsedProductBrief, fullConfig.targetAudience);
-            console.log(`[Timer] Product Mapping: ${mapRes.duration}ms`);
-            generatedMapping = mapRes.data;
-            analysisStore.setProductMapping(generatedMapping);
-            if (generatedMapping.length > 0) {
-                const example = generatedMapping[0];
-                appendAnalysisLog(`Product-feature mapping ready (${generatedMapping.length}). e.g., ${example.painPoint} → ${example.productFeature}`);
-            } else {
-                appendAnalysisLog('Product-feature mapping ready (no matches found).');
-            }
-            appStore.addCost(mapRes.cost.totalCost, mapRes.usage.totalTokens);
-        }
-
-        analysisStore.setActiveProductBrief(parsedProductBrief);
-        return { brief: parsedProductBrief, mapping: generatedMapping };
-    };
-
-    // Task 1.5: Heading refinement for preview (uses extracted structure titles)
-
-
-    // Task 2: NLP & Keyword Planning
-    const keywordTask = async () => {
-        if (isStopped()) return;
-        generationStore.setGenerationStep('nlp_analysis');
-        appendAnalysisLog('Running NLP keyword scan...');
-        const keywords = await analyzeText(fullConfig.referenceContent);
-
-        // DYNAMIC LIMIT CALCULATION:
-        const settings = useAppStore.getState();
-        const contentLen = fullConfig.referenceContent.length;
-        const calculatedLimit = Math.floor(contentLen / settings.keywordCharDivisor);
-        const finalLimit = Math.max(settings.minKeywords, Math.min(settings.maxKeywords, calculatedLimit));
-
-        const keywordPlanCandidates = keywords.slice(0, finalLimit);
-        const topTokens = summarizeList(keywordPlanCandidates.map(k => k.token), 6);
-        appendAnalysisLog(`NLP scan found ${keywords.length} keywords. Using top ${keywordPlanCandidates.length} (Ratio: 1/${settings.keywordCharDivisor}, Min: ${settings.minKeywords}): ${topTokens}`);
-
-        if (keywordPlanCandidates.length > 0 && !isStopped()) {
-            generationStore.setGenerationStep('planning_keywords');
-            try {
-                appendAnalysisLog(`Planning keyword strategy (top ${keywordPlanCandidates.length})...`);
-                const planRes = await extractSemanticKeywordsAnalysis(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
-                console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
-                console.log(`[SemanticKeywords] Final aggregated plans: ${planRes.data.length} / ${keywordPlanCandidates.length}`);
-                analysisStore.setKeywordPlans(planRes.data);
-                const planWords = summarizeList(planRes.data.map(p => p.word), 6);
-                appendAnalysisLog(`Keyword plan ready (${planRes.data.length}). Focus: ${planWords}`);
-                appStore.addCost(planRes.cost.totalCost, planRes.usage.totalTokens);
-            } catch (e) {
-                console.warn("Action Plan extraction failed", e);
-                appendAnalysisLog('Keyword planning failed (continuing).');
-            }
-        }
-    };
-
-    // Task 3: Structure & Authority (run concurrently)
-    const structureTask = async () => {
-        if (isStopped()) return;
-        generationStore.setGenerationStep('extracting_structure');
-        appendAnalysisLog('Extracting reference structure and authority signals...');
-        const [structRes, authRes] = await Promise.all([
-            analyzeReferenceStructure(fullConfig.referenceContent, fullConfig.targetAudience),
-            analyzeAuthorityTerms(
-                fullConfig.authorityTerms || '',
-                fullConfig.title,
-                fullConfig.websiteType || 'General Professional Website',
-                fullConfig.targetAudience
-            )
-        ]);
-
-        console.log(`[Timer] Narrative Structure (Outline): ${structRes.duration}ms`);
-        console.log(`[Timer] Authority Analysis: ${authRes.duration}ms`);
-        appendAnalysisLog(`Structure extracted (${structRes.data?.structure?.length || 0} sections).`);
-        appendAnalysisLog('Authority terms mapped.');
-        if (structRes.data?.structure?.length) {
-            const sectionTitles = summarizeList(structRes.data.structure.map((s: any) => s.title), 6);
-            appendAnalysisLog(`Sections: ${sectionTitles}`);
-        }
-        if (authRes.data?.relevantTerms?.length) {
-            appendAnalysisLog(`Authority terms: ${summarizeList(authRes.data.relevantTerms, 6)}`);
-        }
-
-        appStore.addCost(structRes.cost.totalCost, structRes.usage.totalTokens);
-        appStore.addCost(authRes.cost.totalCost, authRes.usage.totalTokens);
-
-        analysisStore.setRefAnalysis(structRes.data);
-        analysisStore.setAuthAnalysis(authRes.data);
-
-        return { structRes, authRes };
-    };
-
-    // Task 4: Image Analysis & Visual Style
-    const visualTask = async () => {
-        if (isStopped()) return;
-        generationStore.setGenerationStep('analyzing_visuals');
-        appendAnalysisLog('Analyzing source images and visual identity...');
-
-        const initialImages = config.scrapedImages || [];
-        // Removed upfront AI vision analysis Loop to save time/cost.
-        // We now rely on altText metadata and websiteType for initial visual planning.
-        analysisStore.setScrapedImages(initialImages);
-
-        try {
-            const styleRes = await analyzeVisualStyle(initialImages, fullConfig.websiteType || "Modern Business");
-            analysisStore.setVisualStyle(styleRes.data);
-            appendAnalysisLog(`✓ Visual style extracted: ${styleRes.data}`);
-            appStore.addCost(styleRes.cost.totalCost, styleRes.usage.totalTokens);
-        } catch (e) {
-            console.warn("Failed to extract visual style", e);
-            appendAnalysisLog('Visual style extraction skipped.');
-        }
-    };
-
-
-
-    // Task 5: Regional Analysis (NEW)
-    const regionalTask = async () => {
-        if (isStopped()) return;
-        generationStore.setGenerationStep('localizing_hk'); // Reuse step label or create new 'analyzing_region'
-        appendAnalysisLog('Analyzing regional terminology & brand grounding...');
-
-        try {
-            const regionRes = await analyzeRegionalTerms(fullConfig.referenceContent, fullConfig.targetAudience);
-            console.log(`[Timer] Regional Analysis: ${regionRes.duration}ms`);
-
-            if (regionRes.data && regionRes.data.length > 0) {
-                appendAnalysisLog(`Regional analysis found ${regionRes.data.length} terms to correct.`);
-                // Store in refAnalysis (requires refAnalysis to be initialized first, or return it)
-                return regionRes.data;
-            } else {
-                appendAnalysisLog('Regional analysis: No major issues found.');
-                return [];
-            }
-        } catch (e) {
-            console.warn("Regional analysis failed", e);
-            appendAnalysisLog('Regional analysis failed (continuing).');
-            return [];
-        }
-    };
-
-    // --- EXECUTE ALL TASKS WITH STAGGERING ---
-    // Burst protection: Start each major task 1 second apart to prevent proxy/backend overload
-    appendAnalysisLog('Dispatching analysis tasks with burst protection...');
-
-    const productResult = await productTask();
-    await new Promise(r => setTimeout(r, 1000));
-
-    const [structureResult, visualResultsPromise, regionalResult, keywordResult] = await Promise.all([
-        structureTask(),
-        (async () => {
-            await new Promise(r => setTimeout(r, 1000));
-            return visualTask();
-        })(),
-        (async () => {
-            await new Promise(r => setTimeout(r, 2000));
-            return regionalTask();
-        })(),
-        (async () => {
-            await new Promise(r => setTimeout(r, 3000));
-            return keywordTask();
-        })()
-    ]);
-
-    // Merge regional result into structureResult if available
-    if (structureResult?.structRes?.data) {
-        structureResult.structRes.data.regionalReplacements = regionalResult;
-        if (analysisStore.refAnalysis) {
-            analysisStore.setRefAnalysis({
-                ...analysisStore.refAnalysis,
-                regionalReplacements: regionalResult
-            });
-        }
-    }
-
-    appendAnalysisLog('All analysis tasks completed. Preparing to write...');
-    generationStore.setStatus('analysis_ready'); // Ensure status is set
-    generationStore.setGenerationStep('idle');
-    analysisStore.saveCurrentToDocument();
-
-    return {
-        productResult,
-        structureResult,
-        keywordPromise: Promise.resolve(keywordResult),
-        visualPromise: Promise.resolve(visualResultsPromise),
-        regionalPromise: Promise.resolve(regionalResult)
-    };
+    });
 };

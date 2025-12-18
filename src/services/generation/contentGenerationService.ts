@@ -19,79 +19,26 @@ const getSectionInjectionPlan = (
 ): string => {
     if (!productBrief || !productBrief.productName) return "";
 
-    let injectionPlan = `### 💎 COMMERCIAL & SERVICE STRATEGY (HIGH PRIORITY) \n`;
-    let forceInjection = false;
-
-    // ==================================================================================
-    // 1. SANITIZATION & REPLACEMENT (CRITICAL)
-    // ==================================================================================
-    const competitorBrands = refAnalysis?.competitorBrands || [];
-    const competitorProducts = refAnalysis?.competitorProducts || [];
-    const genericReplacements = refAnalysis?.replacementRules || []; // Fallback
-
-    const allTargets = [...new Set([...competitorBrands, ...competitorProducts, ...genericReplacements])];
-
-    if (allTargets.length > 0) {
-        injectionPlan += `
-        **🛡️ SANITIZATION PROTOCOL (ABSOLUTE RULES):**
-        You are writing for the brand: **"${productBrief.brandName}"**.
-        The Reference Text mentions competitors: ${allTargets.map(t => `"${t}"`).join(', ')}.
-
-        1. **TOTAL ANNIHILATION:** Never output these competitor words in the final text.
-        2. **NO HYBRIDS:** Do NOT write "CompName as ${productBrief.brandName}". That is nonsense.
-        3. **SUBJECT SWAP (SEMANTIC REWRITE):**
-           - If the reference says: "${competitorBrands[0] || 'Competitor'} offers the best laser..."
-           - **REWRITE AS:** "**${productBrief.brandName}** offers the best laser..." (Change the Subject).
-           - If the reference discusses a specific machine (e.g., "${competitorProducts[0] || 'OldMachine'}"), replace it with **"${productBrief.productName}"**.
-        `;
-    }
-
-    // ==================================================================================
-    // 2. DENSITY CONTROL (AVOID KEYWORD STUFFING)
-    // ==================================================================================
-    injectionPlan += `
-    **📉 DENSITY CONTROL (AVOID KEYWORD STUFFING):**
-    - **Full Name Rule:** Use the full product name "**${productBrief.productName}**" **MAXIMUM ONCE** in this section.
-    - **Natural Variation:** For subsequent mentions, you MUST use variations:
-      - The Brand Name: "**${productBrief.brandName}**"
-      - Pronouns: "We", "Our team", "The center"
-      - Generic: "This technology", "The treatment", "Our service"
-    `;
-
-    // ==================================================================================
-    // 3. INJECTION LOGIC (Force vs Natural)
-    // ==================================================================================
-
-    // Logic: If we haven't mentioned the product enough (<= 2) and we are at the end, FORCE IT.
-    if (isLastSections && currentInjectedCount <= 2) {
-        forceInjection = true;
-        injectionPlan += `\n**🚀 MANDATORY INJECTION:** You have NOT mentioned "${productBrief.brandName}" enough yet. You MUST introduce it here as the solution.\n`;
-    }
-
-    // Match specific pain points to this section title.
+    const forceInjection = isLastSections && currentInjectedCount <= 2;
     const titleLower = sectionTitle.toLowerCase();
+    const isSolutionSection = titleLower.includes('solution') || titleLower.includes('benefit') || titleLower.includes('guide') || titleLower.includes('how');
+    
     const relevantMappings = productMapping.filter(m =>
         m.relevanceKeywords.some(kw => titleLower.includes(kw.toLowerCase()))
     );
-    const isSolutionSection = titleLower.includes('solution') || titleLower.includes('benefit') || titleLower.includes('guide') || titleLower.includes('how');
 
-    let finalMappings = relevantMappings;
-    if (relevantMappings.length === 0 && (forceInjection || isSolutionSection)) {
-        // Fallback: Pick top 2 generic mappings
-        finalMappings = productMapping.slice(0, 2);
-    }
-
-    if (finalMappings.length > 0) {
-        injectionPlan += `\n**💡 PROBLEM-SOLUTION WEAVING:**\nIntegrate the following mapping naturally:\n`;
-        finalMappings.forEach(m => {
-            injectionPlan += `- Discuss "${m.painPoint}" -> Then present **${productBrief.brandName}** (or ${productBrief.productName}) as the solution using [${m.productFeature}].\n`;
-        });
-    }
-
-    // CTA
-    injectionPlan += `\n**CTA:** End with a natural link: [${productBrief.ctaLink}] (Anchor: Check ${productBrief.brandName} pricing/details).\n`;
-
-    return injectionPlan;
+    return promptTemplates.sectionInjectionPlan({
+        productBrief: productBrief as any,
+        competitorBrands: refAnalysis?.competitorBrands || [],
+        competitorProducts: refAnalysis?.competitorProducts || [],
+        replacementRules: refAnalysis?.replacementRules || [],
+        currentInjectedCount,
+        isLastSections,
+        relevantMappings,
+        forceInjection,
+        isSolutionSection,
+        fallbackMappings: productMapping.slice(0, 2)
+    });
 };
 
 // Demote or strip H1/H2 headings from model output to avoid duplicate section titles.

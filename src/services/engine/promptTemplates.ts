@@ -992,6 +992,74 @@ export const promptTemplates = {
     ]
     Return JSON only. If no issues, return [].
     `,
+
+  sectionInjectionPlan: ({
+    productBrief,
+    competitorBrands,
+    competitorProducts,
+    replacementRules,
+    currentInjectedCount,
+    isLastSections,
+    relevantMappings,
+    forceInjection,
+    isSolutionSection,
+    fallbackMappings,
+  }: {
+    productBrief: { productName: string; brandName: string; ctaLink: string };
+    competitorBrands: string[];
+    competitorProducts: string[];
+    replacementRules: string[];
+    currentInjectedCount: number;
+    isLastSections: boolean;
+    relevantMappings: { painPoint: string; productFeature: string }[];
+    forceInjection: boolean;
+    isSolutionSection: boolean;
+    fallbackMappings: { painPoint: string; productFeature: string }[];
+  }) => {
+    const allTargets = [...new Set([...competitorBrands, ...competitorProducts, ...replacementRules])];
+    const finalMappings = relevantMappings.length > 0 ? relevantMappings : (forceInjection || isSolutionSection ? fallbackMappings : []);
+
+    let plan = `### 💎 COMMERCIAL & SERVICE STRATEGY (HIGH PRIORITY) \n`;
+
+    if (allTargets.length > 0) {
+      plan += `
+        **🛡️ SANITIZATION PROTOCOL (ABSOLUTE RULES):**
+        You are writing for the brand: **"${productBrief.brandName}"**.
+        The Reference Text mentions competitors: ${allTargets.map(t => `"${t}"`).join(', ')}.
+
+        1. **TOTAL ANNIHILATION:** Never output these competitor words in the final text.
+        2. **NO HYBRIDS:** Do NOT write "CompName as ${productBrief.brandName}". That is nonsense.
+        3. **SUBJECT SWAP (SEMANTIC REWRITE):**
+           - If the reference says: "${allTargets[0]} offers the best laser..."
+           - **REWRITE AS:** "**${productBrief.brandName}** offers the best laser..." (Change the Subject).
+           - If the reference discusses a specific machine (e.g., "${competitorProducts[0] || 'OldMachine'}"), replace it with **"${productBrief.productName}"**.
+        `;
+    }
+
+    plan += `
+    **📉 DENSITY CONTROL (AVOID KEYWORD STUFFING):**
+    - **Full Name Rule:** Use the full product name "**${productBrief.productName}**" **MAXIMUM ONCE** in this section.
+    - **Natural Variation:** For subsequent mentions, you MUST use variations:
+      - The Brand Name: "**${productBrief.brandName}**"
+      - Pronouns: "We", "Our team", "The center"
+      - Generic: "This technology", "The treatment", "Our service"
+    `;
+
+    if (isLastSections && currentInjectedCount <= 2) {
+      plan += `\n**🚀 MANDATORY INJECTION:** You have NOT mentioned "${productBrief.brandName}" enough yet. You MUST introduce it here as the solution.\n`;
+    }
+
+    if (finalMappings.length > 0) {
+      plan += `\n**💡 PROBLEM-SOLUTION WEAVING:**\nIntegrate the following mapping naturally:\n`;
+      finalMappings.forEach(m => {
+        plan += `- Discuss "${m.painPoint}" -> Then present **${productBrief.brandName}** (or ${productBrief.productName}) as the solution using [${m.productFeature}].\n`;
+      });
+    }
+
+    plan += `\n**CTA:** End with a natural link: [${productBrief.ctaLink}] (Anchor: Check ${productBrief.brandName} pricing/details).\n`;
+
+    return plan;
+  },
 };
 
 export type PromptTemplateKey = keyof typeof promptTemplates;
