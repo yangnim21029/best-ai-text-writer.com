@@ -27,6 +27,8 @@ type DraftSection = SectionAnalysis & {
     keyFactsText: string;
     uspText: string;
     subheadingsText: string;
+    logicalFlow: string;
+    coreFocus: string;
 };
 
 const difficultyBadge = (value?: SectionAnalysis['difficulty']) => {
@@ -95,6 +97,8 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
             keyFactsText: (s.keyFacts || []).join('\n'),
             uspText: (s.uspNotes || []).join('\n'),
             subheadingsText: (s.subheadings || []).join('\n'),
+            logicalFlow: s.logicalFlow || '',
+            coreFocus: s.coreFocus || '',
         }));
         setDrafts(next);
         setEditingIds(new Set());
@@ -112,6 +116,8 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                 keyFacts: splitLines(d.keyFactsText),
                 uspNotes: splitLines(d.uspText),
                 subheadings: splitLines(d.subheadingsText),
+                logicalFlow: d.logicalFlow,
+                coreFocus: d.coreFocus,
             }) as SectionAnalysis);
 
     const handleToggleAll = () => {
@@ -353,6 +359,26 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                                                     placeholder="Core question (可空白)"
                                                                     className="mt-1 text-xs text-gray-600 w-full bg-white border border-gray-200 rounded-lg px-2 py-1"
                                                                 />
+                                                                <input
+                                                                    value={section.data.logicalFlow || ''}
+                                                                    onChange={(e) =>
+                                                                        setDrafts((prev) =>
+                                                                            prev.map((d, di) => di === section.idx ? { ...d, logicalFlow: e.target.value } : d)
+                                                                        )
+                                                                    }
+                                                                    placeholder="Logical Flow (e.g. Identify -> Mechanism -> Solution)"
+                                                                    className="mt-1 text-xs text-blue-600 w-full bg-white border border-blue-200 rounded-lg px-2 py-1"
+                                                                />
+                                                                <input
+                                                                    value={section.data.coreFocus || ''}
+                                                                    onChange={(e) =>
+                                                                        setDrafts((prev) =>
+                                                                            prev.map((d, di) => di === section.idx ? { ...d, coreFocus: e.target.value } : d)
+                                                                        )
+                                                                    }
+                                                                    placeholder="Core Focus (傳達之側重點/心理戰術)"
+                                                                    className="mt-1 text-xs text-emerald-600 w-full bg-white border border-emerald-200 rounded-lg px-2 py-1"
+                                                                />
                                                             </>
                                                         ) : (
                                                             <>
@@ -360,7 +386,19 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                                                     {section.data.title}
                                                                 </h4>
                                                                 {section.data.coreQuestion ? (
-                                                                    <p className="text-xs text-gray-500 mt-0.5 break-words">Q: {section.data.coreQuestion}</p>
+                                                                    <p className="text-xs text-gray-500 mt-0.5 break-words italic">Q: {section.data.coreQuestion}</p>
+                                                                ) : null}
+                                                                {section.data.logicalFlow ? (
+                                                                    <div className="mt-2 flex items-center gap-1.5 text-[11px] font-medium text-blue-600 bg-blue-50/50 px-2 py-0.5 rounded-md border border-blue-100/50 w-fit">
+                                                                        <Map className="w-3 h-3 text-blue-400" />
+                                                                        <span className="leading-none text-blue-700">邏輯鎖鍊：{section.data.logicalFlow}</span>
+                                                                    </div>
+                                                                ) : null}
+                                                                {section.data.coreFocus ? (
+                                                                    <div className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-emerald-600 bg-emerald-50/50 px-2 py-0.5 rounded-md border border-emerald-100/50 w-fit">
+                                                                        <Target className="w-3 h-3 text-emerald-400" />
+                                                                        <span className="leading-none text-emerald-700">傳達側重：{section.data.coreFocus}</span>
+                                                                    </div>
                                                                 ) : null}
                                                             </>
                                                         )}
