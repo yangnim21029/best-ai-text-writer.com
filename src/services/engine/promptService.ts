@@ -12,7 +12,7 @@ const asNumber = (...values: any[]): number => {
 };
 
 const pickUsageContainer = (usage: any): any => {
-    if (!usage) return null;
+    if (!usage || typeof usage !== 'object') return null;
 
     // Prefer totalUsage when present (Vercel AI SDK format)
     if (usage.totalUsage || usage.usage) {
@@ -82,9 +82,10 @@ export const normalizeTokenUsage = (usage: any): TokenUsage => {
 // Helper: Calculate Cost
 export const calculateCost = (usage: any, modelType: keyof typeof PRICING): { usage: TokenUsage, cost: CostBreakdown } => {
     const normalized = normalizeTokenUsage(usage);
-    const rates = PRICING[modelType];
-    const inputCost = normalized.inputTokens * rates.input;
-    const outputCost = normalized.outputTokens * rates.output;
+    const rates = PRICING[modelType] || { input: 0, output: 0 };
+
+    const inputCost = normalized.inputTokens * (rates.input || 0);
+    const outputCost = normalized.outputTokens * (rates.output || 0);
 
     return {
         usage: normalized,

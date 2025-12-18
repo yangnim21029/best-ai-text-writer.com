@@ -817,41 +817,46 @@ export const promptTemplates = {
     ]
   `,
 
-  imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string }) => `
-    Generate a detailed image generation prompt based on the following context.
+  imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide, modelAppearance }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string; modelAppearance: string }) => `
+    Generate 3 distinct image generation prompt options based on the following context.
+    
+    <ModelAppearance>
+    ${modelAppearance}
+    </ModelAppearance>
+    DEFINITION: The appearance characteristics to maintain for any human subjects.
+    ACTION: Incorporate these strictly into every prompt that features a person.
 
     <LanguageInstruction>
     ${languageInstruction}
     </LanguageInstruction>
     DEFINITION: Output Language.
-    ACTION: Write the prompt in English unless specified.
+    ACTION: Write the prompts in English.
     
     <ContextText>
     ${contextText}
     </ContextText>
     DEFINITION: The scene usage context.
-    ACTION: Describe this scene.
     
     <VisualStyleGuide>
     ${visualStyle}
     </VisualStyleGuide>
-    DEFINITION: The artistic style.
-    ACTION: Apply these visual rules strictly.
     
     <SpecificGuide>
     ${guide}
     </SpecificGuide>
-    DEFINITION: User specific hints.
-    ACTION: Incorporate these hints.
 
     TASK:
-    Create a detailed, specific image generation prompt that:
-    1. Captures the essence of the context text
-    2. Adheres to the visual style guide
-    3. Is optimized for AI image generation
-    4. Avoids abstract concepts and focuses on concrete, photographable subjects
+    Create 3 detailed, distinct image generation prompt options that:
+    1. Capture the essence of the context text from different angles.
+    2. Adhere to the visual style guide and the mandatory Model Appearance.
+    3. Are optimized for AI image generation (concrete subjects).
     
-    Return ONLY the image prompt (no explanations or metadata).
+    OUTPUT JSON:
+    [
+      "Option 1: Subject + Activity + Environment + Style details",
+      "Option 2: Alternative angle or focus...",
+      "Option 3: Another distinct variation..."
+    ]
     `,
 
 

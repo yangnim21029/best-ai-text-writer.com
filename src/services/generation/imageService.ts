@@ -190,8 +190,9 @@ export const analyzeVisualStyle = async (
 export const generateImagePromptFromContext = async (
     contextText: string,
     targetAudience: TargetAudience,
-    visualStyle: string = ""
-): Promise<ServiceResponse<string>> => {
+    visualStyle: string = "",
+    modelAppearance: string = ""
+): Promise<ServiceResponse<string[]>> => {
     const startTs = Date.now();
     const languageInstruction = getLanguageInstruction(targetAudience);
 
@@ -200,16 +201,31 @@ export const generateImagePromptFromContext = async (
         languageInstruction,
         visualStyle,
         guide: VISUAL_STYLE_GUIDE,
+        modelAppearance,
     });
 
-    const response = await aiService.runText(prompt, 'FLASH');
+    try {
+        const response = await aiService.runJson<string[]>(prompt, 'FLASH', {
+            type: Type.ARRAY,
+            items: { type: Type.STRING }
+        });
 
-    return {
-        data: response.text?.trim() || "",
-        usage: response.usage,
-        cost: response.cost,
-        duration: Date.now() - startTs
-    };
+        return {
+            data: Array.isArray(response.data) ? response.data : [],
+            usage: response.usage,
+            cost: response.cost,
+            duration: Date.now() - startTs
+        };
+    } catch (e) {
+        console.error("Multi-prompt generation failed, falling back to text", e);
+        const fallbackRes = await aiService.runText(prompt, 'FLASH');
+        return {
+            data: [fallbackRes.text],
+            usage: fallbackRes.usage,
+            cost: fallbackRes.cost,
+            duration: Date.now() - startTs
+        };
+    }
 };
 
 export const generateImage = async (prompt: string): Promise<ServiceResponse<string | null>> => {
@@ -232,13 +248,20 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
         if (!response.ok) {
             const detail = isJson ? await response.json() : await response.text();
             const message = typeof detail === 'string' ? detail : (detail?.error || JSON.stringify(detail));
+            console.error(`[imageService] Generation failed (URL: ${buildAiUrl('/image')}):`, detail);
             throw new Error(`Image generation failed (${response.status}): ${message}`);
         }
 
         const payload = isJson ? await response.json() : { image: await response.text() };
         const imageData = extractImagePayload(payload);
+
+        // Ensure payload is treated as object for calculateCost
+        const usageData = (payload && typeof payload === 'object')
+            ? (payload.totalUsage || payload.usageMetadata || payload.usage || payload.metadata?.usage || {})
+            : {};
+
         const metrics = calculateCost(
-            payload.totalUsage || payload.usageMetadata || payload.usage,
+            usageData,
             'IMAGE_GEN'
         );
 
@@ -349,7 +372,7 @@ export const planImagesForArticle = async (
                             type: Type.OBJECT,
                             properties: {
                                 generatedPrompt: { type: Type.STRING, description: "Detailed prompt including subject + visual style + mood." },
-                                category: { type: Type.STRING, enum: ["BRANDED_LIFESTYLE", "PRODUCT_DETAIL", "ECOMMERCE_WHITE_BG"] },
+                                category: { type: Type.STRING, enum: ["BRANDED_LIFESTYLE", "PRODUCT_DETAIL", "INFOGRAPHIC", "PRODUCT_INFOGRAPHIC", "ECOMMERCE_WHITE_BG"] },
                                 insertAfter: { type: Type.STRING },
                                 rationale: { type: Type.STRING }
                             },

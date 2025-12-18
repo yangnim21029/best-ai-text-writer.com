@@ -30,14 +30,12 @@ import { cn } from '../../utils/cn';
 interface EditorToolbarProps {
     onCommand: (command: string, value?: string) => void;
     onRemoveBold: () => void;
-    onOpenImageModal: () => void;
+    onOpenBatchVisuals: () => void;
     onDownloadAllImages: () => void;
     isDownloadingImages: boolean;
     onToggleKeyPoints: () => void;
     showKeyPoints: boolean;
     hasKeyPoints: boolean;
-    onToggleVisualAssets: () => void;
-    showVisualAssets: boolean;
     onRebrand: () => void;
     isRebranding: boolean;
     productName?: string;
@@ -177,14 +175,12 @@ const AccentButton = ({
 export const EditorToolbar: React.FC<EditorToolbarProps> = ({
     onCommand,
     onRemoveBold,
-    onOpenImageModal,
+    onOpenBatchVisuals,
     onDownloadAllImages,
     isDownloadingImages,
     onToggleKeyPoints,
     showKeyPoints,
     hasKeyPoints,
-    onToggleVisualAssets,
-    showVisualAssets,
     onRebrand,
     isRebranding,
     productName,
@@ -208,18 +204,11 @@ export const EditorToolbar: React.FC<EditorToolbarProps> = ({
                         variant="ghost"
                     />
                 )}
-                <AccentButton
-                    icon={GalleryHorizontalEnd}
-                    onClick={onToggleVisualAssets}
-                    label="Visual Assets"
-                    active={showVisualAssets}
-                    iconOnly
-                    variant="ghost"
-                />
+
                 <AccentButton
                     icon={ImageIcon}
-                    onClick={onOpenImageModal}
-                    label="AI Image"
+                    onClick={onOpenBatchVisuals}
+                    label="Batch Visuals"
                     iconOnly
                     variant="ghost"
                 />

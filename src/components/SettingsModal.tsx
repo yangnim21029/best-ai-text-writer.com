@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Settings, Database, Cpu, Hash, RotateCcw, Save } from 'lucide-react';
+import { X, Settings, Database, Cpu, Hash, RotateCcw, Save, Image as ImageIcon } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
 interface SettingsModalProps {
@@ -21,6 +21,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
         setKeywordCharDivisor,
         setMinKeywords,
         setMaxKeywords,
+        defaultModelAppearance,
+        defaultDesignStyle,
+        setDefaultModelAppearance,
+        setDefaultDesignStyle,
         resetSettings: resetToDefaults
     } = useAppStore();
 
@@ -81,6 +85,40 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
                                     placeholder="e.g. google/gemini-2.5-flash-image"
                                 />
                             </div>
+                        </div>
+                    </section>
+
+                    {/* Image Appearance */}
+                    <section className="space-y-4 pt-4 border-t border-gray-50">
+                        <div className="flex items-center gap-2 text-gray-900">
+                            <ImageIcon className="w-5 h-5 text-pink-600" />
+                            <h4 className="font-bold text-sm uppercase tracking-widest">Image Style & People</h4>
+                        </div>
+
+                        <div className="space-y-2">
+                            <label className="text-xs font-bold text-gray-500 ml-1">Default Model Appearance (People in Images)</label>
+                            <textarea
+                                value={defaultModelAppearance}
+                                onChange={(e) => setDefaultModelAppearance(e.target.value)}
+                                className="w-full h-24 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-4 focus:ring-pink-500/10 focus:border-pink-500 outline-none transition-all resize-none"
+                                placeholder="Describe the physical appearance of people (e.g., Asian female, professional attire...)"
+                            />
+                            <p className="text-[10px] text-gray-400 italic leading-tight">
+                                This will be appended to all image prompts involving people to maintain consistency.
+                            </p>
+                        </div>
+
+                        <div className="space-y-2 mt-4">
+                            <label className="text-xs font-bold text-gray-500 ml-1">Default Infographic Design Style</label>
+                            <textarea
+                                value={defaultDesignStyle}
+                                onChange={(e) => setDefaultDesignStyle(e.target.value)}
+                                className="w-full h-24 px-4 py-3 bg-gray-50 border border-gray-100 rounded-2xl text-sm focus:ring-4 focus:ring-pink-500/10 focus:border-pink-500 outline-none transition-all resize-none"
+                                placeholder="Describe the design style for infographics (e.g., Minimalist flat design, clean lines...)"
+                            />
+                            <p className="text-[10px] text-gray-400 italic leading-tight">
+                                This will be applied to all infographic-related prompts.
+                            </p>
                         </div>
                     </section>
 
