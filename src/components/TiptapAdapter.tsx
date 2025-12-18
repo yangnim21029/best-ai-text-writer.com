@@ -4,9 +4,11 @@ import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
 import TextAlign from '@tiptap/extension-text-align';
 import StarterKit from '@tiptap/starter-kit';
-import React, { useEffect, useMemo, useRef } from 'react';
+import BubbleMenuExtension from '@tiptap/extension-bubble-menu';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '../utils/cn';
 import { AskAiMark } from './editor/AskAiMark';
+import { ImageResizeToolbar } from './editor/ImageResizeToolbar';
 
 interface TiptapAdapterProps {
     initialHtml: string;
@@ -49,6 +51,7 @@ interface TiptapAdapterProps {
         summarizeFormatting: () => { boldMarks: number; blockquotes: number; quoteChars: number; blocks: Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }> };
         listCleanupTargets: () => Array<{ from: number; to: number; text: string; boldMarks: number; blockquotes: number; quoteChars: number; type: string }>;
         focus: () => void;
+        editor: Editor;
     }) => void;
     containerRef?: React.RefObject<HTMLDivElement>;
 }
@@ -89,9 +92,32 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 openOnClick: false,
             }),
             AskAiMark,
-            Image,
+            Image.extend({
+                addAttributes() {
+                    return {
+                        ...this.parent?.(),
+                        width: {
+                            default: null,
+                            renderHTML: attributes => ({
+                                width: attributes.width,
+                            }),
+                            parseHTML: element => element.getAttribute('width'),
+                        },
+                        height: {
+                            default: null,
+                            renderHTML: attributes => ({
+                                height: attributes.height,
+                            }),
+                            parseHTML: element => element.getAttribute('height'),
+                        },
+                    }
+                },
+            }),
             TextAlign.configure({
-                types: ['heading', 'paragraph'],
+                types: ['heading', 'paragraph', 'image'],
+            }),
+            BubbleMenuExtension.configure({
+                element: null, // Headless mode, we use the BubbleMenu component
             }),
             Placeholder.configure({ placeholder }),
         ],
@@ -397,6 +423,7 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
                 summarizeFormatting,
                 listCleanupTargets,
                 focus: () => editor.chain().focus().run(),
+                editor,
             };
             onReadyRef.current(api);
         }
@@ -429,15 +456,70 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
         }
     }, [initialHtml]);
 
+    const [imageMenuPos, setImageMenuPos] = useState<{ top: number; left: number } | null>(null);
+
+    // Update menu position on selection change
+    useEffect(() => {
+        const editor = editorRef.current;
+        if (!editor) return;
+
+        const handleUpdate = () => {
+            if (editor.isActive('image')) {
+                const { view } = editor;
+                const { selection } = view.state;
+                try {
+                    const node = view.nodeDOM(selection.from) as HTMLElement;
+                    if (node) {
+                        const rect = node.getBoundingClientRect();
+                        const containerRect = editorElementRef.current?.parentElement?.getBoundingClientRect();
+                        if (containerRect) {
+                            setImageMenuPos({
+                                top: rect.top - containerRect.top - 50,
+                                left: rect.left - containerRect.left + rect.width / 2,
+                            });
+                            return;
+                        }
+                    }
+                } catch (e) { }
+            }
+            setImageMenuPos(null);
+        };
+
+        editor.on('selectionUpdate', handleUpdate);
+        editor.on('transaction', handleUpdate);
+        return () => {
+            editor.off('selectionUpdate', handleUpdate);
+            editor.off('transaction', handleUpdate);
+        };
+    }, []);
+
     return (
         <div
             ref={containerRef}
             className={cn('flex-1 bg-white flex flex-col min-h-0 overflow-hidden relative', className)}
         >
-            <div className="flex-1 min-h-0 overflow-hidden">
+            <div className="flex-1 min-h-0 overflow-hidden relative">
                 <div className="h-full overflow-y-auto custom-scrollbar">
                     <div ref={editorElementRef} className="h-full" />
                 </div>
+
+                {imageMenuPos && editorRef.current && (
+                    <div
+                        className="absolute z-50 -translate-x-1/2 pointer-events-auto"
+                        style={{ top: imageMenuPos.top, left: imageMenuPos.left }}
+                    >
+                        <ImageResizeToolbar
+                            onResize={(size) => {
+                                const widthMap = { small: '300px', medium: '600px', full: '100%', original: null };
+                                editorRef.current?.chain().focus().updateAttributes('image', { width: widthMap[size] }).run();
+                            }}
+                            onAlign={(align) => editorRef.current?.chain().focus().setTextAlign(align).run()}
+                            onRemove={() => editorRef.current?.chain().focus().deleteSelection().run()}
+                            currentWidth={editorRef.current.getAttributes('image').width}
+                            currentAlign={editorRef.current.isActive({ textAlign: 'left' }) ? 'left' : editorRef.current.isActive({ textAlign: 'center' }) ? 'center' : editorRef.current.isActive({ textAlign: 'right' }) ? 'right' : null}
+                        />
+                    </div>
+                )}
             </div>
         </div>
     );

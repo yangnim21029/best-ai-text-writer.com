@@ -110,6 +110,8 @@ export interface ImageAssetPlan {
   insertAfter: string;
   status: 'idle' | 'generating' | 'done' | 'error';
   url?: string;
+  modelAppearance?: 'Asian' | 'Caucasian' | 'Latino' | 'Black';
+  designStyle?: 'Photorealistic' | 'Digital Art' | 'Minimalist' | 'Corporate';
 }
 
 export interface ArticleConfig {
