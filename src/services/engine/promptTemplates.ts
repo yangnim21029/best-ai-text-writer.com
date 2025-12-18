@@ -854,30 +854,6 @@ export const promptTemplates = {
     Return ONLY the image prompt (no explanations or metadata).
     `,
 
-  refineStyle: ({ content, style, languageInstruction }: { content: string; style: string; languageInstruction: string }) => `
-    ## Task
-    REFINE the following content to match the requested style: **${style}**.
-
-    <LanguageInstruction>
-    ${languageInstruction}
-    </LanguageInstruction>
-
-    <StyleRequirements>
-    - **Casual**: 幫我以 Ask AI 的方式，用輕鬆、活潑、生活化的語氣，並用簡單易懂的敘述方式來優化這段內容。
-    - **GirlStyle**: 你是一名 SEO 專家，目標對象是年輕女性。請用【指南型/分享型/知識型/科普型/合集/推介篇】的內容形式優化。語氣要專業、具說服力，同時帶有輕鬆、活潑、生活化的感覺。適合發布於 GirlStyle HK，涵蓋生活、美容、時尚、戀愛等主題。
-    - **General Rule**: Maintain the EXACT same information, facts, and core message.
-    </StyleRequirements>
-
-    <FormatRules>
-    1. **CRITICAL**: Do NOT change the Markdown/HTML structure. Keep all <h2>, <h3>, <p>, <ul>, <li> tags exactly as they are.
-    2. Do NOT add preamble or conclusion like "Here is the refined text".
-    3. Return ONLY the refined content string.
-    </FormatRules>
-
-    <ContentToRefine>
-    ${content}
-    </ContentToRefine>
-  `,
 
   // --- 1. SKELETON EXTRACTION ---
   extractOutline: ({
