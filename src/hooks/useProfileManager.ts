@@ -31,7 +31,6 @@ export const useProfileManager = ({
             authorityTerms: values.authorityTerms || '',
             brandKnowledge: brandKnowledge || '',
             targetAudience: values.targetAudience,
-            useRag: values.useRag,
             productRawText: values.productRawText
         };
 
@@ -49,7 +48,6 @@ export const useProfileManager = ({
             websiteType: values.websiteType || '',
             authorityTerms: values.authorityTerms || '',
             targetAudience: values.targetAudience,
-            useRag: values.useRag,
             productRawText: values.productRawText,
             brandKnowledge: brandKnowledge
         } : p);
@@ -73,7 +71,6 @@ export const useProfileManager = ({
         setValue('websiteType', profile.websiteType);
         setValue('authorityTerms', profile.authorityTerms);
         setValue('targetAudience', profile.targetAudience);
-        if (profile.useRag !== undefined) setValue('useRag', profile.useRag);
 
         if (profile.productRawText) {
             setValue('productRawText', profile.productRawText);

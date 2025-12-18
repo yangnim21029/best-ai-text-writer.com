@@ -26,6 +26,8 @@ interface AppState {
     maxKeywords: number;
     defaultModelAppearance: string;
     defaultDesignStyle: string;
+    useRag: boolean;
+    autoImagePlan: boolean;
 
     // Profile Slice
     savedProfiles: SavedProfile[];
@@ -52,6 +54,8 @@ interface AppState {
     setMaxKeywords: (max: number) => void;
     setDefaultModelAppearance: (appearance: string) => void;
     setDefaultDesignStyle: (style: string) => void;
+    setUseRag: (use: boolean) => void;
+    setAutoImagePlan: (auto: boolean) => void;
     resetSettings: () => void;
 
     setSavedProfiles: (profiles: SavedProfile[]) => void;
@@ -84,6 +88,8 @@ export const useAppStore = create<AppState>()(
             maxKeywords: SEMANTIC_KEYWORD_LIMIT,
             defaultModelAppearance: 'Asian female, professional attire, natural lighting, high quality photography',
             defaultDesignStyle: 'Minimalist, flat design, clean lines, professional corporate color palette, high resolution infographic style',
+            useRag: true,
+            autoImagePlan: true,
 
             savedProfiles: [],
             activeProfile: null,
@@ -112,6 +118,8 @@ export const useAppStore = create<AppState>()(
             setMaxKeywords: (max) => set({ maxKeywords: max }),
             setDefaultModelAppearance: (appearance) => set({ defaultModelAppearance: appearance }),
             setDefaultDesignStyle: (style) => set({ defaultDesignStyle: style }),
+            setUseRag: (use) => set({ useRag: use }),
+            setAutoImagePlan: (auto) => set({ autoImagePlan: auto }),
             resetSettings: () => set({
                 modelFlash: MODEL.FLASH,
                 modelImage: MODEL.IMAGE_PREVIEW,
@@ -120,6 +128,8 @@ export const useAppStore = create<AppState>()(
                 maxKeywords: SEMANTIC_KEYWORD_LIMIT,
                 defaultModelAppearance: 'Asian female, professional attire, natural lighting, high quality photography',
                 defaultDesignStyle: 'Minimalist, flat design, clean lines, professional corporate color palette, high resolution infographic style',
+                useRag: true,
+                autoImagePlan: true,
             }),
 
             setSavedProfiles: (profiles) => set({ savedProfiles: profiles }),

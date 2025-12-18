@@ -87,7 +87,6 @@ export interface SavedProfile {
   authorityTerms: string;
   brandKnowledge?: string;
   targetAudience: TargetAudience;
-  useRag?: boolean;
   productBrief?: ProductBrief; // Deprecated in UI, kept for backward compat
   productRawText?: string;     // NEW: The single source of truth for UI
 }

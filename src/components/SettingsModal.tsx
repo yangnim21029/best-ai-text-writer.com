@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { X, Settings, Database, Cpu, Hash, RotateCcw, Save, Image as ImageIcon } from 'lucide-react';
+import { X, Settings, Database, Cpu, Hash, RotateCcw, Save, Zap, Image as ImageIcon } from 'lucide-react';
 import { useAppStore } from '@/store/useAppStore';
 
 interface SettingsModalProps {
@@ -25,6 +25,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
         defaultDesignStyle,
         setDefaultModelAppearance,
         setDefaultDesignStyle,
+        useRag,
+        autoImagePlan,
+        setUseRag,
+        setAutoImagePlan,
         resetSettings: resetToDefaults
     } = useAppStore();
 
@@ -119,6 +123,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
                             <p className="text-[10px] text-gray-400 italic leading-tight">
                                 This will be applied to all infographic-related prompts.
                             </p>
+                        </div>
+                    </section>
+
+                    {/* Generation Preferences */}
+                    <section className="space-y-4 pt-4 border-t border-gray-50">
+                        <div className="flex items-center gap-2 text-gray-900">
+                            <Zap className="w-5 h-5 text-amber-600" />
+                            <h4 className="font-bold text-sm uppercase tracking-widest">Generation Preferences</h4>
+                        </div>
+
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100/50 hover:bg-white hover:shadow-sm transition-all group">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${useRag ? 'bg-indigo-100 text-indigo-600' : 'bg-white text-gray-400 border border-gray-100'}`}>
+                                        <Database className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-bold text-gray-800">Knowledge Base (RAG)</span>
+                                        <span className="text-[10px] text-gray-500 font-medium leading-tight">Use uploaded brand guidelines for accuracy</span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setUseRag(!useRag)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all focus:outline-none ${useRag ? 'bg-indigo-600 shadow-inner' : 'bg-gray-200'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${useRag ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
+
+                            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100/50 hover:bg-white hover:shadow-sm transition-all group">
+                                <div className="flex items-center gap-3">
+                                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${autoImagePlan ? 'bg-emerald-100 text-emerald-600' : 'bg-white text-gray-400 border border-gray-100'}`}>
+                                        <ImageIcon className="w-5 h-5" />
+                                    </div>
+                                    <div className="flex flex-col">
+                                        <span className="text-sm font-bold text-gray-800">Auto Visual Plan</span>
+                                        <span className="text-[10px] text-gray-500 font-medium leading-tight">Automatically script images after writing</span>
+                                    </div>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={() => setAutoImagePlan(!autoImagePlan)}
+                                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all focus:outline-none ${autoImagePlan ? 'bg-emerald-600 shadow-inner' : 'bg-gray-200'}`}
+                                >
+                                    <span className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${autoImagePlan ? 'translate-x-6' : 'translate-x-1'}`} />
+                                </button>
+                            </div>
                         </div>
                     </section>
 
