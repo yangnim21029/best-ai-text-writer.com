@@ -16,6 +16,8 @@ import { useAnalysisStore } from './store/useAnalysisStore';
 import { useMetricsStore } from './store/useMetricsStore';
 import { useUiStore } from './store/useUiStore';
 import { SectionPlanModal } from './components/SectionPlanModal';
+import { SettingsModal } from './components/SettingsModal';
+import { aiService } from './services/engine/aiService';
 
 const App: React.FC = () => {
     const passwordHash = useMemo(() => (import.meta.env.VITE_APP_GUARD_HASH as string) || '', []);
@@ -410,12 +412,14 @@ const App: React.FC = () => {
                 onToggleInput={uiStore.toggleInput}
                 onToggleSidebar={uiStore.toggleSidebar}
                 onToggleChangelog={() => uiStore.setShowChangelog(true)}
+                onToggleSettings={() => uiStore.setShowSettings(true)}
                 contentScore={metricsStore.contentScore}
                 displayScale={uiStore.displayScale}
                 onDisplayScaleChange={handleDisplayScaleChange}
             />
 
             <Changelog isOpen={uiStore.showChangelog} onClose={() => uiStore.setShowChangelog(false)} />
+            <SettingsModal open={uiStore.showSettings} onClose={() => uiStore.setShowSettings(false)} />
 
             <main className="flex-1 flex flex-col lg:flex-row overflow-hidden h-[calc(100vh-64px)] min-h-0 bg-gray-100 p-4 gap-4">
 
@@ -568,7 +572,26 @@ const App: React.FC = () => {
                     uiStore.setShowPlanModal(false);
                     startWriting();
                 }}
+                onSaveReplacements={(editedItems) => {
+                    const current = analysisStore.refAnalysis;
+                    if (!current) return;
+
+                    // Process edited items into new replacements list
+                    const newReplacements = editedItems
+                        .filter((item) => item.action !== 'keep') // Skip items marked as 'keep'
+                        .map((item) => ({
+                            original: item.original,
+                            replacement: item.action === 'delete' ? '' : (item.customReplacement || item.replacement),
+                            reason: item.reason
+                        }));
+
+                    analysisStore.setRefAnalysis({
+                        ...current,
+                        regionalReplacements: newReplacements
+                    });
+                }}
             />
+
         </Layout>
     );
 };

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Pencil, Ban, CheckSquare, RefreshCw, Languages } from 'lucide-react';
+import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Pencil, Ban, CheckSquare, RefreshCw, Languages, Settings2 } from 'lucide-react';
 import { SectionAnalysis } from '../types';
+import { ReplacementEditorModal, EditedReplacementItem, ReplacementItem } from './ReplacementEditorModal';
 
 interface SectionPlanModalProps {
     open: boolean;
@@ -17,6 +18,7 @@ interface SectionPlanModalProps {
     onStartWriting?: (sections: SectionAnalysis[]) => void;
     onSavePlan?: (sections: SectionAnalysis[]) => void;
     onLocalizeAll?: () => Promise<void>; // Now just triggers parent to do AI localization
+    onSaveReplacements?: (items: EditedReplacementItem[]) => void; // Callback to save edited replacements
 }
 
 type DraftSection = SectionAnalysis & {
@@ -61,10 +63,12 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
     onStartWriting,
     onSavePlan,
     onLocalizeAll,
+    onSaveReplacements,
 }) => {
     const [drafts, setDrafts] = useState<DraftSection[]>([]);
     const [editingIds, setEditingIds] = useState<Set<number>>(new Set());
     const [useLocalizedPlan, setUseLocalizedPlan] = useState(false);
+    const [showReplacementEditor, setShowReplacementEditor] = useState(false);
 
     // Determine if localized plan is available
     const hasLocalizedPlan = Boolean(localizedSections && localizedSections.length > 0);
@@ -259,11 +263,21 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                             {/* Regional Replacements */}
                             {regionalReplacements.length > 0 && (
                                 <div className="pt-4 border-t border-gray-100">
-                                    <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
-                                        <RefreshCw className="w-4 h-4 text-amber-600" />
-                                        需要替換 ({regionalReplacements.length})
+                                    <div className="flex items-center justify-between gap-2">
+                                        <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
+                                            <RefreshCw className="w-4 h-4 text-amber-600" />
+                                            需要替換 ({regionalReplacements.length})
+                                        </div>
+                                        <button
+                                            onClick={() => setShowReplacementEditor(true)}
+                                            className="p-1.5 rounded-lg bg-amber-100 text-amber-700 hover:bg-amber-200 transition flex items-center gap-1 text-xs font-semibold"
+                                            title="編輯替換規則"
+                                        >
+                                            <Settings2 className="w-3.5 h-3.5" />
+                                            編輯
+                                        </button>
                                     </div>
-                                    <ul className="mt-2 space-y-2 max-h-40 overflow-y-auto custom-scrollbar">
+                                    <ul className="mt-2 space-y-2">
                                         {regionalReplacements.map((item, idx) => (
                                             <li key={idx} className={`text-sm rounded p-2 border ${item.replacement ? 'bg-amber-50/50 border-amber-100' : 'bg-red-50/50 border-red-100'}`}>
                                                 <div className="flex items-center gap-2 flex-wrap">
@@ -530,6 +544,19 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                     </div>
                 </div>
             </div>
+
+            {/* Replacement Editor Modal */}
+            <ReplacementEditorModal
+                open={showReplacementEditor}
+                onClose={() => setShowReplacementEditor(false)}
+                items={regionalReplacements}
+                onSave={(items) => {
+                    if (onSaveReplacements) {
+                        onSaveReplacements(items);
+                    }
+                    setShowReplacementEditor(false);
+                }}
+            />
         </div>
     );
 };

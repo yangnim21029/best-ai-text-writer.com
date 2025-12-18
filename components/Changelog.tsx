@@ -9,14 +9,19 @@ interface ChangelogProps {
 
 const HISTORY = [
   {
+    version: 'v1.5.0',
+    date: '2025.12',
+    description: '核心模型升級：全面採用 Google 最新 Gemini 3 Flash Preview 模型，大幅提升生成速度與內容準確度，並優化長文本處理能力。'
+  },
+  {
     version: 'v1.4.0',
     date: '2025.12',
-    description: '核心重構與效能優化：重命名關鍵詞分析並新增例句提取 (Frequent Words)、新增區域化與安全檢查卡片 (Localization & Safety)，以及分析流程的並行化加速與同步邏輯修復。'
+    description: '功能重構與優化：將關鍵詞分析升級為「高頻詞彙 (Frequent Words)」並增加例句提取功能；新增「區域化與安全 (Localization & Safety)」檢查面板以強化內容合規。底層則透過並行化處理修復了同步問題，顯著提升分析速度。'
   },
   {
     version: 'v1.3.0',
     date: '2025.03',
-    description: '新增全域視覺識別系統 (Visual Identity System)、並行處理 (速度提升)，以及視覺素材的「游標處插入」功能。'
+    description: '體驗大幅升級：推出「全域視覺識別系統 (VIS)」，確保生成圖片風格的一致性。新增「游標處插入」功能，讓圖片素材能一鍵放入文章。同時優化了底層處理效能，提升整體回應速度。'
   },
   {
     version: 'v1.2.0',

@@ -1,7 +1,7 @@
-
 import React from 'react';
-import { PenLine, Zap, Coins, Layers, PanelLeftClose, PanelRightClose, History } from 'lucide-react';
+import { PenLine, Zap, Coins, Layers, PanelLeftClose, PanelRightClose, History, Settings } from 'lucide-react';
 import { ContentScore } from '../types';
+import { useSettingsStore } from '../store/useSettingsStore';
 
 interface HeaderProps {
     sessionCost?: number;
@@ -10,7 +10,8 @@ interface HeaderProps {
     showSidebar: boolean;
     onToggleInput: () => void;
     onToggleSidebar: () => void;
-    onToggleChangelog: () => void; // New Prop
+    onToggleChangelog: () => void;
+    onToggleSettings: () => void;
     contentScore: ContentScore;
     displayScale: number;
     onDisplayScaleChange: (scale: number) => void;
@@ -24,10 +25,12 @@ export const Header: React.FC<HeaderProps> = ({
     onToggleInput,
     onToggleSidebar,
     onToggleChangelog,
+    onToggleSettings,
     contentScore,
     displayScale,
     onDisplayScaleChange
 }) => {
+    const { modelFlash } = useSettingsStore();
     const decreaseScale = () => onDisplayScaleChange(displayScale - 0.1);
     const increaseScale = () => onDisplayScaleChange(displayScale + 0.1);
 
@@ -131,8 +134,16 @@ export const Header: React.FC<HeaderProps> = ({
 
                 <div className="hidden md:flex items-center space-x-1.5 px-3 py-1.5 bg-amber-50 text-amber-700 border border-amber-200 rounded-full shadow-sm">
                     <Zap className="w-3.5 h-3.5 fill-amber-500 text-amber-600" />
-                    <span className="text-xs font-semibold">Gemini 2.5 Flash</span>
+                    <span className="text-xs font-semibold">{modelFlash}</span>
                 </div>
+
+                <button
+                    onClick={onToggleSettings}
+                    className="p-2 transition-all text-gray-400 hover:text-gray-900 hover:bg-gray-100 rounded-xl"
+                    title="System Settings"
+                >
+                    <Settings className="w-5 h-5" />
+                </button>
             </div>
         </header>
     );

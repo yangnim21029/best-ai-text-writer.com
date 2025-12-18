@@ -4,7 +4,7 @@ const env =
         : (process.env as any);
 
 export const MODEL = {
-    FLASH: 'gemini-2.5-flash',
+    FLASH: 'gemini-3-flash-preview',
     IMAGE_PREVIEW: 'google/gemini-2.5-flash-image',
 };
 
@@ -37,4 +37,6 @@ export const AI_DEFAULTS = {
 };
 
 // Magic number tuned to balance keyword coverage with AI speed/cost
-export const SEMANTIC_KEYWORD_LIMIT = 15;
+export const SEMANTIC_KEYWORD_LIMIT = 30;
+export const KEYWORD_CHAR_DIVISOR = 200;
+export const MIN_KEYWORDS = 10;
