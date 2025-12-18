@@ -8,7 +8,7 @@ import { extractSemanticKeywordsAnalysis } from '@/services/research/termUsagePl
 import { SEMANTIC_KEYWORD_LIMIT } from '@/config/constants';
 import { analyzeReferenceStructure } from '@/services/research/referenceAnalysisService';
 import { analyzeAuthorityTerms } from '../../services/research/authorityService';
-import { analyzeImageWithAI, analyzeVisualStyle } from '../../services/generation/imageService';
+import { analyzeVisualStyle } from '../../services/generation/imageService';
 import { appendAnalysisLog, summarizeList } from './generationLogger';
 import { getLanguageInstruction } from '../../services/engine/promptService';
 
@@ -168,28 +168,12 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         appendAnalysisLog('Analyzing source images and visual identity...');
 
         const initialImages = config.scrapedImages || [];
-        const imagesToAnalyze = initialImages.slice(0, 5);
-        let analyzedImages = [...initialImages];
-
-        if (imagesToAnalyze.length > 0) {
-            for (let i = 0; i < imagesToAnalyze.length; i++) {
-                if (isStopped()) break;
-                const img = imagesToAnalyze[i];
-                if (img.url) {
-                    try {
-                        const res = await analyzeImageWithAI(img.url);
-                        analyzedImages[i] = { ...analyzedImages[i], aiDescription: res.data };
-                        appStore.addCost(res.cost.totalCost, res.usage.totalTokens);
-                    } catch (e) {
-                        console.warn(`Failed to analyze image ${img.url}`, e);
-                    }
-                }
-            }
-            analysisStore.setScrapedImages(analyzedImages);
-        }
+        // Removed upfront AI vision analysis Loop to save time/cost.
+        // We now rely on altText metadata and websiteType for initial visual planning.
+        analysisStore.setScrapedImages(initialImages);
 
         try {
-            const styleRes = await analyzeVisualStyle(analyzedImages, fullConfig.websiteType || "Modern Business");
+            const styleRes = await analyzeVisualStyle(initialImages, fullConfig.websiteType || "Modern Business");
             analysisStore.setVisualStyle(styleRes.data);
             appendAnalysisLog(`✓ Visual style extracted: ${styleRes.data}`);
             appStore.addCost(styleRes.cost.totalCost, styleRes.usage.totalTokens);
