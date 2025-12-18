@@ -35,7 +35,8 @@ export const generateProductBrief = async (
                     usp: { type: Type.STRING },
                     primaryPainPoint: { type: Type.STRING },
                     ctaLink: { type: Type.STRING }
-                }
+                },
+                required: ["brandName", "productName", "usp", "ctaLink"]
             }
         );
 
@@ -90,6 +91,7 @@ export const mapProblemsToProduct = async (
                         productFeature: { type: Type.STRING },
                         relevanceKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
                     },
+                    required: ["painPoint", "productFeature", "relevanceKeywords"]
                 },
             }
         );
@@ -132,7 +134,8 @@ export const parseProductContext = async (
                     usp: { type: Type.STRING },
                     primaryPainPoint: { type: Type.STRING },
                     ctaLink: { type: Type.STRING }
-                }
+                },
+                required: ["brandName", "productName", "usp", "ctaLink"]
             }
         );
 

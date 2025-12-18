@@ -282,6 +282,11 @@ export const promptTemplates = {
     2. ** Collocations **: What words appear around it?
     3. ** Tone **: What function does it serve?
 
+    STRICT RULES:
+    - You MUST provide a "plan" with exactly 3 points and one "exampleSentence" for EVERY keyword.
+    - If a keyword's context is unclear, use your knowledge of the language/style to provide a generic but accurate action plan.
+    - NEVER return an empty array or null for "plan" or "exampleSentence".
+
           INPUT DATA:
     <AnalysisPayload>
     ${analysisPayloadString}
@@ -776,9 +781,15 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     - If no clear headings exist, infer concise H2s, otherwise never replace existing ones.
     
     SECTION RELEVANCE FILTER:
-    - If a section title is IRRELEVANT to the main article topic (e.g., "目錄", "延伸閱讀", unrelated sidebar), mark it with difficulty: "unclear" AND set "exclude": true.
+    - If a section title is IRRELEVANT to the main article topic (e.g., "目錄", "導覽", "清單", "延伸閱讀", "相關文章", unrelated sidebar), mark it with difficulty: "unclear" AND set "exclude": true.
+    - Specifically for "目錄" (Table of Contents), ALWAYS set "exclude": true.
     - Excluded sections will be REMOVED from the generated outline.
     - Only include sections that contribute to the main content.
+
+    MANDATORY KEY FACTS:
+    - For EVERY section you include, you MUST extract at least 3-5 "keyFacts" from the reference text.
+    - A "keyFact" is a specific, verifiable piece of information (numbers, technical specs, specific benefits).
+    - If you return a section with empty "keyFacts", your response will be rejected.
     
     ⚠️ NEGATIVE SIGNAL DETECTION(CRITICAL):
     When analyzing each section, carefully identify NEGATIVE SIGNALS - content that should NOT be included in that section. These include:
@@ -791,6 +802,11 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     ${content}
     </ContentToAnalyze>
     DEFINITION: The reference text.
+
+    STRICT OUTPUT RULES:
+    1. For every active section (exclude: false), you MUST provide a detailed "narrativePlan" (3+ points) and "keyFacts" (2+ facts).
+    2. NEVER leave "narrativePlan", "coreQuestion", or "keyFacts" as empty arrays/strings for relevant sections.
+    3. If the reference content is sparse, use your expert knowledge to infer a logical plan and relevant facts that fit the topic.
     
     OUTPUT JSON:
     {

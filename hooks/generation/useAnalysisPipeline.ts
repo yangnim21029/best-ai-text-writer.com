@@ -6,6 +6,7 @@ import { parseProductContext, generateProblemProductMapping } from '../../servic
 import { analyzeText } from '../../services/engine/nlpService';
 import { extractSemanticKeywordsAnalysis } from '../../services/research/termUsagePlanner';
 import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
+import { useSettingsStore } from '../../store/useSettingsStore';
 import { analyzeReferenceStructure } from '../../services/research/referenceAnalysisService';
 import { analyzeAuthorityTerms } from '../../services/research/authorityService';
 import { analyzeImageWithAI, analyzeVisualStyle } from '../../services/generation/imageService';
@@ -96,9 +97,16 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         generationStore.setGenerationStep('nlp_analysis');
         appendAnalysisLog('Running NLP keyword scan...');
         const keywords = await analyzeText(fullConfig.referenceContent);
-        const keywordPlanCandidates = keywords.slice(0, SEMANTIC_KEYWORD_LIMIT);
+
+        // DYNAMIC LIMIT CALCULATION:
+        const settings = useSettingsStore.getState();
+        const contentLen = fullConfig.referenceContent.length;
+        const calculatedLimit = Math.floor(contentLen / settings.keywordCharDivisor);
+        const finalLimit = Math.max(settings.minKeywords, Math.min(settings.maxKeywords, calculatedLimit));
+
+        const keywordPlanCandidates = keywords.slice(0, finalLimit);
         const topTokens = summarizeList(keywordPlanCandidates.map(k => k.token), 6);
-        appendAnalysisLog(`NLP scan found ${keywords.length} keywords. Using top ${keywordPlanCandidates.length}: ${topTokens}`);
+        appendAnalysisLog(`NLP scan found ${keywords.length} keywords. Using top ${keywordPlanCandidates.length} (Ratio: 1/${settings.keywordCharDivisor}, Min: ${settings.minKeywords}): ${topTokens}`);
 
         if (keywordPlanCandidates.length > 0 && !isStopped()) {
             generationStore.setGenerationStep('planning_keywords');
@@ -106,6 +114,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
                 appendAnalysisLog(`Planning keyword strategy (top ${keywordPlanCandidates.length})...`);
                 const planRes = await extractSemanticKeywordsAnalysis(fullConfig.referenceContent, keywords, fullConfig.targetAudience);
                 console.log(`[Timer] Keyword Action Plan: ${planRes.duration}ms`);
+                console.log(`[SemanticKeywords] Final aggregated plans: ${planRes.data.length} / ${keywordPlanCandidates.length}`);
                 analysisStore.setKeywordPlans(planRes.data);
                 const planWords = summarizeList(planRes.data.map(p => p.word), 6);
                 appendAnalysisLog(`Keyword plan ready (${planRes.data.length}). Focus: ${planWords}`);
@@ -218,16 +227,27 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
         }
     };
 
-    // --- EXECUTE ALL TASKS IN PARALLEL ---
-    // User Requirement: All analysis requests should be sent out simultaneously (Promise.all)
-    appendAnalysisLog('Dispatching all analysis tasks concurrently...');
+    // --- EXECUTE ALL TASKS WITH STAGGERING ---
+    // Burst protection: Start each major task 1 second apart to prevent proxy/backend overload
+    appendAnalysisLog('Dispatching analysis tasks with burst protection...');
 
-    const [productResult, structureResult, visualResultsPromise, regionalResult, keywordResult] = await Promise.all([
-        productTask(),
+    const productResult = await productTask();
+    await new Promise(r => setTimeout(r, 1000));
+
+    const [structureResult, visualResultsPromise, regionalResult, keywordResult] = await Promise.all([
         structureTask(),
-        visualTask(), // This does not return a value we wait on for the main flow, but we await its completion
-        regionalTask(),
-        keywordTask()
+        (async () => {
+            await new Promise(r => setTimeout(r, 1000));
+            return visualTask();
+        })(),
+        (async () => {
+            await new Promise(r => setTimeout(r, 2000));
+            return regionalTask();
+        })(),
+        (async () => {
+            await new Promise(r => setTimeout(r, 3000));
+            return keywordTask();
+        })()
     ]);
 
     // Merge regional result into structureResult if available

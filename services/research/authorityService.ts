@@ -35,7 +35,8 @@ export const analyzeAuthorityTerms = async (
                     items: { type: Type.STRING },
                     description: "Strategic ways to combine these terms"
                 }
-            }
+            },
+            required: ["relevantTerms", "combinations"]
         });
 
         return {

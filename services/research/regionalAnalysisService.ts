@@ -1,6 +1,7 @@
 import { aiService } from '../engine/aiService';
 import { promptTemplates } from '../engine/promptTemplates';
 import { ServiceResponse } from '../../types';
+import { Type } from '../engine/schemaTypes';
 
 export const analyzeRegionalTerms = async (
     content: string,
@@ -27,7 +28,19 @@ export const analyzeRegionalTerms = async (
 
     const response = await aiService.runJson<{ original: string; replacement: string; reason: string }[]>(
         prompt,
-        'FLASH'
+        'FLASH',
+        {
+            type: Type.ARRAY,
+            items: {
+                type: Type.OBJECT,
+                properties: {
+                    original: { type: Type.STRING },
+                    replacement: { type: Type.STRING },
+                    reason: { type: Type.STRING }
+                },
+                required: ["original", "replacement", "reason"]
+            }
+        }
     );
 
     return {

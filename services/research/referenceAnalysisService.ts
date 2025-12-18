@@ -37,6 +37,7 @@ export const analyzeReferenceStructure = async (
     const languageInstruction = getLanguageInstruction(targetAudience);
 
     // Prepare Prompts
+    // Using full content as requested by the user
     const structurePrompt = promptTemplates.narrativeStructure({ content: referenceContent, targetAudience, languageInstruction });
     const voicePrompt = promptTemplates.voiceStrategy({ content: referenceContent, targetAudience, languageInstruction });
 
@@ -69,10 +70,12 @@ export const analyzeReferenceStructure = async (
                                 isChecklist: { type: Type.BOOLEAN },
                                 suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
                                 augment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                            }
+                            },
+                            required: ["title", "narrativePlan", "coreQuestion", "writingMode", "keyFacts"]
                         }
                     }
-                }
+                },
+                required: ["h1Title", "introText", "structure", "keyInformationPoints"]
             }),
             // 2. Voice & Strategy Analysis
             aiService.runJson<any>(voicePrompt, 'FLASH', {
@@ -85,30 +88,51 @@ export const analyzeReferenceStructure = async (
                     competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
                     regionVoiceDetect: { type: Type.STRING },
                     humanWritingVoice: { type: Type.STRING }
-                }
+                },
+                required: ["generalPlan", "conversionPlan", "brandExclusivePoints", "regionVoiceDetect", "humanWritingVoice"]
             })
         ]);
 
         const structData = structRes.data;
         const voiceData = voiceRes.data;
 
+        console.log('[RefAnalysis] Raw AI Structure Data:', JSON.stringify(structData, null, 2));
+        console.log('[RefAnalysis] Raw AI Voice Data:', JSON.stringify(voiceData, null, 2));
+
         // Filter excluded sections
         const filteredStructure = (structData.structure || []).filter((item: any) => {
             if (item.exclude === true) {
-                console.log(`[RefAnalysis] Excluding section: "${item.title}" - Reason: ${item.excludeReason || 'irrelevant'}`);
+                console.log(`[RefAnalysis] AI Excluded section: "${item.title}" - Reason: ${item.excludeReason || 'irrelevant'}`);
+                return false;
+            }
+            // HARDCODED FALLBACK: Exclude common navigational sections that AI might miss
+            const navKeywords = ['目錄', '導覽', '清單', '引言', '延伸閱讀', '相關文章', 'Table of Contents', 'TOC', 'Introduction'];
+            if (navKeywords.some(kw => item.title.includes(kw) && (item.title.length < 15))) {
+                console.log(`[RefAnalysis] Auto-Excluding navigational section: "${item.title}"`);
                 return false;
             }
             return true;
         });
 
-        const normalizedStructure = filteredStructure.map((item: any) => ({
-            ...item,
-            subheadings: Array.isArray(item.subheadings) ? item.subheadings : [],
-            keyFacts: Array.isArray(item.keyFacts) ? item.keyFacts : [],
-            uspNotes: Array.isArray(item.uspNotes) ? item.uspNotes : [],
-            suppress: Array.isArray(item.suppress) ? item.suppress : [],
-            augment: Array.isArray(item.augment) ? item.augment : [],
-        }));
+        const normalizedStructure = filteredStructure.map((item: any) => {
+            const normalized = {
+                ...item,
+                subheadings: Array.isArray(item.subheadings) ? item.subheadings : [],
+                keyFacts: Array.isArray(item.keyFacts) ? item.keyFacts : [],
+                uspNotes: Array.isArray(item.uspNotes) ? item.uspNotes : [],
+                suppress: Array.isArray(item.suppress) ? item.suppress : [],
+                augment: Array.isArray(item.augment) ? item.augment : [],
+                narrativePlan: Array.isArray(item.narrativePlan) ? item.narrativePlan : [],
+            };
+
+            // STRICT VALIDATION: If a section is included, it MUST have a plan and facts
+            if (normalized.narrativePlan.length === 0 || normalized.keyFacts.length === 0) {
+                console.error(`[RefAnalysis] Section "${item.title}" failed validation: Missing Narrative Plan or Key Facts.`);
+                throw new Error(`Invalid Narrative Structure: Section "${item.title}" is missing required content (Plan/Facts).`);
+            }
+
+            return normalized;
+        });
 
         const combinedRules = [
             ...(voiceData.competitorBrands || []),

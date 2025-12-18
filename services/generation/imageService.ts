@@ -5,7 +5,7 @@ import { aiService } from '../engine/aiService';
 import { Type } from '../engine/schemaTypes';
 import { promptTemplates } from '../engine/promptTemplates';
 import { MODEL } from '../../config/constants';
-import { buildAiUrl } from '../engine/genAIClient';
+import { buildAiUrl, getAiHeaders } from '../engine/genAIClient';
 
 const VISUAL_STYLE_GUIDE = `
     **STRICT VISUAL CATEGORIES (Select ONE):**
@@ -118,9 +118,7 @@ export const analyzeImageWithAI = async (
     try {
         const response = await fetch(buildAiUrl('/vision'), {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
+            headers: getAiHeaders(),
             body: JSON.stringify({
                 prompt,
                 image: imageUrl,
@@ -220,7 +218,7 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
     try {
         const response = await fetch(buildAiUrl('/image'), {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getAiHeaders(),
             body: JSON.stringify({
                 prompt,
                 model: MODEL.IMAGE_PREVIEW,
@@ -354,10 +352,12 @@ export const planImagesForArticle = async (
                                 category: { type: Type.STRING, enum: ["BRANDED_LIFESTYLE", "PRODUCT_DETAIL", "ECOMMERCE_WHITE_BG"] },
                                 insertAfter: { type: Type.STRING },
                                 rationale: { type: Type.STRING }
-                            }
+                            },
+                            required: ["generatedPrompt", "category", "insertAfter"]
                         }
                     }
-                }
+                },
+                required: ["plans"]
             }
         );
 

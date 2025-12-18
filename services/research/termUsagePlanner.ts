@@ -55,8 +55,8 @@ export const extractSemanticKeywordsAnalysis = async (
     // BATCHING STRATEGY:
     // Execute multiple batches in parallel but with a CONCURRENCY LIMIT
     // to prevent 429 errors or network timeouts.
-    const BATCH_SIZE = 5;
-    const CONCURRENCY_LIMIT = 3;
+    const BATCH_SIZE = 10;
+    const CONCURRENCY_LIMIT = 2; // Slightly reduced for more stable proxy handling
     const limit = pLimit(CONCURRENCY_LIMIT);
 
     const batches = chunkArray(allAnalysisPayloads, BATCH_SIZE);
@@ -64,10 +64,8 @@ export const extractSemanticKeywordsAnalysis = async (
     console.log(`[SemanticKeywords] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Concurrency: ${CONCURRENCY_LIMIT})...`);
 
     const batchPromises = batches.map((batchPayload, batchIdx) => limit(async () => {
-        // STAGGER STRATEGY:
-        // Delay each batch execution by 5s * index to ensure backend metrics recording doesn't choke.
-        // Even with p-monitor/p-limit, we need to space out the START times.
-        const delayMs = batchIdx * 5000;
+        // Breath delay: Space out batch starts by 1.2s to prevent spike failures
+        const delayMs = batchIdx * 1200;
         if (delayMs > 0) {
             await new Promise(resolve => setTimeout(resolve, delayMs));
         }
@@ -76,30 +74,54 @@ export const extractSemanticKeywordsAnalysis = async (
         const analysisPayloadString = JSON.stringify(batchPayload, null, 2);
 
         // Use the registry to build the prompt with snippet context
-        const prompt = promptTemplates.frequentWordsPlacementAnalysis({
+        const planPrompt = promptTemplates.frequentWordsPlacementAnalysis({
             analysisPayloadString,
             languageInstruction
         });
 
         try {
             console.log(`[SemanticKeywords] Starting batch ${batchIdx + 1}/${batches.length}...`);
-            const response = await aiService.runJson<any[]>(prompt, 'FLASH', {
-                type: Type.ARRAY,
-                items: {
-                    type: Type.OBJECT,
-                    properties: {
-                        word: { type: Type.STRING },
-                        plan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                        exampleSentence: { type: Type.STRING }
+            const planRes = await aiService.runJson<any[]>(
+                planPrompt,
+                'FLASH',
+                {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            word: { type: Type.STRING },
+                            plan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            exampleSentence: { type: Type.STRING }
+                        },
+                        required: ["word", "plan", "exampleSentence"]
                     }
                 }
+            );
+
+            console.log(`[SemanticKeywords] Batch ${batchIdx + 1} Result:`, {
+                requested: batchPayload.length,
+                received: planRes.data?.length || 0,
+                duration: planRes.duration
             });
 
+            if (!planRes.data || planRes.data.length === 0) {
+                console.warn(`[SemanticKeywords] Batch ${batchIdx + 1} returned NO data. Batch payload:`, batchPayload.map(p => p.word));
+                return {
+                    data: [],
+                    usage: planRes.usage,
+                    cost: planRes.cost,
+                    duration: planRes.duration
+                };
+            }
+
             return {
-                data: response.data || [],
-                usage: response.usage,
-                cost: response.cost,
-                duration: response.duration
+                data: planRes.data.map(p => ({
+                    ...p,
+                    plan: Array.isArray(p.plan) ? p.plan : [p.plan].filter(Boolean)
+                })),
+                usage: planRes.usage,
+                cost: planRes.cost,
+                duration: planRes.duration
             };
         } catch (e) {
             console.warn(`[SemanticKeywords] Batch ${batchIdx + 1} failed`, e);
