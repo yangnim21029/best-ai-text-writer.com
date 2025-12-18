@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import 'dotenv/config';
 
 const trimSlash = (value = '') => value.replace(/\/+$/, '');
 
@@ -10,31 +11,25 @@ const main = async () => {
   }
 
   const base = trimSlash(process.env.AI_BASE_URL || process.env.VITE_AI_BASE_URL || '');
-  const healthPath = process.env.AI_HEALTH_PATH || '/health';
-  const generatePath = process.env.AI_GENERATE_PATH || '/ai/generate';
-  const model = process.env.AI_CHECK_MODEL || 'gemini-2.5-flash';
+  const generatePath = process.env.AI_GENERATE_PATH || '/generate';
+  const token = process.env.AI_TOKEN || process.env.VITE_AI_TOKEN;
+  const model = process.env.AI_CHECK_MODEL || 'gemini-2.0-flash-exp';
   const prompt = process.env.AI_CHECK_PROMPT || 'healthcheck';
 
   if (!base) {
     return logSkip('AI_BASE_URL not provided');
   }
 
-  const healthUrl = `${base}${healthPath}`;
-  try {
-    const healthRes = await fetch(healthUrl);
-    if (healthRes.ok) {
-      console.log(`AI health OK: ${healthUrl} (${healthRes.status})`);
-      return;
-    }
-    console.warn(`Health check ${healthUrl} returned ${healthRes.status}, falling back to generate...`);
-  } catch (err) {
-    console.warn(`Health check failed (${healthUrl}), falling back to generate:`, err?.message || err);
-  }
 
   const generateUrl = `${base}${generatePath}`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
   const res = await fetch(generateUrl, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify({ prompt, model })
   });
 
