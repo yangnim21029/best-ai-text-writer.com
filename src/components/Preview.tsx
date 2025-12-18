@@ -96,8 +96,6 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
         <span>Copy MD</span>
       </button>
 
-      <div className="w-px h-5 bg-gray-200 dark:bg-gray-700 mx-1" />
-
       <button
         onClick={onOptimizeHeadings}
         className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors border ${isDark ? 'bg-indigo-900/20 text-indigo-300 border-indigo-800 hover:bg-indigo-900/40' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'

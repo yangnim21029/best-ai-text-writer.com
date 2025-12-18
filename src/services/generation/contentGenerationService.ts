@@ -4,6 +4,7 @@ import { filterSectionContext } from '../engine/contextFilterService';
 import { promptTemplates } from '../engine/promptTemplates';
 import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { aiService } from '../engine/aiService';
+import { normalizeMarkdown } from '../../utils/textUtils';
 
 import { Type } from '../engine/schemaTypes';
 
@@ -100,7 +101,7 @@ const normalizeSectionContent = (content: string): string => {
     normalized = normalized.replace(/^#\s+/gm, "### ");  // Demote H1 -> H3
     normalized = normalized.replace(/<h1>(.*?)<\/h1>/gi, "### $1");
     normalized = normalized.replace(/<h2>(.*?)<\/h2>/gi, "### $1");
-    return normalized;
+    return normalizeMarkdown(normalized);
 };
 
 // 3. Generate Single Section
@@ -196,7 +197,9 @@ export const generateSectionContent = async (
         regionReplacements: config.referenceAnalysis?.regionalReplacements,
         humanWritingVoice: config.referenceAnalysis?.humanWritingVoice, // NEW: Pass human voice
         regionVoiceDetect: config.referenceAnalysis?.regionVoiceDetect, // NEW: Pass region voice %
-        replacementRules: config.referenceAnalysis?.replacementRules // NEW: Pass blocked terms
+        replacementRules: config.referenceAnalysis?.replacementRules, // NEW: Pass blocked terms
+        logicalFlow: (sectionMeta as any).logicalFlow, // NEW: Pass logical flow
+        coreFocus: (sectionMeta as any).coreFocus // NEW: Pass core focus
     });
 
     const response = await aiService.runJson<any>(
@@ -230,8 +233,14 @@ export const generateSectionContent = async (
     const injectedRaw = payload.injectedCount ?? (payload as any).injected_count ?? 0;
     const injectedCount = typeof injectedRaw === 'number' ? injectedRaw : Number(injectedRaw) || 0;
 
-    const data = {
+    let finalContent = rawContent;
+    let finalUsage = response.usage;
+    let finalCost = response.cost;
+
+    const data: SectionGenerationResult = {
+        title: sectionTitle,
         content: rawContent,
+        rawContent: rawContent,
         usedPoints,
         injectedCount
     };
@@ -254,9 +263,8 @@ export const generateSectionContent = async (
 
     return {
         data: {
-            content: normalizedContent,
-            usedPoints: data.usedPoints || [],
-            injectedCount: data.injectedCount || 0
+            ...data,
+            content: normalizedContent
         },
         usage: totalUsage,
         cost: totalCost,

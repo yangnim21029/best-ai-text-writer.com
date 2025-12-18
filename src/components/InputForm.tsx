@@ -11,6 +11,7 @@ import { SourceMaterialSection } from './form/SourceMaterialSection';
 import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Image as ImageIcon } from 'lucide-react';
 import { useArticleForm } from '@/hooks/useArticleForm';
 import { useSemanticFilter } from '@/hooks/useSemanticFilter';
+import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { EMBED_MODEL_ID } from '@/config/constants';
 
 interface InputFormProps {
@@ -142,6 +143,8 @@ export const InputForm: React.FC<InputFormProps> = ({
         commitSemanticThreshold
     } = useSemanticFilter();
 
+    const analysisStore = useAnalysisStore();
+
     const semanticThresholdValue = useMemo(() => {
         const parsed = parseFloat(semanticThresholdInput);
         if (!Number.isNaN(parsed)) {
@@ -168,7 +171,7 @@ export const InputForm: React.FC<InputFormProps> = ({
             autoImagePlan: data.autoImagePlan,
             productRawText: data.productRawText,
             brandKnowledge: undefined,
-            scrapedImages: usableImages
+            scrapedImages: usableImages,
         });
     };
 
@@ -353,6 +356,7 @@ export const InputForm: React.FC<InputFormProps> = ({
                             <p className="text-[10px] text-gray-500 px-1">
                                 關閉可避免尚未按下圖片生成按鈕時就提前觸發。
                             </p>
+
 
                         </div>
                     </div>

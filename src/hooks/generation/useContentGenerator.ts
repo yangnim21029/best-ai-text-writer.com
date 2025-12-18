@@ -64,6 +64,7 @@ export const runContentGeneration = async (
     generationStore.setStatus('streaming');
     generationStore.setGenerationStep('writing_content');
     generationStore.setContent('');
+    generationStore.setSectionResults([]);
 
     const headingOptimizations = analysisStore.headingOptimizations || [];
     const shouldUseHeadingAnalysis = !isUsingCustomOutline && headingOptimizations.length > 0;
@@ -179,8 +180,17 @@ export const runContentGeneration = async (
             );
 
             if (!isStopped()) {
-                sectionBodies[i] = stripLeadingHeading(res.data.content);
+                const sectionContent = stripLeadingHeading(res.data.content);
+                sectionBodies[i] = sectionContent;
                 console.log(`[Timer - Turbo] Section '${section.title}': ${res.duration}ms`);
+
+                generationStore.addSectionResult({
+                    ...res.data,
+                    id: `${i}-${section.title}`,
+                    content: sectionContent,
+                    rawContent: res.data.rawContent ? stripLeadingHeading(res.data.rawContent) : undefined,
+                    refinedContent: res.data.refinedContent ? stripLeadingHeading(res.data.refinedContent) : undefined
+                });
 
                 generationStore.setContent(renderTurboSections());
                 appStore.addCost(res.cost.totalCost, res.usage.totalTokens);
@@ -258,7 +268,6 @@ export const runContentGeneration = async (
 
         // --- REGION LOCALIZATION skipped as requested ---
         generationStore.setGenerationStep('finalizing');
-        // FIX: Ensure immediate completion so the content is visible under the modal
         generationStore.setStatus('completed');
         generationStore.setGenerationStep('idle');
     }

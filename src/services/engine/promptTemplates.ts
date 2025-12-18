@@ -25,11 +25,13 @@ export const promptTemplates = {
     renderMode,
     suppressHints,
     augmentHints,
-    subheadings, // NEW: Accept subheadings
-    regionReplacements, // NEW: Regional replacements
-    humanWritingVoice, // NEW: Human Writing Voice (why it sounds human)
-    regionVoiceDetect, // NEW: Region Voice Detect %
-    replacementRules, // NEW: Blocked terms/Safety
+    subheadings,
+    regionReplacements,
+    humanWritingVoice,
+    regionVoiceDetect,
+    replacementRules,
+    logicalFlow,
+    coreFocus,
   }: {
     sectionTitle: string;
     languageInstruction: string;
@@ -49,14 +51,15 @@ export const promptTemplates = {
     solutionAngles?: string[];
     avoidContent?: string[];
     renderMode?: 'checklist' | 'normal';
-    // shiftPlan removed
     suppressHints?: string[];
     augmentHints?: string[];
-    subheadings?: string[]; // NEW
-    regionReplacements?: { original: string; replacement: string }[]; // NEW: Regional text replacements
-    humanWritingVoice?: string; // NEW
-    regionVoiceDetect?: string; // NEW
-    replacementRules?: string[]; // NEW
+    subheadings?: string[];
+    regionReplacements?: { original: string; replacement: string }[];
+    humanWritingVoice?: string;
+    regionVoiceDetect?: string;
+    replacementRules?: string[];
+    logicalFlow?: string;
+    coreFocus?: string;
   }) => {
     const resolvedDifficulty = difficulty || 'easy';
     const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
@@ -96,6 +99,8 @@ export const promptTemplates = {
 
     <SectionStrategy>
     ${specificPlan?.join("; ") || "Explain thoroughly"}
+    ${logicalFlow ? `\n    LOGICAL FLOW: ${logicalFlow}` : ""}
+    ${coreFocus ? `\n    CORE EMPHASIS: ${coreFocus}` : ""}
     </SectionStrategy>
     DEFINITION: Specific goals or angles for this section.
 
@@ -165,20 +170,28 @@ export const promptTemplates = {
       }
 
 
+    ## Strategic Execution (CRITICAL)
+    - **Logical Flow**: Respect the "LOGICAL FLOW" provided. Use it as the bridge to connect the facts naturally so the narrative feels cohesive and the transition between points is clear.
+    - **Core Emphasis**: Adhere to the "CORE EMPHASIS" (tone/hook). Use it to shape your phrasing (e.g., if it's "Urgent", use shorter, sharper sentences; if it's "Soothing", use flowy, empathetic language).
+
+
     ## Conciseness Constraints
-    - ** General Rule **: Cut all fluff. Be crisp and direct. Stop immediately after answering the core question.
+    - **General Rule**: Cut all fluff. Be crisp and direct. Stop immediately after answering the core question.
     ${/introduction|conclusion|intro|outcome|result|summary|引言|結尾|結論/i.test(sectionTitle)
-        ? '- ** SPECIAL CONSTRAINT **: Target 40~80 words. Write as a SINGLE block of text (one paragraph). Do NOT split into multiple paragraphs.'
+        ? '- **SPECIAL CONSTRAINT**: Target 40~80 words. Write as a concise narrative. If using subheadings or lists, you MUST still use double newlines between them.'
         : ''} 
-    - ** If difficulty = "easy" **: Target < 160 words. Get straight to the point. No preamble.
-    - ** If difficulty = "medium" **: Target < 180 words. Explain efficiently using Lists.
-    - ** If difficulty = "unclear" **: Focus on clarifying the ambiguity briefly with Lists.
+    - **If difficulty = "easy"**: Target < 160 words. Get straight to the point. No preamble.
+    - **If difficulty = "medium"**: Target 200~350 words. Explain efficiently using Lists if needed, but ensure narrative depth.
+    - **If difficulty = "unclear"**: Focus on clarifying the ambiguity briefly with Lists.
 
 
     ## Output Restrictions
+    - **Narrative Plan Execution**: You will see points marked as "[Primary]" or "[Secondary]".
+      - **[Primary]**: Expand extensively on these. This is the core of the section.
+      - **[Secondary]**: Mention these concisely as supporting details.
     ${renderMode === 'checklist'
-        ? '- OUTPUT FORMAT: Use checklist/bulleted list. Include every provided Key Fact; do not drop items.'
-        : '- OUTPUT FORMAT: Narrative with Markdown as needed.'
+        ? '- OUTPUT FORMAT: Use checklist/bulleted list. Include every provided Key Fact; do not drop items. Ensure each item is on a new line with a hyphen.'
+        : '- OUTPUT FORMAT: Narrative Markdown. Use **double newlines** (`\\n\\n`) between paragraphs and before any H3 header.'
       }
 
 
@@ -219,7 +232,7 @@ export const promptTemplates = {
 
 
     ## Key Facts & Narrative Points
-    - ** CRITICAL WRITING RULE **: When writing the main sentence for any Key Fact below, ** minimize the use of commas and symbols **. Use clean, direct sentence structures. 
+    - **WRITING RULE**: Use clean, direct sentence structures. Ensure structural clarity.
     <KeyPoints>
     ${points.length > 0 ? points.join("; ") : "(No new key points needed for this section, focus on narrative)"}
     </KeyPoints>
@@ -250,12 +263,14 @@ export const promptTemplates = {
 
     ## Output Schema
     - Return ONLY the content for this section in JSON format.
-    - Use proper Markdown for the content string(H3 for subsections, Lists where appropriate).
+    - Use proper Markdown for the content string (H3 for subsections, Lists where appropriate).
     - Do NOT repeat the H2 Title "${sectionTitle}".
     - Ensure smooth transitions from the previous section.
     - If writing mode is "multi_solutions", list the solution paths clearly, then close with a synthesized recommendation.
-    - ** IMPORTANT **: You must populate the "usedPoints" array with the exact strings of any Key Facts you included in the content.
-    - ** IMPORTANT **: You must populate "injectedCount" with the number of times you explicitly mentioned the Product Name or Brand Name.
+    - **IMPORTANT**: Use exactly **two newlines** ("\\n\\n") between paragraphs. 
+    - **IMPORTANT**: Place exactly **two newlines** BEFORE any H3 header (e.g., "\\n\\n### Heading").
+    - **IMPORTANT**: You must populate the "usedPoints" array with the exact strings of any Key Facts you included in the content.
+    - **IMPORTANT**: You must populate "injectedCount" with the number of times you explicitly mentioned the Product Name or Brand Name.
 `;
   },
 
@@ -266,35 +281,35 @@ export const promptTemplates = {
     languageInstruction: string;
     analysisPayloadString: string;
   }) => `
-    I have a list of High - Frequency Keywords and their "Context Snippets" from a Reference Text.
+    I have a list of High-Frequency Keywords and their "Context Snippets" from a Reference Text.
 
-      TASK:
-    For each keyword, analyze its context snippets to understand the specific ** Sentence Structure ** and ** Syntactic placement **.
+    TASK:
+    For each keyword, analyze its context snippets to understand the specific **Sentence Structure** and **Syntactic placement**.
     Generate a "Usage Action Plan" (Max 3 actionable points).
-    Extract a ** SINGLE, SHORT ** "Example Sentence" (Max 40 chars/15 words).
+    Extract a **SINGLE, SHORT** "Example Sentence" (Max 40 chars / 15 words).
 
-      <LanguageInstruction>
-      ${languageInstruction}
-      </LanguageInstruction>
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
 
-    The Action Plan must be specific about the ** Sentence Context **:
-    1. ** Placement **: Where does it appear? (Start/Middle/End/Transition)
-    2. ** Collocations **: What words appear around it?
-    3. ** Tone **: What function does it serve? (e.g., Is it a prefix/suffix?)
+    The Action Plan must be specific about the **Sentence Context**:
+    1. **Placement**: Where does it appear? (Start/Middle/End/Transition)
+    2. **Collocations**: What words appear around it?
+    3. **Tone**: What function does it serve? (e.g., Is it a prefix/suffix?)
 
     STRICT RULES:
     - You MUST provide a "plan" with exactly 3 points and one "exampleSentence" for EVERY keyword.
     - If a keyword's context is unclear, use your knowledge of the language/style to provide a generic but accurate action plan.
     - NEVER return an empty array or null for "plan" or "exampleSentence".
 
-          INPUT DATA:
+    INPUT DATA:
     <AnalysisPayload>
     ${analysisPayloadString}
     </AnalysisPayload>
     DEFINITION: JSON list of keywords and snippets.
     ACTION: Analyze these specific snippets.
 
-    OUTPUT JSON(array):
+    OUTPUT JSON (array):
     [
       {
         "word": "keyword",
@@ -332,18 +347,18 @@ export const promptTemplates = {
 
     TASK:
     1. Infer the Brand Name and USP from the Product Name / URL.
-    2. Write a short "Product Description"(2 sentences).
+    2. Write a short "Product Description" (2 sentences).
     3. Identify the "Primary Pain Point" this product solves.
     4. Create a "Call to Action (CTA)" link text.
     
-    OUTPUT FORMAT(JSON):
+    OUTPUT FORMAT (JSON):
     {
       "brandName": "Brand Name",
-        "productName": "Full Product Name",
-          "productDescription": "...",
-            "usp": "...",
-              "primaryPainPoint": "...",
-                "ctaLink": "${productUrl}"
+      "productName": "Full Product Name",
+      "productDescription": "...",
+      "usp": "...",
+      "primaryPainPoint": "...",
+      "ctaLink": "${productUrl}"
     }
     `,
 
@@ -369,11 +384,11 @@ export const promptTemplates = {
     ACTION: Output in this language.
 
     TASK:
-    Identify 3 - 5 "Problem-Solution Mappings".
+    Identify 3-5 "Problem-Solution Mappings".
     For each mapping:
-    1. ** Pain Point **: A specific problem the reader has related to the Topic.
-    2. ** Product Feature **: The specific feature of the product that solves it.
-    3. ** Relevance Keywords **: List of keywords(from the topic) where this mapping is most relevant.
+    1. **Pain Point**: A specific problem the reader has related to the Topic.
+    2. **Product Feature**: The specific feature of the product that solves it.
+    3. **Relevance Keywords**: List of keywords (from the topic) where this mapping is most relevant.
     
     OUTPUT JSON:
     [
@@ -397,11 +412,11 @@ export const promptTemplates = {
     DEFINITION: Target Language.
     ACTION: Write the summary in this language.
 
-    OUTPUT: A concise paragraph(200 - 300 words) summarizing the brand / service with contact info if present.
+    OUTPUT: A concise paragraph (200-300 words) summarizing the brand / service with contact info if present.
     `,
 
   visualStyle: ({ languageInstruction, analyzedSamples, websiteType }: any) => `
-    I need to define a consistent "Visual Identity"(Master Style Prompt) for an article.
+    I need to define a consistent "Visual Identity" (Master Style Prompt) for an article.
     
     <WebsiteContext>
     ${websiteType}
@@ -416,16 +431,16 @@ export const promptTemplates = {
     ACTION: Mimic this existing style.
 
     TASK:
-    Synthesize a ** single, cohesive Visual Style Description** that I can append to every image prompt to ensure consistency.
+    Synthesize a **single, cohesive Visual Style Description** that I can append to every image prompt to ensure consistency.
 
-      Include:
-    1. ** Color Palette:** (e.g., "Medical Blue #0055FF and Clean White", or "Warm Earth Tones")
-    2. ** Lighting / Mood:** (e.g., "Soft bright studio lighting", "Moody natural light", "Flat vector lighting")
-    3. ** Art Medium:** (e.g., "High-resolution Photography", "Minimalist 2D Vector Art", "3D Product Render")
+    Include:
+    1. **Color Palette:** (e.g., "Medical Blue #0055FF and Clean White", or "Warm Earth Tones")
+    2. **Lighting / Mood:** (e.g., "Soft bright studio lighting", "Moody natural light", "Flat vector lighting")
+    3. **Art Medium:** (e.g., "High-resolution Photography", "Minimalist 2D Vector Art", "3D Product Render")
     
     OUTPUT FORMAT:
-    Return ONLY the style description string(max 30 words).
-  Example: "Photorealistic style with soft daylight, using a clinical white and teal palette, high-end commercial aesthetic."
+    Return ONLY the style description string (max 30 words).
+    Example: "Photorealistic style with soft daylight, using a clinical white and teal palette, high-end commercial aesthetic."
     
     <LanguageInstruction>
     ${languageInstruction}
@@ -447,6 +462,7 @@ export const promptTemplates = {
     DEFINITION: The logic or text to process.
     ACTION: Execute this prompt.
 `,
+
   sectionHeading: ({
     sectionTitle,
     articleTitle,
@@ -502,8 +518,8 @@ export const promptTemplates = {
     ACTION: Reflect this tone.
 
     RULES:
-    - Return ONLY the heading text(no quotes, no numbering).
-        - Keep it under 10 words.
+    - Return ONLY the heading text (no quotes, no numbering).
+    - Keep it under 10 words.
     `,
 
   batchRefineHeadings: ({
@@ -537,25 +553,25 @@ export const promptTemplates = {
 
     STEP BY STEP:
     1) Clarify role: H2 = main section headline; H3 = supporting subpoint under its H2.
-    2) Keep it natural, concise, and engaging.Preserve the original intent / angle.Use everyday, conversational wording(生活化) instead of stiff or academic phrasing.
-    3) Make the H2 clickable: concise(≤ 60 chars).
-    4) Rewrite H2 with ** 5 options in this exact order ** (all must differ from h2_before):
-    - Option 1(經典版): Professional writer version - clear, informative.
-    - Option 2(編輯精選): Editor's pick - concise with strategic keywords.
-    - Option 3(吸睛版): Power words + emotional hooks(必學、秒懂、爆款、神級).
-    - Option 4(痛點版): Pain - point / FOMO angle - address fears or desires.
-    - Option 5(生活化): Lifestyle / conversational - like friend's advice, slang allowed.
+    2) Keep it natural, concise, and engaging. Preserve the original intent / angle. Use everyday, conversational wording (生活化) instead of stiff or academic phrasing.
+    3) Make the H2 clickable: concise (≤ 60 chars).
+    4) Rewrite H2 with **5 options in this exact order** (all must differ from h2_before):
+    - Option 1 (經典版): Professional writer version - clear, informative.
+    - Option 2 (編輯精選): Editor's pick - concise with strategic keywords.
+    - Option 3 (吸睛版): Power words + emotional hooks (必學、秒懂、爆款、神級).
+    - Option 4 (痛點版): Pain-point / FOMO angle - address fears or desires.
+    - Option 5 (生活化): Lifestyle / conversational - like friend's advice, slang allowed.
     - H2_after = your single best pick among those 5 options.
-    5) ** CRITICAL **: h2_after text MUST demonstrate what h2_reason describes.Example:
+    5) **CRITICAL**: h2_after text MUST demonstrate what h2_reason describes. Example:
     - If reason says "使用生活化情境「下班回家」", then h2_after MUST contain "下班回家".
     - If reason says "加入流行語「UP UP」", then h2_after MUST contain "UP UP".
     - Each option's text MUST match what its reason describes.
-    6) Rewrite / support H3(if any exist or if you invent them):
-    - Keep H3 ultra - compact: product / feature name or a 2 - 6 word keyword fragment.
+    6) Rewrite / support H3 (if any exist or if you invent them):
+    - Keep H3 ultra-compact: product / feature name or a 2-6 word keyword fragment.
     - Align with the chosen H2_after without repeating it.
-    7) Validate: no duplicates, no vague fillers.Reject identical before / after.
+    7) Validate: no duplicates, no vague fillers. Reject identical before / after.
 
-      OUTPUT(JSON only):
+    OUTPUT (JSON only):
     {
       "headings": [
         {
@@ -565,7 +581,9 @@ export const promptTemplates = {
           "h2_options": [
             { "text": "option 1", "reason": "reasoning" },
             { "text": "option 2", "reason": "reasoning" },
-            { "text": "option 3", "reason": "reasoning" }
+            { "text": "option 3", "reason": "reasoning" },
+            { "text": "option 4", "reason": "reasoning" },
+            { "text": "option 5", "reason": "reasoning" }
           ],
           "h3": [
             { "h3_before": "...", "h3_after": "...", "h3_reason": "supporting angle & search phrasing" }
@@ -574,14 +592,14 @@ export const promptTemplates = {
       ]
     }
     - Array length MUST equal the number of ORIGINAL HEADINGS and keep the same order.
-        - Always include every field; set "h3": [] when none.
-        - "h2_before" must exactly match the provided heading text.
-        - If no H3s were provided, return "h3": [].
-        - If a heading is already good, repeat it in "h2_after".
+    - Always include every field; set "h3": [] when none.
+    - "h2_before" must exactly match the provided heading text.
+    - If no H3s were provided, return "h3": [].
+    - If a heading is already good, repeat it in "h2_after".
     `,
 
   metaSeo: ({ targetAudience, contextLines, articlePreview }: { targetAudience: string; contextLines: string[]; articlePreview: string; }) => `
-    You are an SEO expert.Generate meta Title, Description, and URL slug for the article.
+    You are an SEO expert. Generate meta Title, Description, and URL slug for the article.
 
     <TargetAudience>
     ${targetAudience}
@@ -609,9 +627,6 @@ export const promptTemplates = {
     ## Task
     REBRAND this article content.
 
-    DEFINITION: The primary goal of this prompt.
-    ACTION: Modify the provided content to reflect the new brand identity.
-    
     <BrandIdentity>
     - Name: "${productBrief.brandName}"
     - Product: "${productBrief.productName}"
@@ -622,25 +637,18 @@ export const promptTemplates = {
 
     ## Instructions
     1. Scan the text for generic terms like "the device", "the treatment", "many clinics", or any Competitor Names.
-    2. REWRITE those sentences to specifically feature ** ${productBrief.brandName}** or ** ${productBrief.productName}**.
-    3. Ensure the grammar flows naturally(Subject - Verb agreement).
-    4. Do NOT just find - replace.Rewrite the sentence to sound authoritative.
-    5. Maintain the original structure and formatting(Markdown).
-
-    DEFINITION: Detailed steps for rebranding.
-    ACTION: Follow these steps precisely.
+    2. REWRITE those sentences to specifically feature **${productBrief.brandName}** or **${productBrief.productName}**.
+    3. Ensure the grammar flows naturally (Subject-Verb agreement).
+    4. Do NOT just find-replace. Rewrite the sentence to sound authoritative.
+    5. Maintain the original structure and formatting (Markdown).
     
     <LanguageInstruction>
     ${languageInstruction}
     </LanguageInstruction>
-    DEFINITION: Target Language.
-    ACTION: Maintain this language.
 
     <ContentToRebrand>
     ${currentContent}
     </ContentToRebrand>
-    DEFINITION: The text needing update.
-    ACTION: Rewrite this text.
 `,
 
   smartFindBlock: ({ pointToInject, blocks }: any) => `
@@ -648,38 +656,30 @@ export const promptTemplates = {
     <PointToInject>
     "${pointToInject}"
     </PointToInject>
-    DEFINITION: The fact that must be added.
-    ACTION: Find the best place for this fact.
     
     Here is a "Compact Index" of the article paragraphs:
     <ArticleBlocks>
     ${blocks.map((b: any) => `[ID: ${b.id}] ${b.text}`).join('\n')}
     </ArticleBlocks>
-    DEFINITION: List of paragraph candidates.
-    ACTION: Select one ID from this list.
 
-TASK: Identify the SINGLE Best Block ID to insert / merge this point into. 
-    Return ONLY the ID(e.g. "5").
+    TASK: Identify the SINGLE Best Block ID to insert / merge this point into. 
+    Return ONLY the ID (e.g. "5").
     `,
 
   smartRewriteBlock: ({ pointToInject, targetHtml, languageInstruction }: any) => `
-TASK: Rewrite the following HTML Block to naturally include this Key Point.
+    TASK: Rewrite the following HTML Block to naturally include this Key Point.
     
     <KeyPoint>
     "${pointToInject}"
     </KeyPoint>
-    DEFINITION: Information to weave in.
-    ACTION: Merge this into the text naturally.
     
     <TargetHTMLBlock>
     ${targetHtml}
     </TargetHTMLBlock>
-    DEFINITION: The existing paragraph.
-    ACTION: Rewrite this paragraph to include the point.
 
     RULES:
-    1. Keep the original meaning and HTML tag structure(<p>or<li>).
-    2. Weave the point in naturally.Do not just append it at the end unless it fits.
+    1. Keep the original meaning and HTML tag structure (<p> or <li>).
+    2. Weave the point in naturally.
     3. <LanguageInstruction>${languageInstruction}</LanguageInstruction>
     4. Return ONLY the new HTML string.
     `,
@@ -688,160 +688,55 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     ## Task
     Extract product / service information from the following text.
 
-    DEFINITION: The main objective.
-    ACTION: Analyze the provided text to identify product-related data.
-
     <RawText>
     "${rawText}"
     </RawText>
-    DEFINITION: Source text.
-    ACTION: Analyze this text for product data.
 
     ## Instructions
-    - Identify Brand Name, Product Name, Unique Selling Point(USP), Target Audience, and Key Features.
+    - Identify Brand Name, Product Name, Unique Selling Point (USP), Target Audience, and Key Features.
     - Focus on concise extraction, not rewriting.
-
-    DEFINITION: Guidelines for extraction.
-    ACTION: Follow these guidelines for the output.
     
     OUTPUT JSON:
-{
-  "brandName": "...",
-    "productName": "...",
+    {
+      "brandName": "...",
+      "productName": "...",
       "usp": "...",
-        "targetAudience": "...",
-          "features": ["...", "..."]
-}
+      "targetAudience": "...",
+      "features": ["...", "..."]
+    }
 `,
 
   authorityAnalysis: ({ languageInstruction, authorityTerms, websiteType, title }: any) => `
     ## Task
     Analyze the Authority Terms for this article and surface only the most credible, relevant ones.
-
-    DEFINITION: The main goal of this analysis.
-    ACTION: Filter and propose strategic combinations of terms.
     
     <WebsiteType>
     ${websiteType}
     </WebsiteType>
-    DEFINITION: The industry/niche.
-    ACTION: Judge credibility based on this context.
 
     <ArticleTitle>
     ${title}
     </ArticleTitle>
-    DEFINITION: Topic context.
-    ACTION: Ensure terms are relevant to this topic.
 
     <CandidateTerms>
     ${authorityTerms}
     </CandidateTerms>
-    DEFINITION: List of potential terms.
-    ACTION: Filter this list.
     
     <LanguageInstruction>
     ${languageInstruction}
     </LanguageInstruction>
-    DEFINITION: The language for the output.
-    ACTION: Provide the output in this language.
 
     ## Goals
     - Keep only terms that strengthen trust / credibility for this topic and site type.
     - Drop vague, unrelated, or unverifiable claims.
-    - Propose strategic combinations of 2 - 3 terms to reinforce authority.
-
-    DEFINITION: Specific objectives for the analysis.
-    ACTION: Ensure the output meets these goals.
+    - Propose strategic combinations of 2-3 terms to reinforce authority.
     
     OUTPUT JSON:
     {
-          "relevantTerms": ["best-fit term 1", "best-fit term 2"],
-        "combinations": ["term A + term B in intro", "term C in meta description"]
+      "relevantTerms": ["best-fit term 1", "best-fit term 2"],
+      "combinations": ["term A + term B in intro", "term C in meta description"]
     }
     Return JSON only.`,
-
-  narrativeStructure: ({ content, targetAudience, languageInstruction }: any) => `
-    Analyze the reference text to extract the Narrative Structure.
-    
-    1) The H1 title and introductory paragraph (first paragraph after H1).
-    2) A Logical Outline (H2 -> H3) with narrative goals.
-    3) Key information points (Facts) for each section.
-    4) Key information points (General) to preserve.
-    5) **Sentence Feature Analysis**:
-       - Analyze how sentences BEGIN in each section (common starters, transition words).
-       - Analyze how sentences END in each section (punctuation patterns, concluding intent, common closing phrases).
-
-    <TargetAudience>
-    ${targetAudience}
-    </TargetAudience>
-    DEFINITION: The target region.
-    
-    <LanguageInstruction>
-    ${languageInstruction}
-    </LanguageInstruction>
-    DEFINITION: Output language.
-
-    STRICT HEADING RULES:
-    - Enumerate EVERY H2 and its child H3s in order from the reference.
-    - Use the exact heading text as it appears (do NOT rewrite, paraphrase, translate, or renumber).
-    - Keep awkward wording or punctuation intact; only trim whitespace.
-    - If no clear headings exist, infer concise H2s, otherwise never replace existing ones.
-    
-    SECTION RELEVANCE FILTER:
-    - If a section title is IRRELEVANT to the main article topic (e.g., "目錄", "導覽", "清單", "延伸閱讀", "相關文章", unrelated sidebar), mark it with difficulty: "unclear" AND set "exclude": true.
-    - Specifically for "目錄" (Table of Contents), ALWAYS set "exclude": true.
-    - Excluded sections will be REMOVED from the generated outline.
-    - Only include sections that contribute to the main content.
-
-    MANDATORY KEY FACTS:
-    - For EVERY section you include, you MUST extract at least 3-5 "keyFacts" from the reference text.
-    - A "keyFact" is a specific, verifiable piece of information (numbers, technical specs, specific benefits).
-    - If you return a section with empty "keyFacts", your response will be rejected.
-    
-    ⚠️ NEGATIVE SIGNAL DETECTION(CRITICAL):
-    When analyzing each section, carefully identify NEGATIVE SIGNALS - content that should NOT be included in that section. These include:
-    - Phrases like "不應在此處", "應於...提及" (content that belongs elsewhere)
-    - Off-topic sidebars
-    
-        IMPORTANT: Any negative instruction or off-topic content MUST go into the "suppress" array.
-    
-    <ContentToAnalyze>
-    ${content}
-    </ContentToAnalyze>
-    DEFINITION: The reference text.
-
-    STRICT OUTPUT RULES:
-    1. For every active section (exclude: false), you MUST provide a detailed "narrativePlan" (3+ points) and "keyFacts" (2+ facts).
-    2. NEVER leave "narrativePlan", "coreQuestion", or "keyFacts" as empty arrays/strings for relevant sections.
-    3. If the reference content is sparse, use your expert knowledge to infer a logical plan and relevant facts that fit the topic.
-    
-    OUTPUT JSON:
-    {
-      "h1Title": "Exact H1 title text",
-      "introText": "The first paragraph/intro text after H1 (if available)",
-      "structure": [
-        {
-          "title": "Exact H2 text (no rewrite)",
-          "subheadings": ["Exact H3 text 1", "Exact H3 text 2"],
-          "narrativePlan": ["Positive guidance 1", "Positive guidance 2"],
-          "coreQuestion": "Main question/problem",
-          "difficulty": "easy | medium | unclear",
-          "exclude": false,
-          "excludeReason": "Only set if exclude=true",
-          "writingMode": "direct | multi_solutions",
-          "solutionAngles": ["angle 1", "angle 2"],
-          "keyFacts": ["Fact 1", "Fact 2"],
-          "uspNotes": ["USP relevant to this section"],
-          "isChecklist": false,
-          "suppress": ["Negative constraint 1"],
-          "augment": ["Content to add"],
-          "sentenceStartFeatures": ["Observed patterns for sentence beginnings"],
-          "sentenceEndFeatures": ["Observed patterns for sentence endings (e.g., concludes with a question, uses specific punctuation, ends with a call to action)"]
-        }
-      ],
-      "keyInformationPoints": ["General key fact 1", "General key fact 2"]
-    }
-    `,
 
   voiceStrategy: ({ content, targetAudience, languageInstruction }: any) => `
     Analyze the reference text to extract the Voice and Brand Strategy.
@@ -849,7 +744,7 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     1) Voice & Tone (General Plan).
     2) Conversion Strategy (Offers, CTAs, Risk Reversals).
     3) Brand Exclusive Points (USP).
-    4) Competitor Names/Products to suppress. (CRITICAL: Do NOT list the region name "${targetAudience}" itself as a competitor).
+    4) Competitor Names / Products to suppress. (CRITICAL: Do NOT list the region name "${targetAudience}" itself as a competitor).
     5) **Regional Entities Detection**: CRITICAL - Identify ALL brands, stores, services, or entities that are SPECIFIC to a different region and NOT available in the target region "${targetAudience}".
        - For zh-HK target: Detect Taiwan-specific brands (如：寶雅、全聯、momo購物、蝦皮台灣), Taiwan fashion brands, Taiwan chain stores.
        - For zh-TW target: Detect Hong Kong-specific brands (如：HKTVmall、百佳、惠康、sasa), HK chain stores.
@@ -873,26 +768,30 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     DEFINITION: The reference text to analyze.
 
     ## Voice Strategy Analysis
-    - ** regionVoiceDetect **: Analyze the "Regional Voice Composition" of the text (e.g., usage of regional slang like "地道/貼地" for HK vs "接地氣" for TW).
+    - **regionVoiceDetect**: Analyze the "Regional Voice Composition" of the text (e.g., usage of regional slang like "地道/貼地" for HK vs "接地氣" for TW).
       - Calculate an approximate PERCENTAGE breakdown.
       - Return a string like: "70% HK / 30% TW" or "100% TW".
       - If uncertain or neutral, return "Neutral / Unclear".
-    - ** humanWritingVoice **: Analyze the first 300 words (or the full Intro Paragraph). Explain "Why does this sound HUMAN?" by following these 5 steps:
-      1. **Emotions & Subjectivity**: Identify subjective judgments/cultural evaluations (unlike AI's objective tone).
+    - **Detailed Voice Metrics (CRITICAL)**:
+      1. **toneSensation** (語感): Describe the detected tone. Most importantly, explain how it differs from a standard/generic article (與一般文章比較差在哪). Identify the specific "texture" of the voice.
+      2. **entryPoint** (切入點): How does the author start the conversation? (e.g., "Personal anecdote", "Shocking statistic", "Common pain point").
+    - **generalPlan** (Global Plan): Generate 3-5 specific style rules. **AVOID generic terms** like "Professional", "Scientific", or "Educational" (專業、科普). Instead, focus the rules on the unique **Tone** and **Entry Point** strategy detected.
+    - **humanWritingVoice**: Analyze the first 300 words (or the full Intro Paragraph). Explain "Why does this sound HUMAN?" by following these 5 steps:
+      1. **Emotions & Subjectivity**: Identify subjective judgments / cultural evaluations (unlike AI's objective tone).
       2. **Tone & Particles**: Look for sentence-final particles (語助詞 like 喔, 唷) that create intimacy.
       3. **Persona & Self-Ref**: Does the writer refer to themselves (e.g. "Dr. X") or assume a character?
-      4. **Cultural Metaphors**: Does it link facts to cultural concepts (e.g. physiognomy/fortune telling 面相) rather than just medical facts?
-      5. **Social Intent**: Is there a call for interaction (save/share) vs just providing info?
+      4. **Cultural Metaphors**: Does it link facts to cultural concepts (e.g. physiognomy / fortune telling 面相) rather than just medical facts?
+      5. **Social Intent**: Is there a call for interaction (save / share) vs just providing info?
       *Summarize these findings into a concise guide.*
-    - ** competitorBrands **: List ALL brands that should be avoided, including:
+    - **competitorBrands**: List ALL brands that should be avoided, including:
       - Direct competitors mentioned in the text
       - **Region-specific brands/stores NOT available in ${targetAudience}** (e.g., Taiwan brands 韌 REN, Fashion for Yes, 寶雅 when targeting Hong Kong)
-    - ** competitorProducts **: List ALL products that should be avoided or replaced.
+    - **competitorProducts**: List ALL products that should be avoided or replaced.
 
     Return JSON only, no extra text or markdown fences.`,
 
-  keywordAnalysis: ({ content, targetAudience, languageInstruction }: { content: string; targetAudience: TargetAudience; languageInstruction: string }) => `
-    Analyze the reference content to extract high - frequency keywords and their semantic roles.
+  keywordAnalysis: ({ content, targetAudience, languageInstruction }: { content: string; targetAudience: string; languageInstruction: string }) => `
+    Analyze the reference content to extract high-frequency keywords and their semantic roles.
     
     <TargetAudience>
     ${targetAudience}
@@ -904,7 +803,7 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     ${languageInstruction}
     </LanguageInstruction>
     DEFINITION: Output language.
-    ACTION: Use this language for keys/roles.
+    ACTION: Use this language for keys / roles.
 
     <Content>
     ${content}
@@ -921,11 +820,11 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
   imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string }) => `
     Generate a detailed image generation prompt based on the following context.
 
-  <LanguageInstruction>
-  ${languageInstruction}
-  </LanguageInstruction>
-  DEFINITION: Output Language.
-  ACTION: Write the prompt in English unless specified.
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+    DEFINITION: Output Language.
+    ACTION: Write the prompt in English unless specified.
     
     <ContextText>
     ${contextText}
@@ -945,26 +844,162 @@ TASK: Rewrite the following HTML Block to naturally include this Key Point.
     DEFINITION: User specific hints.
     ACTION: Incorporate these hints.
 
-TASK:
+    TASK:
     Create a detailed, specific image generation prompt that:
     1. Captures the essence of the context text
     2. Adheres to the visual style guide
     3. Is optimized for AI image generation
     4. Avoids abstract concepts and focuses on concrete, photographable subjects
     
-    Return ONLY the image prompt(no explanations or metadata).
+    Return ONLY the image prompt (no explanations or metadata).
     `,
 
-  regionalBrandAnalysis: ({ content, targetAudience }: { content: string; targetAudience: string }) => `
-    TASK: Analyze the content for ** Regional Terminology ** and ** Brand Availability ** conflicts in: ${targetAudience}.
+  refineStyle: ({ content, style, languageInstruction }: { content: string; style: string; languageInstruction: string }) => `
+    ## Task
+    REFINE the following content to match the requested style: **${style}**.
+
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+
+    <StyleRequirements>
+    - **Casual**: 幫我以 Ask AI 的方式，用輕鬆、活潑、生活化的語氣，並用簡單易懂的敘述方式來優化這段內容。
+    - **GirlStyle**: 你是一名 SEO 專家，目標對象是年輕女性。請用【指南型/分享型/知識型/科普型/合集/推介篇】的內容形式優化。語氣要專業、具說服力，同時帶有輕鬆、活潑、生活化的感覺。適合發布於 GirlStyle HK，涵蓋生活、美容、時尚、戀愛等主題。
+    - **General Rule**: Maintain the EXACT same information, facts, and core message.
+    </StyleRequirements>
+
+    <FormatRules>
+    1. **CRITICAL**: Do NOT change the Markdown/HTML structure. Keep all <h2>, <h3>, <p>, <ul>, <li> tags exactly as they are.
+    2. Do NOT add preamble or conclusion like "Here is the refined text".
+    3. Return ONLY the refined content string.
+    </FormatRules>
+
+    <ContentToRefine>
+    ${content}
+    </ContentToRefine>
+  `,
+
+  // --- 1. SKELETON EXTRACTION ---
+  extractOutline: ({
+    content,
+    targetAudience,
+    languageInstruction,
+  }: {
+    content: string;
+    targetAudience: string;
+    languageInstruction: string;
+  }) => `
+    You are an expert Content Architect. Your mission is to extract the PHYSICAL SKELETON of the provided content.
+    Do NOT analyze logic, facts, or strategy yet. Focus ONLY on the structure.
 
     <TargetAudience>
     ${targetAudience}
     </TargetAudience>
 
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+
+    STRICT HEADING RULES:
+    - Enumerate EVERY H2 and its child H3s in order from the reference.
+    - Use the exact heading text as it appears.
+    - If no clear headings exist, infer concise H2s.
+    - Specifically for "目錄" (Table of Contents), ALWAYS set "exclude": true.
+
+    OUTPUT JSON:
+    {
+      "h1Title": "Exact H1 title text",
+      "introText": "The first paragraph/intro text after H1",
+      "structure": [
+        {
+          "title": "Exact H2 text",
+          "subheadings": ["Exact H3 text 1", "Exact H3 text 2"],
+          "exclude": false,
+          "excludeReason": "..."
+        }
+      ],
+      "keyInformationPoints": ["General key fact 1"]
+    }
+
+    <Content>
+    ${content}
+    </Content>
+    `,
+
+  // --- 2. DEEP NARRATIVE LOGIC ANALYSIS ---
+  analyzeNarrativeLogic: ({
+    content,
+    outlineJson,
+    targetAudience,
+    languageInstruction,
+  }: {
+    content: string;
+    outlineJson: string;
+    targetAudience: string;
+    languageInstruction: string;
+  }) => `
+    You are an expert Narrative Strategist. Your mission is to fill the physical skeleton with DEEP LOGICAL FLOW and NARRATIVE PLANNING.
+
+    <OutlineStructure>
+    ${outlineJson}
+    </OutlineStructure>
+
+    <TargetAudience>
+    ${targetAudience}
+    </TargetAudience>
+
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+
+    STRICT RULES FOR EVERY SECTION:
+    - **LANGUAGE LEVEL**: Use extremely simple, direct language (elementary school level simplicity). No jargon or flowery summaries.
+    - **"logicalFlow"**: A one-sentence description of the INNER RELATIONSHIP/CONNECTION between points. Do NOT summarize what to do. Instead, explain the "Logic Bridge": "Why does point A lead to point B?". It supplements Narrative Plan/Key Facts by clarifying the hidden "Why" or "Transition Logic".
+    - **"coreFocus"**: Defines the TONE and EMOTIONAL HOOK. Tell the writer *how* to emphasize things and what vibe to maintain (e.g., "Urgent warning: sound concerned", "Relief and comfort: sound like a calm expert").
+    - **"narrativePlan"**: 4-6 specific writing instructions. 
+       - **Mark each item as "[Primary]" or "[Secondary]"**.
+       - "[Primary]" items should focus on the core message or most critical information.
+       - "[Secondary]" items should focus on edge cases, transitions, or minor supporting details.
+    - **"keyFacts"**: 3-5 verifiable facts extracted from content.
+    - **"coreQuestion"**: The main problem this section answers.
+
+    OUTPUT JSON (Array for the 'structure' property):
+    {
+      "structure": [
+        {
+          "title": "Matches outline title exactly",
+          "narrativePlan": ["Plan 1", "Plan 2", "Plan 3", "Plan 4", "Plan 5"],
+          "logicalFlow": "One-sentence logic chain description",
+          "coreFocus": "Description of emphasis",
+          "keyFacts": ["Fact 1", "Fact 2", "Fact 3"],
+          "coreQuestion": "Main question",
+          "difficulty": "easy | medium | unclear",
+          "writingMode": "direct | multi_solutions",
+          "uspNotes": ["..."],
+          "isChecklist": false,
+          "suppress": ["..."],
+          "augment": ["..."],
+          "sentenceStartFeatures": ["..."],
+          "sentenceEndFeatures": ["..."]
+        }
+      ]
+    }
+
+    <ReferenceContent>
+    ${content}
+    </ReferenceContent>
+    `,
+
+  regionalBrandAnalysis: ({ content, targetAudience }: { content: string; targetAudience: string }) => `
+    TASK: Analyze the content for **Regional Terminology** and **Brand Availability** conflicts in: ${targetAudience}.
+
+    <TargetAudience>
+      ${targetAudience}
+    </TargetAudience>
+
     Using Google Search (Grounding), verify:
-    1. ** Brand Availability **: Are mentioned brands/products actually available/popular in ${targetAudience}? (e.g. A Taiwan-only clinic appearing in a Hong Kong article is a mismatch).
-    2. ** Regional Vocabulary **: Replace obvious dialect terms (e.g. "視頻" -> "影片" for TW).
+    1. **Brand Availability**: Are mentioned brands / products actually available / popular in ${targetAudience}? (e.g. A Taiwan-only clinic appearing in a Hong Kong article is a mismatch).
+    2. **Regional Vocabulary**: Replace obvious dialect terms (e.g. "視頻" -> "影片" for TW).
 
     <ContentSnippet>
     ${content.slice(0, 15000)}...
