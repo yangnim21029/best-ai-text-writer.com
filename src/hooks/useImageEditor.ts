@@ -53,7 +53,7 @@ export const useImageEditor = ({
         setStatus
     } = useGenerationStore();
 
-    const isPlanning = generationStatus === 'analyzing';
+    const isPlanning = generationStatus === 'analyzing' || generationStatus === 'planning_visuals';
     const isBatchProcessing = generationStatus === 'streaming';
 
     const updatePlanPrompt = useCallback((id: string, updates: Partial<ImageAssetPlan>) => {
@@ -364,7 +364,7 @@ export const useImageEditor = ({
             return editorRef.current?.innerText || '';
         };
         if (isPlanning) return;
-        setStatus('analyzing');
+        setStatus('planning_visuals');
         try {
             const content = getContent();
             const res = await planImagesForArticle(content, scrapedImages, targetAudience, visualStyle || '');

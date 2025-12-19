@@ -1,8 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UseFormRegister } from 'react-hook-form';
 import { ArticleFormValues } from '../../schemas/formSchema';
 import { ScrapedImage } from '../../types';
-import { Download, FileText, Filter, ImageIcon, Link2, Loader2 } from 'lucide-react';
+import { Download, FileText, Filter, ImageIcon, Link2, Loader2, Globe, ChevronDown, Briefcase, LayoutTemplate, Info, Database, CheckCircle2, RotateCw, Plus } from 'lucide-react';
 import { dedupeScrapedImages } from '../../utils/imageUtils';
 
 interface SourceMaterialSectionProps {
@@ -19,6 +19,12 @@ interface SourceMaterialSectionProps {
     onToggleScrapedImage?: (image: ScrapedImage) => void;
     onRequestSemanticFilter: () => void;
     canSemanticFilter: boolean;
+    // Page Profile Props
+    websiteType?: string;
+    activePageId?: string;
+    onOpenLibrary: () => void;
+    onCreatePage: (name: string) => void;
+    activePageTitle?: string;
 }
 
 export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
@@ -35,10 +41,19 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
     onToggleScrapedImage,
     onRequestSemanticFilter,
     canSemanticFilter,
+    websiteType,
+    activePageId,
+    onOpenLibrary,
+    onCreatePage,
+    activePageTitle,
 }) => {
-    const [showAllExtracted, setShowAllExtracted] = React.useState(false);
+    const [showAllExtracted, setShowAllExtracted] = useState(false);
+    const [isSourceInputOpen, setIsSourceInputOpen] = useState(true);
+
     const MAX_PREVIEW_IMAGES = 24;
+    // ... dedupedImages logic etc
     const dedupedImages = React.useMemo(() => dedupeScrapedImages(scrapedImages), [scrapedImages]);
+    // ... orderedImages logic etc
     const orderedImages = React.useMemo(
         () =>
             dedupedImages
@@ -52,6 +67,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                 .map(({ img }) => img),
         [dedupedImages]
     );
+
     const visibleImages = showAllExtracted ? orderedImages : orderedImages.slice(0, MAX_PREVIEW_IMAGES);
     const hiddenCount = orderedImages.length - visibleImages.length;
 
@@ -60,179 +76,183 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
     };
 
     return (
-        <div className="space-y-2">
-            <h3 className="text-[10px] font-bold uppercase text-gray-400 tracking-wider px-1 flex items-center gap-1">
-                <FileText className="w-3 h-3" /> Source Material
-            </h3>
-            <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] p-4 space-y-4">
-                <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Article Topic</label>
-                    <input
-                        type="text"
-                        {...register('title')}
-                        placeholder="e.g. Advanced React Patterns"
-                        className={`w-full px-3 py-2 bg-white rounded-lg border text-sm font-medium text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all ${errors.title ? 'border-red-500' : 'border-gray-200'}`}
-                    />
-                    {errors.title && <p className="text-[10px] text-red-500">{errors.title.message}</p>}
-                </div>
-
-                <div className="space-y-2">
-                    <div className="flex justify-between items-center">
-                        <label className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-2">
-                            Reference Content
-                            {dedupedImages.length > 0 && (
-                                <span className="text-green-600 bg-green-50 px-1.5 py-0.5 rounded border border-green-100 text-[9px] flex items-center gap-1">
-                                    <ImageIcon className="w-3 h-3" /> {dedupedImages.length} Images
+        <div className="space-y-4">
+            <div className="bg-white rounded-xl border border-gray-200 shadow-[0_2px_8px_rgba(0,0,0,0.02)] overflow-hidden">
+                {/* Header Toggle */}
+                <div
+                    className="p-3 border-b border-gray-100 bg-gray-50/20 cursor-pointer hover:bg-gray-100/50 transition-colors"
+                    onClick={() => setIsSourceInputOpen(!isSourceInputOpen)}
+                >
+                    <div className="flex justify-between items-center bg-transparent">
+                        <div className="flex items-center gap-2.5 min-w-0">
+                            <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 flex-shrink-0">
+                                <Link2 className="w-3.5 h-3.5 text-indigo-500" />
+                                Source Input
+                            </label>
+                            {isSourceInputOpen ? (
+                                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100/50 uppercase tracking-tighter">Required</span>
+                            ) : (
+                                <span className="text-[10px] text-slate-400 font-medium italic truncate max-w-[180px]">
+                                    {inputType === 'url' ? (urlValue || 'No URL') : (refCharCount > 0 ? `${refCharCount} chars` : 'No text')}
                                 </span>
                             )}
-                            <span className="text-amber-500 bg-amber-50 px-1 rounded text-[9px] ml-auto border border-amber-100">Required</span>
-                        </label>
-                        <div className="flex bg-gray-100 p-0.5 rounded-lg">
-                            <button
-                                type="button"
-                                onClick={() => setInputType('text')}
-                                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${inputType === 'text' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                            >
-                                Paste Text
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setInputType('url')}
-                                className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all ${inputType === 'url' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
-                            >
-                                From URL
-                            </button>
                         </div>
-                    </div>
-
-                    {inputType === 'text' ? (
-                        <div className="relative group">
-                            <textarea
-                                {...register('referenceContent')}
-                                placeholder="Paste your source text here..."
-                                className={`w-full h-36 px-3 py-2 bg-gray-50 rounded-lg border text-xs font-mono text-gray-600 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none resize-none custom-scrollbar transition-all group-hover:bg-white ${errors.referenceContent ? 'border-red-500' : 'border-gray-200'}`}
-                            />
-                            {errors.referenceContent && <p className="text-[10px] text-red-500">{errors.referenceContent.message}</p>}
-                            <div className="flex justify-between items-center mt-1 gap-2 flex-wrap">
-                                <span className="text-[10px] text-gray-400 font-mono">
-                                    {refWordCount} words | {refCharCount} chars
-                                </span>
-                                <button
-                                    type="button"
-                                    onClick={onRequestSemanticFilter}
-                                    disabled={!canSemanticFilter}
-                                    className={`inline-flex items-center gap-1 px-2 py-1 rounded-md border text-[10px] font-semibold transition-colors ${canSemanticFilter
-                                        ? 'border-blue-200 text-blue-600 bg-blue-50 hover:bg-blue-100'
-                                        : 'border-gray-200 text-gray-400 bg-gray-100 cursor-not-allowed'
-                                        }`}
-                                >
-                                    <Filter className="w-3 h-3" />
-                                    語意過濾 (空白行分段)
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <div className="flex gap-2">
-                            <div className="relative flex-1">
-                                <div className="absolute left-3 top-1/2 -translate-y-1/2">
-                                    <Link2 className="w-3.5 h-3.5 text-gray-400" />
-                                </div>
-                                <input
-                                    type="url"
-                                    {...register('urlInput')}
-                                    placeholder="https://example.com/article"
-                                    className="w-full pl-9 pr-3 py-2 bg-white rounded-lg border border-gray-200 text-xs text-gray-700 placeholder-gray-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 outline-none transition-all"
-                                    autoFocus
-                                />
-                            </div>
-                            <button
-                                type="button"
-                                onClick={handleFetch}
-                                disabled={isFetchingUrl || !urlValue}
-                                className="px-3 py-2 bg-blue-50 text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm flex items-center justify-center min-w-[40px]"
-                            >
-                                {isFetchingUrl ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                            </button>
-                        </div>
-                    )}
-
-                    {dedupedImages.length > 0 && (
-                        <div className="mt-3 bg-gray-50 rounded-lg p-2 border border-gray-100">
-                            <div className="flex items-center justify-between mb-2">
-                                <h5 className="text-[10px] font-bold text-gray-500 uppercase tracking-wide flex items-center gap-1.5">
-                                    <ImageIcon className="w-3 h-3" /> Extracted Visuals
-                                </h5>
-                                <div className="flex items-center gap-2">
-                                    {orderedImages.length > MAX_PREVIEW_IMAGES && (
-                                        <button
-                                            type="button"
-                                            onClick={() => setShowAllExtracted((prev) => !prev)}
-                                            className="text-[9px] font-semibold text-blue-600 bg-blue-50 px-2 py-0.5 rounded border border-blue-100 hover:bg-blue-100 transition-colors"
-                                        >
-                                            {showAllExtracted ? 'Collapse' : `Show All (${orderedImages.length})`}
-                                        </button>
-                                    )}
-                                    <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded border border-indigo-100 font-medium">
-                                        AI will analyze first 5 images during generation
-                                    </span>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-4 gap-2 max-h-32 overflow-y-auto custom-scrollbar p-1">
-                                {visibleImages.map((img, idx) => {
-                                    // Use an index-suffixed key to prevent duplicate keys when the same URL appears multiple times
-                                    const key = img.id || `${img.url || img.altText || 'image'}-${idx}`;
-                                    const isIgnored = Boolean(img.ignored);
-                                    const clickable = Boolean(onToggleScrapedImage);
-                                    return (
-                                        <div
-                                            key={key}
-                                            className={`relative group rounded-md overflow-hidden border aspect-square shadow-sm transition-all ${isIgnored ? 'border-gray-300' : 'border-gray-200 bg-white'} ${clickable ? 'cursor-pointer hover:border-blue-200' : ''}`}
-                                            onClick={() => onToggleScrapedImage?.(img)}
-                                            title={isIgnored ? 'Click to include again' : 'Click to ignore this image'}
-                                        >
-                                            <div className="absolute top-1 right-1 z-10">
-                                                <input
-                                                    type="checkbox"
-                                                    checked={!isIgnored}
-                                                    readOnly={!onToggleScrapedImage}
-                                                    onChange={(e) => {
-                                                        e.stopPropagation();
-                                                        onToggleScrapedImage?.(img);
-                                                    }}
-                                                    onClick={(e) => e.stopPropagation()}
-                                                    className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                                                    aria-label={isIgnored ? 'Include image' : 'Exclude image'}
-                                                />
-                                            </div>
-                                            {img.url ? (
-                                                <img
-                                                    src={img.url}
-                                                    loading="lazy"
-                                                    alt={img.altText}
-                                                    className={`w-full h-full object-cover transition ${isIgnored ? 'grayscale opacity-60' : ''}`}
-                                                />
-                                            ) : (
-                                                <div className="w-full h-full flex items-center justify-center bg-gray-50 text-gray-300">
-                                                    <ImageIcon className="w-4 h-4" />
-                                                </div>
-                                            )}
-
-                                            {isIgnored && (
-                                                <div className="absolute inset-0 bg-black/30" />
-                                            )}
-                                        </div>
-                                    );
-                                })}
-                                {hiddenCount > 0 && !showAllExtracted && (
+                        <div className="flex items-center gap-3">
+                            {isSourceInputOpen && (
+                                <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm transition-all" onClick={e => e.stopPropagation()}>
                                     <button
                                         type="button"
-                                        onClick={() => setShowAllExtracted(true)}
-                                        className="flex items-center justify-center text-[10px] font-semibold text-blue-600 bg-white border border-blue-100 rounded-md h-full min-h-[72px] hover:bg-blue-50 transition-colors col-span-4"
+                                        onClick={() => setInputType('text')}
+                                        className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all ${inputType === 'text' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
-                                        + {hiddenCount} more
+                                        Manual
                                     </button>
-                                )}
+                                    <button
+                                        type="button"
+                                        onClick={() => setInputType('url')}
+                                        className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all ${inputType === 'url' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+                                    >
+                                        URL
+                                    </button>
+                                </div>
+                            )}
+                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isSourceInputOpen ? 'rotate-180' : ''}`} />
+                        </div>
+                    </div>
+                </div>
+
+                <div className="animate-in slide-in-from-top-1">
+                    {/* 1. Content Input Area (Always Visible) */}
+                    <div className="p-4 bg-white">
+                        {inputType === 'text' ? (
+                            <div className="relative group">
+                                <textarea
+                                    {...register('referenceContent')}
+                                    placeholder="Paste your source text here..."
+                                    className={`w-full h-44 px-4 py-3 bg-slate-50/30 rounded-xl border text-[13px] leading-relaxed font-medium text-slate-700 placeholder-slate-300 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 outline-none resize-none custom-scrollbar transition-all ${errors.referenceContent ? 'border-red-500' : 'border-slate-200'}`}
+                                />
+                                {errors.referenceContent && <p className="text-[10px] text-red-500 mt-1">{errors.referenceContent.message}</p>}
+                                <div className="flex justify-between items-center mt-3 px-1">
+                                    <span className="text-[10px] text-slate-400 font-bold tracking-tight bg-slate-100/50 px-2 py-1 rounded-md">
+                                        {refWordCount} words / {refCharCount} chars
+                                    </span>
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onRequestSemanticFilter(); }}
+                                        disabled={!canSemanticFilter}
+                                        className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[10px] font-bold transition-all active:scale-95 ${canSemanticFilter
+                                            ? 'border-indigo-100 text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-200 shadow-sm'
+                                            : 'border-gray-50 text-gray-300 bg-gray-25 cursor-not-allowed opacity-50'
+                                            }`}
+                                    >
+                                        <Filter className="w-3.5 h-3.5" />
+                                        Semantic Filter
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex gap-2 p-1">
+                                <div className="relative flex-1 group" onClick={e => e.stopPropagation()}>
+                                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-indigo-600 text-slate-400">
+                                        <Link2 className="w-4 h-4" />
+                                    </div>
+                                    <input
+                                        type="url"
+                                        {...register('urlInput')}
+                                        placeholder="https://example.com/article"
+                                        className="w-full h-11 pl-11 pr-3 bg-slate-50/50 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 placeholder-slate-300 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all shadow-inner"
+                                        autoFocus
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); handleFetch(); }}
+                                    disabled={isFetchingUrl || !urlValue}
+                                    className="h-11 px-5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center justify-center min-w-[56px]"
+                                >
+                                    {isFetchingUrl ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
+                                </button>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Compact Library Trigger - Lightweight Integrated Style */}
+                    {inputType === 'text' && (
+                        <div className="px-4 pb-4 pt-1">
+                            <div className="bg-blue-50/20 rounded-2xl border border-blue-100/50 overflow-hidden transition-all hover:bg-white hover:border-blue-200 hover:shadow-sm group">
+                                {/* Identity & Info Row */}
+                                <div className="p-3.5 flex items-center gap-3">
+                                    <div className="w-9 h-9 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100/50 flex-shrink-0 group-hover:scale-105 transition-transform">
+                                        <FileText className="w-4.5 h-4.5 text-blue-600" />
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                        <div className="flex items-center justify-between gap-2">
+                                            <h4 className="text-[12px] font-black text-slate-800 tracking-tight truncate">
+                                                {activePageTitle || 'Draft Content'}
+                                            </h4>
+                                            {activePageId ? (
+                                                <div className="flex items-center gap-1 text-emerald-600">
+                                                    <div className="w-1 h-1 rounded-full bg-emerald-500 animate-pulse" />
+                                                    <span className="text-[9px] font-black uppercase tracking-widest">Active</span>
+                                                </div>
+                                            ) : (
+                                                <span className="text-[9px] font-bold text-slate-400 uppercase tracking-tight">Local</span>
+                                            )}
+                                        </div>
+
+                                        <div className="flex items-center gap-3 mt-1">
+                                            <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500">
+                                                <FileText className="w-3 h-3 text-slate-300" />
+                                                {refWordCount} <span className="font-medium text-slate-400 lowercase">words</span>
+                                            </div>
+                                            {websiteType && (
+                                                <div className="flex items-center gap-1.5 text-[9px] font-black text-blue-500 uppercase tracking-tighter">
+                                                    <LayoutTemplate className="w-3 h-3 text-blue-300" />
+                                                    {websiteType}
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Action Row - Integrated & Lighter */}
+                                <div className="px-3 pb-3 flex items-center gap-2">
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); onOpenLibrary(); }}
+                                        className="flex-1 h-8 px-3 bg-white text-slate-600 rounded-lg text-[10px] font-black hover:bg-slate-50 transition-all border border-slate-200 shadow-xs active:scale-95 flex items-center justify-center gap-1.5"
+                                    >
+                                        <Database className="w-3 h-3" />
+                                        Library
+                                    </button>
+
+                                    {activePageId ? (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                window.dispatchEvent(new CustomEvent('updateActivePage'));
+                                            }}
+                                            className="flex-1 h-8 px-3 bg-white text-blue-600 rounded-lg text-[10px] font-black hover:bg-blue-50 transition-all border border-blue-200 shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                                        >
+                                            <RotateCw className="w-3 h-3" />
+                                            Update
+                                        </button>
+                                    ) : (
+                                        <button
+                                            type="button"
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                const name = prompt('Enter a name for this profile:', activePageTitle || 'New Draft');
+                                                if (name) onCreatePage(name);
+                                            }}
+                                            className="flex-1 h-8 px-3 bg-white text-blue-600 rounded-lg text-[10px] font-black hover:bg-blue-50 transition-all border border-blue-200 shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
+                                        >
+                                            <Plus className="w-3 h-3" />
+                                            Save
+                                        </button>
+                                    )}
+                                </div>
                             </div>
                         </div>
                     )}

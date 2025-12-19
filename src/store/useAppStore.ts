@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ContentScore, SavedProfile, ScrapedImage } from '@/types';
+import { ContentScore, SavedProfile, ScrapedImage, PageProfile } from '@/types';
 import { MODEL, KEYWORD_CHAR_DIVISOR, MIN_KEYWORDS, SEMANTIC_KEYWORD_LIMIT } from '@/config/constants';
 
 interface AppState {
@@ -32,6 +32,11 @@ interface AppState {
     // Profile Slice
     savedProfiles: SavedProfile[];
     activeProfile: SavedProfile | null;
+    savedPages: PageProfile[];
+    activePageId: string | undefined;
+
+    // Visual Profiles (Style Library)
+    visualProfiles: VisualProfile[];
 
     // Actions
     toggleInput: () => void;
@@ -63,6 +68,16 @@ interface AppState {
     addProfile: (profile: SavedProfile) => void;
     updateProfile: (profile: SavedProfile) => void;
     deleteProfile: (id: string) => void;
+
+    // Page Actions
+    setSavedPages: (pages: PageProfile[]) => void;
+    setActivePageId: (id: string | undefined) => void;
+
+    // Visual Profile Actions
+    setVisualProfiles: (profiles: VisualProfile[]) => void;
+    addVisualProfile: (profile: VisualProfile) => void;
+    updateVisualProfile: (profile: VisualProfile) => void;
+    deleteVisualProfile: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -74,7 +89,7 @@ export const useAppStore = create<AppState>()(
             showChangelog: false,
             showPlanModal: false,
             showSettings: false,
-            inputType: 'url',
+            inputType: 'text',
             displayScale: 1.1,
 
             contentScore: { value: 0, label: 'Start Writing', color: 'text-gray-400' },
@@ -93,6 +108,23 @@ export const useAppStore = create<AppState>()(
 
             savedProfiles: [],
             activeProfile: null,
+            savedPages: [],
+            activePageId: undefined,
+
+            visualProfiles: [
+                {
+                    id: 'default-asian-pro',
+                    name: 'Asian Professional',
+                    modelAppearance: 'Asian professional, formal attire, natural office lighting, high-end commercial photography',
+                    designStyle: 'Professional corporate blue & white palette, clean lines, high resolution infographic style'
+                },
+                {
+                    id: 'default-minimal-hk',
+                    name: 'Minimalist HK',
+                    modelAppearance: 'Hong Kong lifestyle, trendy causal wear, bright airy natural light, urban chic',
+                    designStyle: 'Minimalist flat design, pastel accents, clean sans-serif typography'
+                }
+            ],
 
             // Actions
             toggleInput: () => set((state) => ({ showInput: !state.showInput })),
@@ -147,6 +179,20 @@ export const useAppStore = create<AppState>()(
             deleteProfile: (id) => set((state) => ({
                 savedProfiles: state.savedProfiles.filter((p) => p.id !== id),
                 activeProfile: state.activeProfile?.id === id ? null : state.activeProfile
+            })),
+
+            setSavedPages: (pages) => set({ savedPages: pages }),
+            setActivePageId: (id) => set({ activePageId: id }),
+
+            setVisualProfiles: (profiles) => set({ visualProfiles: profiles }),
+            addVisualProfile: (profile) => set((state) => ({
+                visualProfiles: [...state.visualProfiles, profile]
+            })),
+            updateVisualProfile: (updated) => set((state) => ({
+                visualProfiles: state.visualProfiles.map(p => p.id === updated.id ? updated : p)
+            })),
+            deleteVisualProfile: (id) => set((state) => ({
+                visualProfiles: state.visualProfiles.filter(p => p.id !== id)
             })),
         }),
         {

@@ -55,6 +55,10 @@ export interface ReferenceAnalysis {
   // Detailed Voice Metrics
   toneSensation?: string;        // 語感 (Tone/Voice vibe)
   entryPoint?: string;           // 切入點 (Angle/Entry point)
+
+  // Synthesis Metadata
+  isSynthesis?: boolean;
+  sourceCount?: number;
 }
 
 export interface AuthorityAnalysis {
@@ -89,6 +93,20 @@ export interface SavedProfile {
   targetAudience: TargetAudience;
   productBrief?: ProductBrief; // Deprecated in UI, kept for backward compat
   productRawText?: string;     // NEW: The single source of truth for UI
+  siteUrl?: string;           // NEW: The domain or subfolder for this site profile
+  brandRagUrl?: string;       // NEW: Link to external RAG knowledge base
+}
+
+export interface PageProfile {
+  id: string;
+  name: string;
+  title: string;
+  referenceContent: string;
+  scrapedImages?: ScrapedImage[];
+  websiteType?: string;
+  authorityTerms?: string;
+  targetAudience: TargetAudience;
+  brandRagUrl?: string;       // NEW: Snapshotted link
 }
 
 export interface ScrapedImage {
@@ -111,6 +129,13 @@ export interface ImageAssetPlan {
   url?: string;
   modelAppearance?: 'Asian' | 'Caucasian' | 'Latino' | 'Black';
   designStyle?: 'Photorealistic' | 'Digital Art' | 'Minimalist' | 'Corporate';
+}
+
+export interface VisualProfile {
+  id: string;
+  name: string;
+  modelAppearance: string;
+  designStyle: string;
 }
 
 export interface ArticleConfig {
@@ -139,7 +164,7 @@ export interface ArticleConfig {
   writingStyle?: string;
 }
 
-export type GenerationStatus = 'idle' | 'analyzing' | 'analysis_ready' | 'streaming' | 'completed' | 'error';
+export type GenerationStatus = 'idle' | 'analyzing' | 'analysis_ready' | 'planning_visuals' | 'streaming' | 'completed' | 'error';
 
 export type GenerationStep = 'idle' | 'fetching_url' | 'parsing_product' | 'nlp_analysis' | 'extracting_structure' | 'analyzing_visuals' | 'analyzing_authority' | 'planning_keywords' | 'mapping_product' | 'writing_content' | 'refining_headings' | 'generating_images' | 'localizing_hk' | 'finalizing';
 
@@ -237,4 +262,6 @@ export interface AnalysisDocument {
   productBrief: ProductBrief | undefined;
   targetAudience: TargetAudience;
   languageInstruction: string;
+  sourceContent?: string;
+  brandRagUrl?: string; // NEW: Link to external RAG
 }

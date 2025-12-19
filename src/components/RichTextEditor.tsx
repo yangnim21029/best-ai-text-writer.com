@@ -110,7 +110,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         focus: () => void;
         editor?: any;
     } | null>(null);
-    const [localModelAppearance, setLocalModelAppearance] = useState<ImageAssetPlan['modelAppearance']>('Asian');
     const askAiRef = useRef<AskAiSelectionHandle>(null);
 
     useEffect(() => {
@@ -640,10 +639,10 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                         onUpdatePlan={updatePlanPrompt}
                         onDeletePlan={deletePlan}
                         onInject={injectImageIntoEditor}
-                        modelAppearance={localModelAppearance}
-                        setModelAppearance={(v) => setLocalModelAppearance(v as any)}
+                        modelAppearance={imageEditorModelAppearance}
+                        setModelAppearance={setImageEditorModelAppearance}
                         designStyle={localDesignStyle}
-                        setDesignStyle={(v) => setLocalDesignStyle(v as any)}
+                        setDesignStyle={setLocalDesignStyle}
                     />
                 </div>
 

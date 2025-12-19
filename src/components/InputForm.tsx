@@ -1,6 +1,4 @@
-'use client';
-
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { SubmitHandler } from 'react-hook-form';
 import { ArticleConfig, CostBreakdown, GenerationStep, SavedProfile, ScrapedImage, TargetAudience, TokenUsage } from '@/types';
 import { ArticleFormValues } from '@/schemas/formSchema';
@@ -8,13 +6,17 @@ import { summarizeBrandContent } from '@/services/research/productFeatureToPainP
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
-import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Image as ImageIcon, ChevronDown, Database, FileText } from 'lucide-react';
+import { LayoutTemplate, Trash2, Sparkles, Settings2, Zap, BookOpen, Loader2, Image as ImageIcon, ChevronDown, Database, FileText, Link2, FileUp, Slack, Github, FolderOpen } from 'lucide-react';
 import { useArticleForm } from '@/hooks/useArticleForm';
 import { useSemanticFilter } from '@/hooks/useSemanticFilter';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
-import { useGenerationStore } from '@/store/useGenerationStore';
-import { EMBED_MODEL_ID } from '@/config/constants';
+import { WebsiteLibraryModal } from './modals/WebsiteLibraryModal';
+import { ServiceLibraryModal } from './modals/ServiceLibraryModal';
+import { fetchUrlContent } from '@/services/research/webScraper';
+import { extractWebsiteTypeAndTerm } from '@/services/research/referenceAnalysisService';
+import { PageLibraryModal } from './modals/PageLibraryModal';
+import { PageProfile } from '@/types';
 
 interface InputFormProps {
     onGenerate: (config: ArticleConfig) => void;
@@ -24,10 +26,17 @@ interface InputFormProps {
     canGenerateSections?: boolean;
     currentStep: GenerationStep;
     onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
+    // Website Profiles
     savedProfiles?: SavedProfile[];
     setSavedProfiles?: (profiles: SavedProfile[]) => void;
     activeProfile?: SavedProfile | null;
     onSetActiveProfile?: (profile: SavedProfile | null) => void;
+    // Page Profiles
+    savedPages?: PageProfile[];
+    setSavedPages?: (pages: PageProfile[]) => void;
+    activePageId?: string;
+    onSetActivePageId?: (id: string | undefined) => void;
+
     inputType: 'text' | 'url';
     setInputType: (type: 'text' | 'url') => void;
     brandKnowledge?: string;
@@ -36,6 +45,7 @@ interface InputFormProps {
 }
 
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
+const PAGES_STORAGE_KEY = 'pro_content_writer_pages_v1';
 
 const ThresholdInput: React.FC<{
     value: string;
@@ -89,12 +99,23 @@ export const InputForm: React.FC<InputFormProps> = ({
     setSavedProfiles,
     activeProfile,
     onSetActiveProfile,
+    savedPages = [],
+    setSavedPages,
+    activePageId,
+    onSetActivePageId,
     inputType,
     setInputType,
     brandKnowledge = '',
     onShowPlan,
     hasPlan = false
 }) => {
+    const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false);
+    const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
+    const [isPageModalOpen, setIsPageModalOpen] = useState(false);
+
+    const analysisStore = useAnalysisStore();
+    const { useRag, autoImagePlan } = useAppStore();
+
     const {
         register,
         handleSubmit,
@@ -116,6 +137,10 @@ export const InputForm: React.FC<InputFormProps> = ({
         deleteProfile,
         applyProfileToForm,
         loadProductFromProfile,
+        createPage,
+        updatePage,
+        deletePage,
+        applyPageToForm,
         usableImages,
         handleClear,
     } = useArticleForm({
@@ -124,8 +149,56 @@ export const InputForm: React.FC<InputFormProps> = ({
         setSavedProfiles,
         activeProfile,
         onSetActiveProfile,
+        savedPages,
+        setSavedPages,
+        activePageId,
+        onSetActivePageId,
+        setBrandRagUrl: analysisStore.setBrandRagUrl,
+        onAddCost,
         setInputType,
     });
+
+    const handleAnalyzeSite = async (url: string) => {
+        const { content } = await fetchUrlContent(url, { includeNav: true });
+        const res = await extractWebsiteTypeAndTerm(content);
+        if (onAddCost) onAddCost(res.cost, res.usage);
+        return { websiteType: res.data.websiteType, authorityTerms: res.data.authorityTerms };
+    };
+
+    React.useEffect(() => {
+        const handleUpdateEvent = () => {
+            if (activeProfile) {
+                const updated = updateProfile(activeProfile.id, watchedValues);
+                if (updated) alert('Website Profile synced with current form changes!');
+            } else {
+                alert('No active website profile to sync.');
+            }
+        };
+
+        const handleUpdatePageEvent = () => {
+            if (activePageId) {
+                const refreshedImages = usableImages;
+                const updated = updatePage(activePageId, {
+                    title: watchedValues.title,
+                    referenceContent: watchedValues.referenceContent,
+                    scrapedImages: refreshedImages,
+                    websiteType: watchedValues.websiteType,
+                    authorityTerms: watchedValues.authorityTerms,
+                    targetAudience: watchedValues.targetAudience,
+                });
+                if (updated) alert('Page Profile synced with current form changes!');
+            } else {
+                alert('No active page profile to sync.');
+            }
+        };
+
+        window.addEventListener('updateActiveProfile', handleUpdateEvent);
+        window.addEventListener('updateActivePage', handleUpdatePageEvent);
+        return () => {
+            window.removeEventListener('updateActiveProfile', handleUpdateEvent);
+            window.removeEventListener('updateActivePage', handleUpdatePageEvent);
+        };
+    }, [activeProfile, updateProfile, watchedValues, activePageId, updatePage, usableImages]);
 
     const {
         isChunkModalOpen,
@@ -144,9 +217,6 @@ export const InputForm: React.FC<InputFormProps> = ({
         setSemanticThresholdInput,
         commitSemanticThreshold
     } = useSemanticFilter();
-
-    const analysisStore = useAnalysisStore();
-    const { useRag, autoImagePlan } = useAppStore();
 
     const semanticThresholdValue = useMemo(() => {
         const parsed = parseFloat(semanticThresholdInput);
@@ -180,6 +250,7 @@ export const InputForm: React.FC<InputFormProps> = ({
 
     const handleFetchUrl = async () => {
         await fetchAndPopulate(watchedValues.urlInput || '');
+        if (onSetActivePageId) onSetActivePageId(undefined);
     };
 
     const handleImportProductUrls = async () => {
@@ -195,7 +266,9 @@ export const InputForm: React.FC<InputFormProps> = ({
 
             if (onAddCost) onAddCost(res.cost, res.usage);
 
-            updateProfile({ ...watchedValues, productRawText: res.data });
+            if (activeProfile) {
+                updateProfile(activeProfile.id, { productRawText: res.data });
+            }
         } catch (e) {
             alert('Failed to summarize brand content.');
         } finally {
@@ -244,6 +317,13 @@ export const InputForm: React.FC<InputFormProps> = ({
         }
     };
 
+    const handleLoadProfile = (profile: SavedProfile) => {
+        applyProfileToForm(profile);
+        setProductMode('text');
+        setIsWebsiteModalOpen(false);
+        setIsServiceModalOpen(false);
+    };
+
     return (
         <div className="flex flex-col h-full bg-slate-50/80 overflow-hidden font-sans">
             {/* Header Area */}
@@ -278,131 +358,7 @@ export const InputForm: React.FC<InputFormProps> = ({
 
                 <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-24">
 
-                    {/* NEW: Knowledge Hub Section */}
-                    <div className="space-y-4">
-                        <div className="flex items-center gap-2 px-1">
-                            <Database className="w-3.5 h-3.5 text-indigo-600" />
-                            <h3 className="text-[10px] font-extrabold uppercase text-gray-400 tracking-wider">Knowledge Hub</h3>
-                        </div>
-
-                        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                            {/* Analysis Documents / Knowledge Objects */}
-                            <div className="p-3 border-b border-gray-50 bg-indigo-50/30">
-                                <label className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 uppercase mb-2">
-                                    <FileText className="w-3 h-3" /> Analysis Documents
-                                </label>
-                                <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
-                                    {analysisStore.analysisDocuments.length === 0 ? (
-                                        <p className="text-[10px] text-gray-400 italic py-2 text-center">No knowledge objects yet. Run Step 1 to create one.</p>
-                                    ) : (
-                                        analysisStore.analysisDocuments.map(doc => {
-                                            const isSelected = analysisStore.selectedDocumentIds.includes(doc.id);
-                                            return (
-                                                <div
-                                                    key={doc.id}
-                                                    role="button"
-                                                    tabIndex={0}
-                                                    onClick={() => analysisStore.toggleDocumentSelection(doc.id)}
-                                                    onKeyDown={(e) => {
-                                                        if (e.key === 'Enter' || e.key === ' ') {
-                                                            e.preventDefault();
-                                                            analysisStore.toggleDocumentSelection(doc.id);
-                                                        }
-                                                    }}
-                                                    className={`w-full text-left p-2 rounded-lg border transition-all flex items-center gap-2 group/doc cursor-pointer ${isSelected
-                                                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                                                        : 'bg-white border-gray-100 text-gray-700 hover:border-indigo-200 hover:bg-indigo-50/50'
-                                                        }`}
-                                                >
-                                                    <div className={`w-3 h-3 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-white border-white' : 'border-gray-300'}`}>
-                                                        {isSelected && <div className="w-1.5 h-1.5 bg-indigo-600 rounded-sm" />}
-                                                    </div>
-                                                    <div className="min-w-0 flex-1">
-                                                        <div className="text-[11px] font-bold truncate">{doc.title}</div>
-                                                        <div className={`text-[9px] ${isSelected ? 'text-indigo-100' : 'text-gray-400'}`}>
-                                                            {new Date(doc.timestamp).toLocaleString()}
-                                                        </div>
-                                                    </div>
-                                                    <button
-                                                        type="button"
-                                                        onClick={(e) => {
-                                                            e.stopPropagation();
-                                                            if (confirm('Delete this analysis document?')) {
-                                                                analysisStore.deleteDocument(doc.id);
-                                                            }
-                                                        }}
-                                                        className={`p-1 rounded hover:bg-white/20 transition-opacity ${isSelected ? 'opacity-80' : 'opacity-0 group-hover/doc:opacity-100 text-gray-300 hover:text-red-500'
-                                                            }`}
-                                                    >
-                                                        <Trash2 className="w-3 h-3" />
-                                                    </button>
-                                                </div>
-                                            );
-                                        })
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Existing Sections moved here */}
-                            <div className="divide-y divide-gray-50">
-                                <div className="p-1">
-                                    <WebsiteProfileSection
-                                        register={register}
-                                        targetAudience={watchedValues.targetAudience}
-                                        websiteType={watchedValues.websiteType}
-                                        authorityTerms={watchedValues.authorityTerms}
-                                        savedProfiles={savedProfiles}
-                                        activeProfile={activeProfile}
-                                        brandKnowledge={brandKnowledge} // Still using the prop for now
-                                        onCreateProfile={(name) => createProfile(name, watchedValues)}
-                                        onUpdateProfile={() => updateProfile(watchedValues)}
-                                        onDeleteProfile={deleteProfile}
-                                        onLoadProfile={(profile) => {
-                                            applyProfileToForm(profile);
-                                            setProductMode('text');
-                                        }}
-                                    />
-                                </div>
-                                <div className="p-1">
-                                    <ServiceProductSection
-                                        register={register}
-                                        productMode={productMode}
-                                        setProductMode={setProductMode}
-                                        productRawText={watchedValues.productRawText}
-                                        isSummarizingProduct={isSummarizingProduct}
-                                        canAnalyzeFromUrls={Boolean(watchedValues.productUrlList)}
-                                        savedProfiles={savedProfiles}
-                                        activeProfile={activeProfile}
-                                        onCreateProfile={(name) => createProfile(name, watchedValues)}
-                                        onUpdateProfile={() => updateProfile(watchedValues)}
-                                        onLoadProductFromProfile={(profile) => {
-                                            loadProductFromProfile(profile);
-                                            setProductMode('text');
-                                        }}
-                                        onAnalyzeFromUrls={handleImportProductUrls}
-                                    />
-                                </div>
-
-                                {/* Brand Knowledge Area directly in Hub */}
-                                <div className="p-4 bg-slate-50/50">
-                                    <label className="flex items-center gap-1.5 text-[10px] font-bold text-gray-500 uppercase mb-2">
-                                        <BookOpen className="w-3 h-3" /> Brand Knowledge (RAG)
-                                    </label>
-                                    <textarea
-                                        value={analysisStore.brandKnowledge}
-                                        onChange={(e) => analysisStore.setBrandKnowledge(e.target.value)}
-                                        placeholder="Paste brand guidelines, whitepapers, or specific facts here..."
-                                        className="w-full h-24 p-3 bg-white border border-gray-200 rounded-lg text-xs text-gray-700 outline-none focus:border-indigo-500 transition-all resize-none custom-scrollbar"
-                                    />
-                                    <div className="mt-1 flex justify-between items-center text-[9px] text-gray-400 font-mono">
-                                        <span>{analysisStore.brandKnowledge.length} characters</span>
-                                        {analysisStore.brandKnowledge.length > 0 && <span className="text-green-600 font-bold">RAG ACTIVE</span>}
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
+                    {/* 1. Source Material (Top Priority) */}
                     <SourceMaterialSection
                         register={register}
                         errors={errors}
@@ -417,9 +373,159 @@ export const InputForm: React.FC<InputFormProps> = ({
                         isFetchingUrl={isFetchingUrl}
                         onRequestSemanticFilter={handlePreviewSemanticFilter}
                         canSemanticFilter={(watchedValues.referenceContent || '').trim().length > 0}
+                        websiteType={watchedValues.websiteType}
+                        activePageId={activePageId}
+                        onOpenLibrary={() => setIsPageModalOpen(true)}
+                        onCreatePage={(name) => createPage({ name, ...watchedValues, scrapedImages })}
+                        activePageTitle={savedPages.find(p => p.id === activePageId)?.name || watchedValues.title}
                     />
 
+                    {/* 2. Analysis Documents (Separate Card) */}
+                    <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                        <div className="p-3 bg-indigo-50/30">
+                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 uppercase mb-2">
+                                <FileText className="w-3 h-3" /> Analysis Documents
+                            </label>
+                            <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
+                                {analysisStore.analysisDocuments.length === 0 ? (
+                                    <p className="text-[10px] text-gray-400 italic py-2 text-center">No knowledge objects yet. Run Step 1 to create one.</p>
+                                ) : (
+                                    analysisStore.analysisDocuments.map(doc => {
+                                        const isSelected = analysisStore.selectedDocumentIds.includes(doc.id);
+                                        return (
+                                            <div
+                                                key={doc.id}
+                                                role="button"
+                                                tabIndex={0}
+                                                onClick={() => analysisStore.toggleDocumentSelection(doc.id)}
+                                                onKeyDown={(e) => {
+                                                    if (e.key === 'Enter' || e.key === ' ') {
+                                                        e.preventDefault();
+                                                        analysisStore.toggleDocumentSelection(doc.id);
+                                                    }
+                                                }}
+                                                className={`w-full text-left p-2 rounded-lg border transition-all flex items-center gap-2 group/doc cursor-pointer ${isSelected
+                                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
+                                                    : 'bg-white border-gray-100 text-gray-700 hover:border-indigo-200 hover:bg-indigo-50/50'
+                                                    }`}
+                                            >
+                                                <div className={`w-3 h-3 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-white border-white' : 'border-gray-300'}`}>
+                                                    {isSelected && <div className="w-1.5 h-1.5 bg-indigo-600 rounded-sm" />}
+                                                </div>
+                                                <div className="min-w-0 flex-1">
+                                                    <div className="text-[11px] font-bold truncate">{doc.title}</div>
+                                                    <div className={`text-[9px] ${isSelected ? 'text-indigo-100' : 'text-gray-400'}`}>
+                                                        {new Date(doc.timestamp).toLocaleString()}
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm('Delete this analysis document?')) {
+                                                            analysisStore.deleteDocument(doc.id);
+                                                        }
+                                                    }}
+                                                    className={`p-1 rounded hover:bg-white/20 transition-opacity ${isSelected ? 'opacity-80' : 'opacity-0 group-hover/doc:opacity-100 text-gray-300 hover:text-red-500'
+                                                        }`}
+                                                >
+                                                    <Trash2 className="w-3 h-3" />
+                                                </button>
+                                            </div>
+                                        );
+                                    })
+                                )}
+                            </div>
+                        </div>
+                    </div>
 
+                    {/* 3. Global Library Explorer */}
+                    <div className="space-y-4 pt-2 border-t border-gray-100">
+                        <div className="px-1 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                                <BookOpen className="w-3.5 h-3.5 text-blue-600" />
+                                <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wider">Website Profile</h4>
+                            </div>
+                        </div>
+
+                        {/* Flat Sections No Nesting inside one card */}
+                        <div className="space-y-3">
+                            <WebsiteProfileSection
+                                savedProfiles={savedProfiles}
+                                activeProfile={activeProfile}
+                                onOpenLibrary={() => setIsWebsiteModalOpen(true)}
+                            />
+
+                            <ServiceProductSection
+                                register={register}
+                                productMode={productMode}
+                                setProductMode={setProductMode}
+                                productRawText={watchedValues.productRawText}
+                                isSummarizingProduct={isSummarizingProduct}
+                                canAnalyzeFromUrls={Boolean(watchedValues.productUrlList)}
+                                activeProfile={activeProfile}
+                                onOpenLibrary={() => setIsServiceModalOpen(true)}
+                                onAnalyzeFromUrls={handleImportProductUrls}
+                            />
+
+                            <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-4">
+                                <label className="flex items-center gap-1.5 text-[11px] font-black text-slate-800 uppercase tracking-wider mb-3">
+                                    <BookOpen className="w-3.5 h-3.5 text-blue-600" /> Brand Knowledge (RAG)
+                                </label>
+
+                                <div className="space-y-3">
+                                    <div className="relative group">
+                                        <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                                            <Link2 className="w-4 h-4" />
+                                        </div>
+                                        <input
+                                            type="url"
+                                            {...register('brandRagUrl')}
+                                            value={analysisStore.brandRagUrl}
+                                            onChange={(e) => {
+                                                analysisStore.setBrandRagUrl(e.target.value);
+                                                setValue('brandRagUrl', e.target.value);
+                                            }}
+                                            placeholder="https://rag.external-brand.com/kb"
+                                            className="w-full pl-9 pr-3 py-2.5 bg-gray-50/50 border border-gray-100 rounded-xl text-xs font-medium text-gray-700 placeholder-gray-300 focus:bg-white focus:border-indigo-500 outline-none transition-all"
+                                        />
+                                    </div>
+
+                                    {/* Disabled Connection Options */}
+                                    <div className="flex items-center gap-3 px-1 pt-1 opacity-40 grayscale pointer-events-none select-none">
+                                        <div className="flex items-center gap-1 text-[9px] font-black text-gray-400 uppercase tracking-tighter">
+                                            Connect
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <div title="Upload PDF (Coming Soon)" className="p-1.5 rounded-lg bg-gray-50 border border-gray-100"><FileUp className="w-3.5 h-3.5" /></div>
+                                            <div title="Connect Notion (Coming Soon)" className="p-1.5 rounded-lg bg-gray-50 border border-gray-100"><FileText className="w-3.5 h-3.5" /></div>
+                                            <div title="Connect Slack (Coming Soon)" className="p-1.5 rounded-lg bg-gray-50 border border-gray-100"><Slack className="w-3.5 h-3.5" /></div>
+                                            <div title="Connect Google Drive (Coming Soon)" className="p-1.5 rounded-lg bg-gray-50 border border-gray-100"><FolderOpen className="w-3.5 h-3.5" /></div>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex items-center justify-between px-1">
+                                        <div className="flex items-center gap-2">
+                                            <div className={`w-2 h-2 rounded-full ${analysisStore.brandRagUrl ? 'bg-green-500 animate-pulse' : 'bg-gray-200'}`} />
+                                            <span className="text-[10px] font-bold text-gray-500">
+                                                {analysisStore.brandRagUrl ? 'LINKED TO EXTERNAL RAG' : 'NO RAG LINKED'}
+                                            </span>
+                                        </div>
+                                        {analysisStore.brandRagUrl && (
+                                            <a
+                                                href={analysisStore.brandRagUrl}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="text-[10px] text-indigo-600 font-bold hover:underline"
+                                            >
+                                                OPEN SOURCE
+                                            </a>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
                 </div>
 
@@ -468,6 +574,53 @@ export const InputForm: React.FC<InputFormProps> = ({
                 </div>
             </form>
 
+            {/* Library Modals */}
+            <WebsiteLibraryModal
+                isOpen={isWebsiteModalOpen}
+                onClose={() => setIsWebsiteModalOpen(false)}
+                profiles={savedProfiles}
+                activeProfileId={activeProfile?.id}
+                onSelect={handleLoadProfile}
+                onDelete={deleteProfile}
+                onUpdate={updateProfile}
+                onAnalyzeSite={handleAnalyzeSite}
+                onCreate={(name, siteUrl) => {
+                    const created = createProfile(name, { ...watchedValues, siteUrl });
+                    if (created) setIsWebsiteModalOpen(false);
+                }}
+            />
+
+            <ServiceLibraryModal
+                isOpen={isServiceModalOpen}
+                onClose={() => setIsServiceModalOpen(false)}
+                profiles={savedProfiles}
+                activeProfileId={activeProfile?.id}
+                onSelect={handleLoadProfile}
+                onDelete={deleteProfile}
+                onCreate={(name, content) => {
+                    const created = createProfile(name, { ...watchedValues, productRawText: content });
+                    if (created) setIsServiceModalOpen(false);
+                }}
+                onUpdate={(id, updates) => {
+                    updateProfile(id, updates);
+                }}
+            />
+
+            <PageLibraryModal
+                isOpen={isPageModalOpen}
+                onClose={() => setIsPageModalOpen(false)}
+                pages={savedPages}
+                activePageId={activePageId}
+                onSelect={(page) => {
+                    applyPageToForm(page);
+                    setIsPageModalOpen(false);
+                }}
+                onDelete={deletePage}
+                onCreate={(name) => {
+                    createPage({ name, ...watchedValues, scrapedImages });
+                }}
+            />
+
             {isChunkModalOpen && (
                 <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm flex items-center justify-center p-4">
                     <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
@@ -503,60 +656,55 @@ export const InputForm: React.FC<InputFormProps> = ({
                                                 {manualKeep[idx] ? '手動通過' : '手動通過？'}
                                             </button>
                                             {typeof chunkScores[idx] === 'number' && !Number.isNaN(chunkScores[idx]) ? (
-                                                <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full border text-[10px] ${chunkScores[idx] >= semanticThresholdValue
-                                                    ? 'border-green-200 text-green-700 bg-green-50'
-                                                    : 'border-amber-200 text-amber-700 bg-amber-50'
-                                                    }`}>
-                                                    相似度 {chunkScores[idx].toFixed(3)}
+                                                <span className={`font-mono font-bold ${chunkScores[idx] >= semanticThresholdValue ? 'text-green-500' : 'text-amber-500'}`}>
+                                                    {(chunkScores[idx] * 100).toFixed(0)}% Match
                                                 </span>
                                             ) : (
-                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full border border-gray-200 text-[10px] text-gray-500 bg-white">
-                                                    {isScoringChunks ? '計算中…' : '等待計算'}
-                                                </span>
+                                                <span className="text-gray-300">Scoring...</span>
                                             )}
-                                            <span>{chunk.length} chars</span>
                                         </div>
                                     </div>
-                                    <p className="text-xs text-gray-800 whitespace-pre-wrap leading-relaxed">{chunk}</p>
+                                    <pre className="text-[10px] text-gray-600 font-sans whitespace-pre-wrap leading-relaxed">
+                                        {chunk}
+                                    </pre>
                                 </div>
                             ))}
-                            {chunkPreview.length === 0 && (
-                                <div className="text-xs text-gray-500">尚無可預覽的段落。</div>
+
+                            {!chunkPreview.length && !filterError && (
+                                <div className="text-center py-10 space-y-3">
+                                    <Loader2 className="w-8 h-8 animate-spin text-gray-200 mx-auto" />
+                                    <p className="text-xs text-gray-400 italic">正在分析內容分段語意...</p>
+                                </div>
+                            )}
+
+                            {filterError && (
+                                <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-center">
+                                    <p className="text-xs text-red-600 font-semibold">{filterError}</p>
+                                </div>
                             )}
                         </div>
 
-                        {filterError && (
-                            <div className="px-5 py-2 text-[11px] text-red-600 border-t border-amber-100 bg-amber-50">
-                                {filterError}
-                            </div>
-                        )}
-
-                        <div className="px-5 py-4 border-t border-gray-100 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex flex-col gap-2 text-[11px] text-gray-500">
-                                <div>
-                                    使用標題向量比對每個段落，低於 {semanticThresholdLabel} 的會被移除；手動通過的段落會強制保留。{isScoringChunks ? ' (計算中...)' : ''}
-                                </div>
-                                <label className="flex flex-wrap items-center gap-2 text-gray-700 font-semibold">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[10px] uppercase tracking-wide">閾值</span>
-                                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-full shadow-sm text-[10px] font-semibold">
-                                            <Zap className="w-3 h-3" />
-                                            <span>{EMBED_MODEL_ID}</span>
-                                        </span>
-                                    </div>
+                        <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col gap-4">
+                            <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-bold text-gray-500 uppercase">語意閾值調整 (0-1)</span>
+                                <div className="flex items-center gap-2">
+                                    <span className="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded ring-1 ring-indigo-100">
+                                        {semanticThresholdLabel} {isScoringChunks ? "..." : ""}
+                                    </span>
                                     <ThresholdInput
                                         value={semanticThresholdInput}
                                         onChange={setSemanticThresholdInput}
                                         onCommit={commitSemanticThreshold}
                                     />
-                                </label>
+                                </div>
                             </div>
+
                             <div className="flex gap-2">
                                 <button
                                     type="button"
+                                    className="flex-1 py-2 text-[12px] font-bold text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
                                     onClick={() => setIsChunkModalOpen(false)}
                                     disabled={isFilteringChunks || isScoringChunks}
-                                    className="px-3 py-2 text-[12px] font-semibold text-gray-600 bg-gray-100 rounded-lg border border-gray-200 hover:bg-gray-200 transition-colors disabled:opacity-50"
                                 >
                                     取消
                                 </button>

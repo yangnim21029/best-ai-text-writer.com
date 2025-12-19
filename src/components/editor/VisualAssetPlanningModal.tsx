@@ -3,6 +3,7 @@ import { X, ImageIcon, Sparkles, Wand2, Settings2, Trash2, PlayCircle, Loader2, 
 import { ImageAssetPlan } from '../../types';
 import { cn } from '../../utils/cn';
 import { downloadImage } from '../../utils/imageUtils';
+import { useAppStore } from '../../store/useAppStore';
 
 interface VisualAssetPlanningModalProps {
     open: boolean;
@@ -41,6 +42,7 @@ export const VisualAssetPlanningModal: React.FC<VisualAssetPlanningModalProps> =
     designStyle,
     setDesignStyle,
 }) => {
+    const { visualProfiles } = useAppStore();
     const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
 
     if (!open) return null;
@@ -120,6 +122,46 @@ export const VisualAssetPlanningModal: React.FC<VisualAssetPlanningModalProps> =
                 <div className="flex-1 flex overflow-hidden">
                     {/* Sidebar: Global Style Settings */}
                     <aside className="w-80 border-r border-gray-50 bg-gray-50/30 overflow-y-auto custom-scrollbar p-6 space-y-8">
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] block flex items-center gap-2">
+                                <Layout className="w-3 h-3 text-indigo-500" />
+                                Style Library
+                            </label>
+                            <div className="grid grid-cols-1 gap-2">
+                                {visualProfiles.map(profile => (
+                                    <button
+                                        key={profile.id}
+                                        onClick={() => {
+                                            setModelAppearance(profile.modelAppearance);
+                                            setDesignStyle(profile.designStyle);
+                                        }}
+                                        className="w-full px-3 py-2 text-left bg-white border border-gray-100 rounded-xl text-xs font-bold text-gray-700 hover:border-blue-200 hover:bg-blue-50/30 transition-all flex items-center justify-between group shadow-sm"
+                                    >
+                                        {profile.name}
+                                        <ArrowRight className="w-3 h-3 opacity-0 group-hover:opacity-100 text-blue-500 transition-opacity" />
+                                    </button>
+                                ))}
+
+                                <button
+                                    onClick={() => {
+                                        const name = window.prompt('Enter preset name:');
+                                        if (name && (modelAppearance || designStyle)) {
+                                            const { addVisualProfile } = useAppStore.getState();
+                                            addVisualProfile({
+                                                id: Math.random().toString(36).substring(2, 9),
+                                                name,
+                                                modelAppearance,
+                                                designStyle
+                                            });
+                                        }
+                                    }}
+                                    className="w-full px-3 py-2 bg-blue-50/50 border border-dashed border-blue-200 text-blue-600 rounded-xl text-[10px] font-black uppercase tracking-wider hover:bg-blue-100/50 transition-all"
+                                >
+                                    + Save Current as Preset
+                                </button>
+                            </div>
+                        </div>
+
                         <div>
                             <label className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 block flex items-center gap-2">
                                 <User className="w-3 h-3 text-blue-500" />
