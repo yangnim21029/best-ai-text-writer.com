@@ -24,11 +24,18 @@ export const runContentGeneration = async (
     const analysisStore = useAnalysisStore.getState();
     const appStore = useAppStore.getState();
 
-    const { productResult, structureResult } = analysisResults;
-    const parsedProductBrief = productResult?.brief;
-    const productMappingData = productResult?.mapping || [];
-    const refAnalysisData = structureResult?.structRes.data;
-    const authAnalysisData = structureResult?.authRes.data;
+    const { productResult, structureResult } = analysisResults || {};
+    const parsedProductBrief = analysisStore.activeProductBrief || productResult?.brief;
+    const productMappingData = analysisStore.productMapping.length > 0 ? analysisStore.productMapping : (productResult?.mapping || []);
+
+    // Prioritize AnalysisStore (which might be Synthesized or Edited)
+    const refAnalysisData = analysisStore.refAnalysis || structureResult?.structRes.data;
+    const authAnalysisData = analysisStore.authAnalysis || structureResult?.authRes.data;
+
+    // Override reference content if we have a better source (e.g. from store/RAG)
+    if (analysisStore.referenceContent) {
+        config.referenceContent = analysisStore.referenceContent;
+    }
 
     // 1. Determine Sections
     let sectionsToGenerate: (Partial<SectionAnalysis> & { title: string; specificPlan?: string[] })[] = [];

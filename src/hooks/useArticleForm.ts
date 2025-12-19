@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { articleFormSchema, ArticleFormValues } from '../schemas/formSchema';
-import { SavedProfile, ScrapedImage } from '../types';
+import { ArticleFormValues, articleFormSchema } from '../schemas/formSchema';
+import { SavedProfile, ScrapedImage, PageProfile, CostBreakdown, TokenUsage } from '../types';
 import { useUrlScraper } from './useUrlScraper';
 import { useProfileManager } from './useProfileManager';
 import { useStorageReset } from './useStorageReset';
@@ -16,6 +16,14 @@ interface UseArticleFormParams {
     setSavedProfiles?: (profiles: SavedProfile[]) => void;
     activeProfile?: SavedProfile | null;
     onSetActiveProfile?: (profile: SavedProfile | null) => void;
+    // Page Profiles
+    savedPages?: PageProfile[];
+    setSavedPages?: (pages: PageProfile[]) => void;
+    activePageId?: string;
+    onSetActivePageId?: (id: string | undefined) => void;
+    setBrandRagUrl?: (url: string) => void;
+    onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
+
     setInputType: (type: 'text' | 'url') => void;
 }
 
@@ -25,6 +33,12 @@ export const useArticleForm = ({
     setSavedProfiles,
     activeProfile,
     onSetActiveProfile,
+    savedPages = [],
+    setSavedPages,
+    activePageId,
+    onSetActivePageId,
+    setBrandRagUrl,
+    onAddCost,
     setInputType,
 }: UseArticleFormParams) => {
     const {
@@ -51,6 +65,7 @@ export const useArticleForm = ({
 
     const watchedValues = watch();
 
+    const [scrapedImages, setScrapedImages] = useState<ScrapedImage[]>([]);
     const [productMode, setProductMode] = useState<'text' | 'url'>('text');
     const [isSummarizingProduct, setIsSummarizingProduct] = useState(false);
     const [refCharCount, setRefCharCount] = useState(0);
@@ -58,28 +73,41 @@ export const useArticleForm = ({
     const { clearAll } = useStorageReset();
 
     const {
-        scrapedImages,
-        setScrapedImages,
-        isFetchingUrl,
-        fetchAndPopulate
-    } = useUrlScraper({
-        setValue,
-        setInputType,
-    });
-
-    const {
         createProfile,
         updateProfile,
         deleteProfile,
         applyProfileToForm,
         loadProductFromProfile,
+        createPage,
+        updatePage,
+        deletePage,
+        applyPageToForm,
     } = useProfileManager({
         savedProfiles,
         setSavedProfiles,
         activeProfile,
         onSetActiveProfile,
+        savedPages,
+        setSavedPages,
+        activePageId,
+        onSetActivePageId,
         brandKnowledge,
         setValue,
+        setScrapedImages,
+        setBrandRagUrl,
+    });
+
+    const {
+        isFetchingUrl,
+        fetchAndPopulate,
+    } = useUrlScraper({
+        setValue,
+        onAddCost,
+        setInputType,
+        onCreatePage: createPage,
+        targetAudience: watch('targetAudience'),
+        scrapedImages,
+        setScrapedImages,
     });
 
     // Restore persisted form
@@ -155,6 +183,10 @@ export const useArticleForm = ({
         deleteProfile,
         applyProfileToForm,
         loadProductFromProfile,
+        createPage,
+        updatePage,
+        deletePage,
+        applyPageToForm,
         usableImages,
         handleClear,
     };

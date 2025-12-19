@@ -382,8 +382,8 @@ export const InputForm: React.FC<InputFormProps> = ({
 
                     {/* 2. Analysis Documents (Separate Card) */}
                     <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
-                        <div className="p-3 bg-indigo-50/30">
-                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-indigo-700 uppercase mb-2">
+                        <div className="p-3 bg-blue-50/30">
+                            <label className="flex items-center gap-1.5 text-[10px] font-bold text-blue-700 uppercase mb-2">
                                 <FileText className="w-3 h-3" /> Analysis Documents
                             </label>
                             <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
@@ -405,16 +405,16 @@ export const InputForm: React.FC<InputFormProps> = ({
                                                     }
                                                 }}
                                                 className={`w-full text-left p-2 rounded-lg border transition-all flex items-center gap-2 group/doc cursor-pointer ${isSelected
-                                                    ? 'bg-indigo-600 border-indigo-600 text-white shadow-md'
-                                                    : 'bg-white border-gray-100 text-gray-700 hover:border-indigo-200 hover:bg-indigo-50/50'
+                                                    ? 'bg-blue-600 border-blue-600 text-white shadow-md'
+                                                    : 'bg-white border-gray-100 text-gray-700 hover:border-blue-200 hover:bg-blue-50/50'
                                                     }`}
                                             >
                                                 <div className={`w-3 h-3 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-white border-white' : 'border-gray-300'}`}>
-                                                    {isSelected && <div className="w-1.5 h-1.5 bg-indigo-600 rounded-sm" />}
+                                                    {isSelected && <div className="w-1.5 h-1.5 bg-blue-600 rounded-sm" />}
                                                 </div>
                                                 <div className="min-w-0 flex-1">
                                                     <div className="text-[11px] font-bold truncate">{doc.title}</div>
-                                                    <div className={`text-[9px] ${isSelected ? 'text-indigo-100' : 'text-gray-400'}`}>
+                                                    <div className={`text-[9px] ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}>
                                                         {new Date(doc.timestamp).toLocaleString()}
                                                     </div>
                                                 </div>

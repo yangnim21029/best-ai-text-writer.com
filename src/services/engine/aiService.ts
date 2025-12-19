@@ -75,11 +75,21 @@ class AIService {
                 data = response.object as T;
             } else {
                 try {
-                    // Clean markdown code blocks if present
-                    const cleanText = response.text.replace(/```(?:json)?\n?|\n?```/gi, '').trim();
-                    data = JSON.parse(cleanText) as T;
+                    // Robust JSON extraction: Find the first '{' and last '}'
+                    const text = response.text;
+                    const firstBrace = text.indexOf('{');
+                    const lastBrace = text.lastIndexOf('}');
+
+                    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                        const jsonStr = text.substring(firstBrace, lastBrace + 1);
+                        data = JSON.parse(jsonStr) as T;
+                    } else {
+                        // Fallback to original cleaning logic
+                        const cleanText = text.replace(/```(?:json)?\n?|\n?```/gi, '').trim();
+                        data = JSON.parse(cleanText) as T;
+                    }
                 } catch (e) {
-                    throw new Error(`Failed to parse JSON response: ${response.text.substring(0, 100)}...`);
+                    throw new Error(`Failed to parse JSON response: ${response.text.substring(0, 200)}...`);
                 }
             }
 
@@ -130,11 +140,21 @@ class AIService {
                 data = response.object as T;
             } else {
                 try {
-                    // Clean markdown code blocks if present
-                    const cleanText = response.text.replace(/```(?:json)?\n?|\n?```/gi, '').trim();
-                    data = JSON.parse(cleanText) as T;
+                    // Robust JSON extraction: Find the first '{' and last '}'
+                    const text = response.text;
+                    const firstBrace = text.indexOf('{');
+                    const lastBrace = text.lastIndexOf('}');
+
+                    if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+                        const jsonStr = text.substring(firstBrace, lastBrace + 1);
+                        data = JSON.parse(jsonStr) as T;
+                    } else {
+                        // Fallback to original cleaning logic
+                        const cleanText = text.replace(/```(?:json)?\n?|\n?```/gi, '').trim();
+                        data = JSON.parse(cleanText) as T;
+                    }
                 } catch (e) {
-                    throw new Error(`Failed to parse JSON response: ${response.text.substring(0, 100)}...`);
+                    throw new Error(`Failed to parse JSON response: ${response.text.substring(0, 200)}...`);
                 }
             }
 

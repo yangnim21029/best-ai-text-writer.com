@@ -12,6 +12,8 @@ export const articleFormSchema = z.object({
     // UI-only fields that might need validation if used
     urlInput: z.string().url("Invalid URL").optional().or(z.literal('')),
     productUrlList: z.string().optional(),
+    siteUrl: z.string().optional(),
+    brandRagUrl: z.string().optional(), // NEW: External RAG Link
 });
 
 export type ArticleFormValues = z.infer<typeof articleFormSchema>;

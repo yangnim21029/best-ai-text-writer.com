@@ -16,6 +16,7 @@ import {
     AuthorityAnalysis, ProblemProductMapping, ProductBrief, TargetAudience,
     SectionAnalysis
 } from '@/types';
+import { mergeMultipleAnalyses } from '@/services/research/referenceAnalysisService';
 
 interface SeoSidebarProps {
     keywordPlans: FrequentWordsPlacementAnalysis[];
@@ -51,6 +52,8 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
 }) => {
     const analysisStore = useAnalysisStore();
     const [viewingDocId, setViewingDocId] = useState<string | null>(null);
+    const [isSynthesizing, setIsSynthesizing] = useState(false);
+    const [synthesisInstruction, setSynthesisInstruction] = useState(''); // NEW state
 
     // Filter selected documents from the store
     const selectedDocs = useMemo(() => {
@@ -113,6 +116,61 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
         }
     };
 
+    const handleSynthesize = async () => {
+        if (selectedDocs.length < 2) return;
+        setIsSynthesizing(true);
+        try {
+            const primaryAudience = selectedDocs[0].targetAudience;
+            const validAnalyses = selectedDocs
+                .map(d => d.refAnalysis)
+                .filter((r): r is ReferenceAnalysis => !!r);
+
+            if (validAnalyses.length < 2) return;
+
+            // 1. Merge Reference Analysis (Structure, Voice, etc.)
+            const mergedRefBase = await mergeMultipleAnalyses(validAnalyses, primaryAudience, synthesisInstruction);
+            const mergedRef: ReferenceAnalysis = {
+                ...mergedRefBase,
+                isSynthesis: true,
+                sourceCount: selectedDocs.length
+            };
+
+            // 2. Merge Keyword Plans (Union) & Source Content (Concat)
+            const keywordMap = new Map<string, FrequentWordsPlacementAnalysis>();
+            let mergedContent = "";
+
+            selectedDocs.forEach((doc, idx) => {
+                // Keywords
+                doc.keywordPlans.forEach(kp => {
+                    if (!keywordMap.has(kp.word)) {
+                        keywordMap.set(kp.word, kp);
+                    }
+                });
+
+                // Content RAG
+                if (doc.sourceContent) {
+                    mergedContent += `\n\n--- Source ${idx + 1} (${doc.title}) ---\n${doc.sourceContent}`;
+                }
+            });
+            const mergedKeywords = Array.from(keywordMap.values());
+
+            // 3. Update Live Store & Switch View
+            analysisStore.setRefAnalysis(mergedRef);
+            analysisStore.setKeywordPlans(mergedKeywords);
+            analysisStore.setReferenceContent(mergedContent.trim()); // NEW: Set RAG Context
+            analysisStore.setSelectedDocumentIds([]); // Switch to Live View to see result
+
+            // 4. Open Plan Modal for User Confirmation/Editing
+            useAppStore.getState().setShowPlanModal(true);
+
+        } catch (error) {
+            console.error("Synthesis failed", error);
+            alert("Synthesis failed. Please try again.");
+        } finally {
+            setIsSynthesizing(false);
+        }
+    };
+
     const difficultyBadge = (value?: string) => {
         const map: Record<string, { label: string; bg: string; text: string; border: string }> = {
             easy: { label: 'Easy', bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100' },
@@ -130,18 +188,18 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     const SectionItem: React.FC<{ section: SectionAnalysis, index: number }> = ({ section, index }) => (
         <div className="relative pl-10 pr-2 group/s pb-4 mb-4 border-b border-gray-50 last:border-0 last:mb-0">
             {/* Index Circle */}
-            <div className="absolute left-1 top-0 w-6 h-6 rounded-full bg-white border-2 border-indigo-100 text-[11px] font-black text-indigo-400 flex items-center justify-center group-hover/s:border-indigo-600 group-hover/s:text-indigo-600 transition-all z-10 shadow-sm">
+            <div className="absolute left-1 top-0 w-6 h-6 rounded-full bg-white border-2 border-blue-100 text-[11px] font-black text-blue-400 flex items-center justify-center group-hover/s:border-blue-600 group-hover/s:text-blue-600 transition-all z-10 shadow-sm">
                 {index + 1}
             </div>
 
             <div className="space-y-2">
                 <div className="flex items-start justify-between gap-3">
-                    <h5 className="text-[12px] font-black text-gray-800 leading-snug group-hover/s:text-indigo-600 transition-colors">
+                    <h5 className="text-[12px] font-black text-gray-800 leading-snug group-hover/s:text-blue-600 transition-colors">
                         {section.title}
                     </h5>
                     <div className="flex items-center gap-1">
                         {section.writingMode && (
-                            <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border border-dashed ${section.writingMode === 'direct' ? 'bg-indigo-50 text-indigo-600 border-indigo-200' : 'bg-purple-50 text-purple-600 border-purple-200'}`}>
+                            <span className={`px-2 py-0.5 text-[9px] font-black rounded-full border border-dashed ${section.writingMode === 'direct' ? 'bg-indigo-50 text-blue-600 border-blue-200' : 'bg-purple-50 text-purple-600 border-purple-200'}`}>
                                 {section.writingMode.toUpperCase()}
                             </span>
                         )}
@@ -151,8 +209,8 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
 
                 {section.coreFocus && (
                     <div className="flex gap-2 items-start">
-                        <Bookmark className="w-3 h-3 text-indigo-400 mt-0.5 shrink-0" />
-                        <p className="text-[10px] font-bold text-indigo-600 leading-tight">Focus: {section.coreFocus}</p>
+                        <Bookmark className="w-3 h-3 text-blue-400 mt-0.5 shrink-0" />
+                        <p className="text-[10px] font-bold text-blue-600 leading-tight">Focus: {section.coreFocus}</p>
                     </div>
                 )}
 
@@ -165,7 +223,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
 
                 {section.coreQuestion && (
                     <div className="bg-slate-50 p-2 rounded-lg border border-slate-100 relative group/q">
-                        <Quote className="absolute -left-1 -top-1 w-3 h-3 text-slate-200 group-hover/q:text-indigo-200" />
+                        <Quote className="absolute -left-1 -top-1 w-3 h-3 text-slate-200 group-hover/q:text-blue-200" />
                         <p className="text-[11px] text-gray-600 leading-relaxed italic pr-2 font-medium">
                             "{section.coreQuestion}"
                         </p>
@@ -285,11 +343,11 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
     );
 
     const KeywordItem: React.FC<{ kw: FrequentWordsPlacementAnalysis }> = ({ kw }) => (
-        <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all group/kw">
+        <div className="bg-white border border-gray-100 rounded-2xl p-3 shadow-sm hover:shadow-md hover:border-blue-100 transition-all group/kw">
             <div className="flex items-center justify-between mb-2">
                 <span className="text-[12px] font-black text-gray-800">{kw.word}</span>
                 <div className="flex gap-1 flex-wrap">
-                    {kw.isSentenceStart && <span className="px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded text-[8px] font-black border border-indigo-100">START</span>}
+                    {kw.isSentenceStart && <span className="px-1.5 py-0.5 bg-indigo-50 text-blue-600 rounded text-[8px] font-black border border-blue-100">START</span>}
                     {kw.isSentenceEnd && <span className="px-1.5 py-0.5 bg-pink-50 text-pink-600 rounded text-[8px] font-black border border-pink-100">END</span>}
                     {kw.isPrefix && <span className="px-1.5 py-0.5 bg-blue-50 text-blue-600 rounded text-[8px] font-black border border-blue-100">PREFIX</span>}
                     {kw.isSuffix && <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-[8px] font-black border border-emerald-100">SUFFIX</span>}
@@ -299,16 +357,16 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
             <div className="space-y-1.5">
                 {kw.plan?.slice(0, 2).map((p, idx) => (
                     <p key={idx} className="text-[10px] text-gray-500 leading-snug flex gap-1.5">
-                        <Zap className="w-2.5 h-2.5 text-indigo-400 mt-0.5 shrink-0" />
+                        <Zap className="w-2.5 h-2.5 text-blue-400 mt-0.5 shrink-0" />
                         <span>{p}</span>
                     </p>
                 ))}
             </div>
 
             {kw.exampleSentence && (
-                <div className="mt-2 p-2 bg-indigo-50/30 rounded-lg border border-indigo-100/30">
-                    <p className="text-[9px] font-black text-indigo-400 uppercase mb-1">Target Example</p>
-                    <p className="text-[10px] text-indigo-900 leading-snug italic">
+                <div className="mt-2 p-2 bg-indigo-50/30 rounded-lg border border-blue-100/30">
+                    <p className="text-[9px] font-black text-blue-400 uppercase mb-1">Target Example</p>
+                    <p className="text-[10px] text-blue-900 leading-snug italic">
                         "{kw.exampleSentence}"
                     </p>
                 </div>
@@ -346,7 +404,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
             <div className="p-4 border-b border-gray-200 bg-white sticky top-0 z-20 shadow-[0_1px_3px_rgba(0,0,0,0.02)]">
                 <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
-                        <div className={`p-1.5 rounded-xl ${isDisplayingDocument ? 'bg-indigo-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'}`}>
+                        <div className={`p-1.5 rounded-xl ${isDisplayingDocument ? 'bg-blue-600 text-white' : 'bg-blue-600 text-white shadow-lg shadow-blue-500/20'}`}>
                             {isDisplayingDocument ? <Database className="w-4 h-4" /> : <BarChart2 className="w-4 h-4" />}
                         </div>
                         <div>
@@ -359,7 +417,30 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                         </div>
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-col gap-3">
+                        {isDisplayingDocument && selectedDocs.length > 1 && (
+                            <div className="flex flex-col gap-2 p-2 bg-indigo-50/50 rounded-xl border border-blue-100">
+                                <div className="flex items-center gap-1.5 px-1">
+                                    <Zap className="w-3 h-3 text-blue-500" />
+                                    <span className="text-[10px] font-black text-blue-700 uppercase tracking-wide">Synthesis Goal</span>
+                                </div>
+                                <textarea
+                                    value={synthesisInstruction}
+                                    onChange={(e) => setSynthesisInstruction(e.target.value)}
+                                    placeholder="Optional: Provide direction (e.g. 'Focus on pricing comparison' or 'Target beginners')..."
+                                    className="w-full text-[11px] p-2 rounded-lg border border-blue-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 bg-white placeholder:text-gray-400 resize-none h-16 leading-relaxed"
+                                />
+                                <button
+                                    onClick={handleSynthesize}
+                                    disabled={isSynthesizing}
+                                    className="w-full text-[10px] font-extrabold text-white bg-gradient-to-r from-violet-600 to-blue-600 px-3 py-2.5 rounded-lg hover:shadow-lg hover:shadow-blue-500/30 transition-all border border-blue-500/50 flex items-center justify-center gap-1.5 disabled:opacity-70 disabled:cursor-wait"
+                                >
+                                    {isSynthesizing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 fill-current" />}
+                                    SYNTHESIZE {selectedDocs.length} SOURCES
+                                </button>
+                            </div>
+                        )}
+
                         {isDisplayingDocument && (
                             <button
                                 onClick={() => analysisStore.setSelectedDocumentIds([])}
@@ -390,7 +471,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     <>
                         {/* 1. Analysis Status Signal */}
                         {status === 'analyzing' && !isDisplayingDocument && (
-                            <div className="p-4 bg-gradient-to-br from-blue-600 via-indigo-600 to-indigo-700 rounded-2xl shadow-xl shadow-blue-500/20 border border-blue-400/30 overflow-hidden relative group">
+                            <div className="p-4 bg-gradient-to-br from-blue-600 via-blue-600 to-blue-700 rounded-2xl shadow-xl shadow-blue-500/20 border border-blue-400/30 overflow-hidden relative group">
                                 <div className="absolute -top-4 -right-4 p-4 opacity-10 rotate-12 transition-transform duration-700 group-hover:scale-150">
                                     <Zap className="w-24 h-24 text-white" />
                                 </div>
@@ -413,22 +494,22 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-4 group hover:shadow-md transition-all duration-300">
                                 <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
                                     <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <Globe className="w-3.5 h-3.5 text-indigo-500" /> Regional DNA
+                                        <Globe className="w-3.5 h-3.5 text-blue-500" /> Regional DNA
                                     </h3>
                                     <div className="flex items-center gap-1.5">
-                                        <button onClick={handleCopyLanguage} className="p-2 hover:bg-indigo-50 rounded-xl transition-all text-gray-400 hover:text-indigo-600 active:scale-95">
+                                        <button onClick={handleCopyLanguage} className="p-2 hover:bg-indigo-50 rounded-xl transition-all text-gray-400 hover:text-blue-600 active:scale-95">
                                             {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                                         </button>
                                         <button
                                             onClick={() => setShowLangDetails(!showLangDetails)}
-                                            className="text-[9px] font-black text-gray-400 hover:text-indigo-600 px-2 py-1 bg-gray-50 rounded-lg hover:bg-white transition-all uppercase tracking-tight"
+                                            className="text-[9px] font-black text-gray-400 hover:text-blue-600 px-2 py-1 bg-gray-50 rounded-lg hover:bg-white transition-all uppercase tracking-tight"
                                         >
                                             {showLangDetails ? 'Collapse' : 'Expand'}
                                         </button>
                                     </div>
                                 </div>
                                 <div className="space-y-4">
-                                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white group-hover:border-indigo-100 transition-colors">
+                                    <div className="flex items-center justify-between p-3 bg-slate-50 rounded-xl border border-slate-100 group-hover:bg-white group-hover:border-blue-100 transition-colors">
                                         <span className="text-[10px] font-black text-gray-400 uppercase">Target Market</span>
                                         <div className="flex items-center gap-2">
                                             <span className="text-[13px] font-black text-slate-800">
@@ -436,7 +517,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                             </span>
                                         </div>
                                     </div>
-                                    <div className={`relative px-4 py-3 bg-indigo-50/20 rounded-2xl border border-indigo-100/40 transition-all duration-500 ${showLangDetails ? 'max-h-[800px]' : 'max-h-[100px] shadow-inner'}`}>
+                                    <div className={`relative px-4 py-3 bg-indigo-50/20 rounded-2xl border border-blue-100/40 transition-all duration-500 ${showLangDetails ? 'max-h-[800px]' : 'max-h-[100px] shadow-inner'}`}>
                                         <div className={`text-[11px] text-gray-600 leading-[1.6] font-mono whitespace-pre-wrap ${showLangDetails ? '' : 'line-clamp-3 overflow-hidden'}`}>
                                             {currentLangInst || 'Default regional formatting applied.'}
                                         </div>
@@ -473,14 +554,14 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                         <div className="space-y-2.5">
                                             <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest px-1">Logic Injection Chain</p>
                                             {currentProductMapping.map((map, i) => (
-                                                <div key={i} className="flex gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 group/item hover:bg-white hover:border-indigo-100 transition-all">
-                                                    <div className="w-2 h-2 rounded-full bg-indigo-500 mt-2 flex-shrink-0 shadow-sm group-hover/item:scale-110 transition-transform" />
+                                                <div key={i} className="flex gap-3 p-3 bg-slate-50/50 rounded-2xl border border-slate-100 group/item hover:bg-white hover:border-blue-100 transition-all">
+                                                    <div className="w-2 h-2 rounded-full bg-blue-500 mt-2 flex-shrink-0 shadow-sm group-hover/item:scale-110 transition-transform" />
                                                     <div className="min-w-0">
                                                         <div className="text-[11px] font-bold text-gray-700 leading-snug mb-1.5">"{map.painPoint}"</div>
                                                         <div className="flex items-center gap-2">
-                                                            <div className="flex items-center gap-1.5 px-2 py-1 bg-white border border-indigo-100 rounded-lg">
-                                                                <ArrowRight className="w-3 h-3 text-indigo-400" />
-                                                                <span className="text-[10px] font-black text-indigo-600 truncate uppercase tracking-tighter">{map.productFeature}</span>
+                                                            <div className="flex items-center gap-1.5 px-2 py-1 bg-white border border-blue-100 rounded-lg">
+                                                                <ArrowRight className="w-3 h-3 text-blue-400" />
+                                                                <span className="text-[10px] font-black text-blue-600 truncate uppercase tracking-tighter">{map.productFeature}</span>
                                                             </div>
                                                         </div>
                                                         {map.relevanceKeywords?.length > 0 && (
@@ -519,14 +600,14 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                     )}
 
                                     {currentRefAnalysis?.humanWritingVoice && (
-                                        <div className="p-4 bg-white border border-indigo-100 rounded-2xl shadow-sm relative overflow-hidden group">
+                                        <div className="p-4 bg-white border border-blue-100 rounded-2xl shadow-sm relative overflow-hidden group">
                                             <div className="flex items-center gap-2 mb-2">
-                                                <BrainCircuit className="w-3.5 h-3.5 text-indigo-500" />
-                                                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-widest">Human Voice Blueprint</span>
+                                                <BrainCircuit className="w-3.5 h-3.5 text-blue-500" />
+                                                <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">Human Voice Blueprint</span>
                                             </div>
                                             <div className="space-y-2">
                                                 <div className="flex gap-2 items-start">
-                                                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-400 mt-1.5 shrink-0" />
+                                                    <div className="w-1.5 h-1.5 rounded-full bg-blue-400 mt-1.5 shrink-0" />
                                                     <p className="text-[11px] text-gray-700 leading-relaxed font-medium">
                                                         {currentRefAnalysis.humanWritingVoice}
                                                     </p>
@@ -548,9 +629,9 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                     )}
 
                                     {currentRefAnalysis?.entryPoint && (
-                                        <div className="p-2.5 bg-indigo-50/30 rounded-xl border border-indigo-100 flex items-center gap-3">
-                                            <div className="text-[10px] font-black text-indigo-600 shrink-0">ENTRY POINT</div>
-                                            <div className="text-[10px] text-indigo-700 font-bold leading-tight">{currentRefAnalysis.entryPoint}</div>
+                                        <div className="p-2.5 bg-indigo-50/30 rounded-xl border border-blue-100 flex items-center gap-3">
+                                            <div className="text-[10px] font-black text-blue-600 shrink-0">ENTRY POINT</div>
+                                            <div className="text-[10px] text-blue-700 font-bold leading-tight">{currentRefAnalysis.entryPoint}</div>
                                         </div>
                                     )}
                                 </div>
@@ -583,11 +664,11 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                         {currentAuthAnalysis && (
                             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-4 group hover:shadow-md transition-all duration-300">
                                 <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
-                                    <ShieldCheck className="w-3.5 h-3.5 text-indigo-500" /> Authority Grounding
+                                    <ShieldCheck className="w-3.5 h-3.5 text-blue-500" /> Authority Grounding
                                 </h3>
                                 <div className="flex flex-wrap gap-2 mb-5">
                                     {currentAuthAnalysis.relevantTerms.slice(0, 18).map((term, i) => (
-                                        <div key={i} className="px-2.5 py-1 bg-indigo-50/50 text-indigo-700 border border-indigo-100 rounded-xl text-[10px] font-black hover:bg-white hover:border-indigo-300 transition-colors cursor-default">
+                                        <div key={i} className="px-2.5 py-1 bg-indigo-50/50 text-blue-700 border border-blue-100 rounded-xl text-[10px] font-black hover:bg-white hover:border-indigo-300 transition-colors cursor-default">
                                             #{term}
                                         </div>
                                     ))}
@@ -595,7 +676,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 <div className="space-y-3">
                                     <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest px-1">Strategic Permutations</p>
                                     {currentAuthAnalysis.combinations.slice(0, 3).map((c, i) => (
-                                        <div key={i} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] text-slate-700 leading-relaxed italic group/comb hover:bg-white hover:border-indigo-100 transition-all">
+                                        <div key={i} className="p-3 bg-slate-50 rounded-2xl border border-slate-100 text-[11px] text-slate-700 leading-relaxed italic group/comb hover:bg-white hover:border-blue-100 transition-all">
                                             <span className="text-indigo-300 font-black mr-2">0{i + 1}</span>
                                             {c}
                                         </div>
@@ -677,24 +758,24 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                             <div className="space-y-4">
                                 <div className="flex items-center justify-between px-1">
                                     <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                        <Layers className="w-3.5 h-3.5 text-indigo-500" /> Narrative Structure
+                                        <Layers className="w-3.5 h-3.5 text-blue-500" /> Narrative Structure
                                     </h3>
                                     <span className="text-[10px] font-black text-slate-300 font-mono">{currentRefAnalysis.structure.length} Sections</span>
                                 </div>
                                 <div className="bg-white rounded-3xl border border-gray-100 shadow-sm p-4 relative overflow-hidden group hover:shadow-md transition-shadow">
                                     {currentRefAnalysis.h1Title && (
-                                        <div className="mb-4 bg-indigo-50/50 p-4 rounded-2xl border border-indigo-100/50">
-                                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
+                                        <div className="mb-4 bg-indigo-50/50 p-4 rounded-2xl border border-blue-100/50">
+                                            <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5 flex items-center gap-2">
                                                 <FileText className="w-3 h-3" /> Extracted H1 Title
                                             </p>
-                                            <p className="text-[13px] font-black text-indigo-900 leading-tight">
+                                            <p className="text-[13px] font-black text-blue-900 leading-tight">
                                                 {currentRefAnalysis.h1Title}
                                             </p>
                                         </div>
                                     )}
                                     {currentRefAnalysis.introText && (
                                         <div className="mb-6 pb-6 border-b border-indigo-50 px-2">
-                                            <p className="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                                            <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-2 flex items-center gap-2">
                                                 <Info className="w-3 h-3" /> Context Abstract
                                             </p>
                                             <p className="text-[11px] text-gray-800 leading-relaxed font-medium italic">
@@ -766,12 +847,12 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
 
                         {/* 10. Human-AI Logic Summary */}
                         {currentRefAnalysis?.generalPlan && currentRefAnalysis.generalPlan.length > 0 && (
-                            <div className="p-4 bg-white border border-indigo-100 rounded-2xl shadow-sm overflow-hidden relative group">
-                                <h3 className="text-[10px] font-black text-indigo-400 uppercase tracking-[0.3em] mb-4">Core Narrative Engine</h3>
+                            <div className="p-4 bg-white border border-blue-100 rounded-2xl shadow-sm overflow-hidden relative group">
+                                <h3 className="text-[10px] font-black text-blue-400 uppercase tracking-[0.3em] mb-4">Core Narrative Engine</h3>
                                 <div className="space-y-3">
                                     {currentRefAnalysis.generalPlan.map((point, idx) => (
                                         <div key={idx} className="flex gap-3 text-[11px] text-gray-700 leading-relaxed font-medium">
-                                            <span className="text-indigo-400 font-black">•</span>
+                                            <span className="text-blue-400 font-black">•</span>
                                             <span>{point}</span>
                                         </div>
                                     ))}
@@ -779,7 +860,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                                 {currentRefAnalysis?.regionVoiceDetect && (
                                     <div className="mt-4 pt-4 border-t border-indigo-50 flex items-center justify-between">
                                         <span className="text-[9px] font-black text-gray-400 uppercase">Linguistic Fingerprint</span>
-                                        <span className="text-[10px] font-black text-indigo-600">{currentRefAnalysis.regionVoiceDetect}</span>
+                                        <span className="text-[10px] font-black text-blue-600">{currentRefAnalysis.regionVoiceDetect}</span>
                                     </div>
                                 )}
                             </div>

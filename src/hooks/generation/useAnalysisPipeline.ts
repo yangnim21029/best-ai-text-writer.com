@@ -19,6 +19,7 @@ export const runAnalysisPipeline = async (config: ArticleConfig) => {
             setScrapedImages: (images) => useAnalysisStore.getState().setScrapedImages(images),
             setTargetAudience: (audience) => useAnalysisStore.getState().setTargetAudience(audience),
             setArticleTitle: (title) => useAnalysisStore.getState().setArticleTitle(title),
+            setReferenceContent: (content) => useAnalysisStore.getState().setReferenceContent(content),
             setLanguageInstruction: (instruction) => useAnalysisStore.getState().setLanguageInstruction(instruction),
             setProductMapping: (mapping) => useAnalysisStore.getState().setProductMapping(mapping),
             setActiveProductBrief: (brief) => useAnalysisStore.getState().setActiveProductBrief(brief),

@@ -22,7 +22,7 @@ const getSectionInjectionPlan = (
     const forceInjection = isLastSections && currentInjectedCount <= 2;
     const titleLower = sectionTitle.toLowerCase();
     const isSolutionSection = titleLower.includes('solution') || titleLower.includes('benefit') || titleLower.includes('guide') || titleLower.includes('how');
-    
+
     const relevantMappings = productMapping.filter(m =>
         m.relevanceKeywords.some(kw => titleLower.includes(kw.toLowerCase()))
     );
@@ -76,7 +76,8 @@ export const generateSectionContent = async (
         sectionTitle,
         keyInfoPoints,
         authorityAnalysis?.relevantTerms || [],
-        config.brandKnowledge,
+        config.brandKnowledge, // Knowledge Base
+        config.referenceContent, // NEW: RAG Source
         config.targetAudience
     );
 

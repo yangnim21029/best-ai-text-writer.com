@@ -798,12 +798,11 @@ export const promptTemplates = {
     </TargetAudience>
     DEFINITION: The target region.
     ACTION: Factor this into keyword selection.
-    
+
     <LanguageInstruction>
     ${languageInstruction}
     </LanguageInstruction>
     DEFINITION: Output language.
-    ACTION: Use this language for keys / roles.
 
     <Content>
     ${content}
@@ -817,47 +816,111 @@ export const promptTemplates = {
     ]
   `,
 
+  mergeAnalyses: ({ analysesJson, targetAudience, languageInstruction, userInstruction }: { analysesJson: string; targetAudience: string; languageInstruction: string; userInstruction?: string }) => `
+    You are an Expert Strategic Editor.
+    Your task is to SYNTHESIZE multiple content analyses into ONE "Grand Master Plan" for a definitive article.
+
+    <InputAnalyses>
+    ${analysesJson}
+    </InputAnalyses>
+    DEFINITION: A collection of analyzes from different top-ranking competitor articles.
+    
+    <TargetAudience>
+    ${targetAudience}
+    </TargetAudience>
+
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+
+    ${userInstruction ? `
+    <UserGuidance>
+    ${userInstruction}
+    </UserGuidance>
+    DEFINITION: Specific direction from the user on how to mix/synthesize.
+    CRITICAL INSTRUCTION: Analyze the inputs through this lens. If the user wants a "Specific Focus" (e.g. Price Comparison), prioritize structure/facts that support that focus.
+    ` : ''}
+
+    ## Synthesis Strategy (CRITICAL)
+    1. **Structure (Synthesize Logic)**:
+       - Treat the Input Structures as a puzzle. Do NOT just concat them.
+       - Create a SUPERSET structure that covers all unique angles found across the inputs.
+       - Remove redundancy. If Source A has "Benefits" and Source B has "Advantages", merge them into one strong section.
+       - Ensure a logical flow: Introduction -> Problem -> Solution (Method) -> Deep Dive -> Conclusion.
+    
+    2. **Key Facts (Union & Filter)**:
+       - Collect ALL unique factual points.
+       - Deduplicate similar facts.
+       - Keep the most specific/valuable ones.
+    
+    3. **Voice & Strategy (Blend)**:
+       - Merge the "Voice Strategies" to create a versatile, human-like persona.
+       - If inputs have conflicting advice, choose the one that feels more "Premium/Authoritative".
+
+    ## Output Schema (JSON)
+    Return a single ReferenceAnalysis object:
+    {
+      "structure": [
+        {
+          "title": "...",
+          "subheadings": ["..."],
+          "narrativePlan": ["...", "..."],
+          "logicalFlow": "...",
+          "keyFacts": ["..."],
+          "coreFocus": "...",
+          "writingMode": "direct" | "multi_solutions"
+        }
+      ],
+      "generalPlan": ["Strategy point 1", "Strategy point 2", ...],
+      "keyInformationPoints": ["Fact 1", "Fact 2", ...],
+      "brandExclusivePoints": ["..."],
+      "conversionPlan": ["..."],
+      "humanWritingVoice": "Combined description...",
+      "regionVoiceDetect": "Synthesized region detection..."
+    }
+  `,
+
   imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide, modelAppearance }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string; modelAppearance: string }) => `
     Generate 3 distinct image generation prompt options based on the following context.
     
     <ModelAppearance>
     ${modelAppearance}
-    </ModelAppearance>
-    DEFINITION: The appearance characteristics to maintain for any human subjects.
-    ACTION: Incorporate these strictly into every prompt that features a person.
+</ModelAppearance>
+DEFINITION: The appearance characteristics to maintain for any human subjects.
+  ACTION: Incorporate these strictly into every prompt that features a person.
 
     <LanguageInstruction>
     ${languageInstruction}
-    </LanguageInstruction>
-    DEFINITION: Output Language.
-    ACTION: Write the prompts in English.
+</LanguageInstruction>
+DEFINITION: Output Language.
+  ACTION: Write the prompts in English.
     
     <ContextText>
     ${contextText}
-    </ContextText>
-    DEFINITION: The scene usage context.
+</ContextText>
+DEFINITION: The scene usage context.
     
     <VisualStyleGuide>
     ${visualStyle}
-    </VisualStyleGuide>
-    
-    <SpecificGuide>
-    ${guide}
-    </SpecificGuide>
+</VisualStyleGuide>
 
-    TASK:
+  <SpecificGuide>
+    ${guide}
+</SpecificGuide>
+
+TASK:
     Create 3 detailed, distinct image generation prompt options that:
-    1. Capture the essence of the context text from different angles.
+1. Capture the essence of the context text from different angles.
     2. Adhere to the visual style guide and the mandatory Model Appearance.
-    3. Are optimized for AI image generation (concrete subjects).
+    3. Are optimized for AI image generation(concrete subjects).
     
     OUTPUT JSON:
-    [
-      "Option 1: Subject + Activity + Environment + Style details",
-      "Option 2: Alternative angle or focus...",
-      "Option 3: Another distinct variation..."
-    ]
-    `,
+[
+  "Option 1: Subject + Activity + Environment + Style details",
+  "Option 2: Alternative angle or focus...",
+  "Option 3: Another distinct variation..."
+]
+  `,
 
 
   // --- 1. SKELETON EXTRACTION ---
@@ -870,27 +933,27 @@ export const promptTemplates = {
     targetAudience: string;
     languageInstruction: string;
   }) => `
-    You are an expert Content Architect. Your mission is to extract the PHYSICAL SKELETON of the provided content.
-    Do NOT analyze logic, facts, or strategy yet. Focus ONLY on the structure.
+    You are an expert Content Architect.Your mission is to extract the PHYSICAL SKELETON of the provided content.
+    Do NOT analyze logic, facts, or strategy yet.Focus ONLY on the structure.
 
     <TargetAudience>
     ${targetAudience}
-    </TargetAudience>
+</TargetAudience>
 
-    <LanguageInstruction>
+  <LanguageInstruction>
     ${languageInstruction}
-    </LanguageInstruction>
+</LanguageInstruction>
 
     STRICT HEADING RULES:
-    - Enumerate EVERY H2 and its child H3s in order from the reference.
+- Enumerate EVERY H2 and its child H3s in order from the reference.
     - Use the exact heading text as it appears.
     - If no clear headings exist, infer concise H2s.
-    - Specifically for "目錄" (Table of Contents), ALWAYS set "exclude": true.
+    - Specifically for "目錄"(Table of Contents), ALWAYS set "exclude": true.
 
     OUTPUT JSON:
-    {
-      "h1Title": "Exact H1 title text",
-      "introText": "The first paragraph/intro text after H1",
+{
+  "h1Title": "Exact H1 title text",
+    "introText": "The first paragraph/intro text after H1",
       "structure": [
         {
           "title": "Exact H2 text",
@@ -899,13 +962,13 @@ export const promptTemplates = {
           "excludeReason": "..."
         }
       ],
-      "keyInformationPoints": ["General key fact 1"]
-    }
+        "keyInformationPoints": ["General key fact 1"]
+}
 
-    <Content>
-    ${content}
-    </Content>
-    `,
+<Content>
+  ${content}
+</Content>
+  `,
 
   // --- 2. DEEP NARRATIVE LOGIC ANALYSIS ---
   analyzeNarrativeLogic: ({
@@ -919,78 +982,78 @@ export const promptTemplates = {
     targetAudience: string;
     languageInstruction: string;
   }) => `
-    You are an expert Narrative Strategist. Your mission is to fill the physical skeleton with DEEP LOGICAL FLOW and NARRATIVE PLANNING.
+    You are an expert Narrative Strategist.Your mission is to fill the physical skeleton with DEEP LOGICAL FLOW and NARRATIVE PLANNING.
 
     <OutlineStructure>
     ${outlineJson}
-    </OutlineStructure>
+</OutlineStructure>
 
-    <TargetAudience>
+  <TargetAudience>
     ${targetAudience}
-    </TargetAudience>
+</TargetAudience>
 
-    <LanguageInstruction>
+  <LanguageInstruction>
     ${languageInstruction}
-    </LanguageInstruction>
+</LanguageInstruction>
 
     STRICT RULES FOR EVERY SECTION:
-    - **LANGUAGE LEVEL**: Use extremely simple, direct language (elementary school level simplicity). No jargon or flowery summaries.
-    - **"logicalFlow"**: A one-sentence description of the INNER RELATIONSHIP/CONNECTION between points. Do NOT summarize what to do. Instead, explain the "Logic Bridge": "Why does point A lead to point B?". It supplements Narrative Plan/Key Facts by clarifying the hidden "Why" or "Transition Logic".
-    - **"coreFocus"**: Defines the TONE and EMOTIONAL HOOK. Tell the writer *how* to emphasize things and what vibe to maintain (e.g., "Urgent warning: sound concerned", "Relief and comfort: sound like a calm expert").
-    - **"narrativePlan"**: 4-6 specific writing instructions. 
-       - **Mark each item as "[Primary]" or "[Secondary]"**.
+    - ** LANGUAGE LEVEL **: Use extremely simple, direct language(elementary school level simplicity).No jargon or flowery summaries.
+    - ** "logicalFlow" **: A one - sentence description of the INNER RELATIONSHIP / CONNECTION between points.Do NOT summarize what to do.Instead, explain the "Logic Bridge": "Why does point A lead to point B?".It supplements Narrative Plan / Key Facts by clarifying the hidden "Why" or "Transition Logic".
+    - ** "coreFocus" **: Defines the TONE and EMOTIONAL HOOK.Tell the writer * how * to emphasize things and what vibe to maintain(e.g., "Urgent warning: sound concerned", "Relief and comfort: sound like a calm expert").
+    - ** "narrativePlan" **: 4 - 6 specific writing instructions. 
+       - ** Mark each item as "[Primary]" or "[Secondary]" **.
        - "[Primary]" items should focus on the core message or most critical information.
        - "[Secondary]" items should focus on edge cases, transitions, or minor supporting details.
-    - **"keyFacts"**: 3-5 verifiable facts extracted from content.
-    - **"coreQuestion"**: The main problem this section answers.
+    - ** "keyFacts" **: 3 - 5 verifiable facts extracted from content.
+    - ** "coreQuestion" **: The main problem this section answers.
 
-    OUTPUT JSON (Array for the 'structure' property):
-    {
-      "structure": [
-        {
-          "title": "Matches outline title exactly",
-          "narrativePlan": ["Plan 1", "Plan 2", "Plan 3", "Plan 4", "Plan 5"],
-          "logicalFlow": "One-sentence logic chain description",
-          "coreFocus": "Description of emphasis",
-          "keyFacts": ["Fact 1", "Fact 2", "Fact 3"],
-          "coreQuestion": "Main question",
-          "difficulty": "easy | medium | unclear",
-          "writingMode": "direct | multi_solutions",
-          "uspNotes": ["..."],
-          "isChecklist": false,
-          "suppress": ["..."],
-          "augment": ["..."],
-          "sentenceStartFeatures": ["..."],
-          "sentenceEndFeatures": ["..."]
-        }
-      ]
-    }
+    OUTPUT JSON(Array for the 'structure' property):
+  {
+    "structure": [
+      {
+        "title": "Matches outline title exactly",
+        "narrativePlan": ["Plan 1", "Plan 2", "Plan 3", "Plan 4", "Plan 5"],
+        "logicalFlow": "One-sentence logic chain description",
+        "coreFocus": "Description of emphasis",
+        "keyFacts": ["Fact 1", "Fact 2", "Fact 3"],
+        "coreQuestion": "Main question",
+        "difficulty": "easy | medium | unclear",
+        "writingMode": "direct | multi_solutions",
+        "uspNotes": ["..."],
+        "isChecklist": false,
+        "suppress": ["..."],
+        "augment": ["..."],
+        "sentenceStartFeatures": ["..."],
+        "sentenceEndFeatures": ["..."]
+      }
+    ]
+  }
 
-    <ReferenceContent>
-    ${content}
-    </ReferenceContent>
-    `,
+<ReferenceContent>
+  ${content}
+</ReferenceContent>
+  `,
 
   regionalBrandAnalysis: ({ content, targetAudience }: { content: string; targetAudience: string }) => `
-    TASK: Analyze the content for **Regional Terminology** and **Brand Availability** conflicts in: ${targetAudience}.
+TASK: Analyze the content for ** Regional Terminology ** and ** Brand Availability ** conflicts in: ${targetAudience}.
 
-    <TargetAudience>
-      ${targetAudience}
-    </TargetAudience>
+<TargetAudience>
+  ${targetAudience}
+</TargetAudience>
 
-    Using Google Search (Grounding), verify:
-    1. **Brand Availability**: Are mentioned brands / products actually available / popular in ${targetAudience}? (e.g. A Taiwan-only clinic appearing in a Hong Kong article is a mismatch).
-    2. **Regional Vocabulary**: Replace obvious dialect terms (e.g. "視頻" -> "影片" for TW).
+    Using Google Search(Grounding), verify:
+1. ** Brand Availability **: Are mentioned brands / products actually available / popular in ${targetAudience}?(e.g.A Taiwan - only clinic appearing in a Hong Kong article is a mismatch).
+2. ** Regional Vocabulary **: Replace obvious dialect terms(e.g. "視頻" -> "影片" for TW).
 
     <ContentSnippet>
     ${content.slice(0, 15000)}...
-    </ContentSnippet>
+</ContentSnippet>
 
     OUTPUT JSON:
-    [
-      { "original": "Wrong Term", "replacement": "Correct Term", "reason": "Reason (e.g. 'Taiwan-only brand')" }
-    ]
-    Return JSON only. If no issues, return [].
+[
+  { "original": "Wrong Term", "replacement": "Correct Term", "reason": "Reason (e.g. 'Taiwan-only brand')" }
+]
+    Return JSON only.If no issues, return [].
     `,
 
   sectionInjectionPlan: ({
@@ -1019,44 +1082,44 @@ export const promptTemplates = {
     const allTargets = [...new Set([...competitorBrands, ...competitorProducts, ...replacementRules])];
     const finalMappings = relevantMappings.length > 0 ? relevantMappings : (forceInjection || isSolutionSection ? fallbackMappings : []);
 
-    let plan = `### 💎 COMMERCIAL & SERVICE STRATEGY (HIGH PRIORITY) \n`;
+    let plan = `### 💎 COMMERCIAL & SERVICE STRATEGY(HIGH PRIORITY) \n`;
 
     if (allTargets.length > 0) {
       plan += `
-        **🛡️ SANITIZATION PROTOCOL (ABSOLUTE RULES):**
-        You are writing for the brand: **"${productBrief.brandName}"**.
+  **🛡️ SANITIZATION PROTOCOL(ABSOLUTE RULES):**
+    You are writing for the brand: ** "${productBrief.brandName}" **.
         The Reference Text mentions competitors: ${allTargets.map(t => `"${t}"`).join(', ')}.
 
-        1. **TOTAL ANNIHILATION:** Never output these competitor words in the final text.
-        2. **NO HYBRIDS:** Do NOT write "CompName as ${productBrief.brandName}". That is nonsense.
-        3. **SUBJECT SWAP (SEMANTIC REWRITE):**
-           - If the reference says: "${allTargets[0]} offers the best laser..."
-           - **REWRITE AS:** "**${productBrief.brandName}** offers the best laser..." (Change the Subject).
-           - If the reference discusses a specific machine (e.g., "${competitorProducts[0] || 'OldMachine'}"), replace it with **"${productBrief.productName}"**.
+1. ** TOTAL ANNIHILATION:** Never output these competitor words in the final text.
+        2. ** NO HYBRIDS:** Do NOT write "CompName as ${productBrief.brandName}".That is nonsense.
+        3. ** SUBJECT SWAP(SEMANTIC REWRITE):**
+  - If the reference says: "${allTargets[0]} offers the best laser..."
+    - ** REWRITE AS:** "**${productBrief.brandName}** offers the best laser..."(Change the Subject).
+           - If the reference discusses a specific machine(e.g., "${competitorProducts[0] || 'OldMachine'}"), replace it with ** "${productBrief.productName}" **.
         `;
     }
 
     plan += `
-    **📉 DENSITY CONTROL (AVOID KEYWORD STUFFING):**
-    - **Full Name Rule:** Use the full product name "**${productBrief.productName}**" **MAXIMUM ONCE** in this section.
-    - **Natural Variation:** For subsequent mentions, you MUST use variations:
-      - The Brand Name: "**${productBrief.brandName}**"
-      - Pronouns: "We", "Our team", "The center"
-      - Generic: "This technology", "The treatment", "Our service"
-    `;
+**📉 DENSITY CONTROL(AVOID KEYWORD STUFFING):**
+    - ** Full Name Rule:** Use the full product name "**${productBrief.productName}**" ** MAXIMUM ONCE ** in this section.
+    - ** Natural Variation:** For subsequent mentions, you MUST use variations:
+- The Brand Name: "**${productBrief.brandName}**"
+  - Pronouns: "We", "Our team", "The center"
+    - Generic: "This technology", "The treatment", "Our service"
+      `;
 
     if (isLastSections && currentInjectedCount <= 2) {
-      plan += `\n**🚀 MANDATORY INJECTION:** You have NOT mentioned "${productBrief.brandName}" enough yet. You MUST introduce it here as the solution.\n`;
+      plan += `\n **🚀 MANDATORY INJECTION:** You have NOT mentioned "${productBrief.brandName}" enough yet.You MUST introduce it here as the solution.\n`;
     }
 
     if (finalMappings.length > 0) {
-      plan += `\n**💡 PROBLEM-SOLUTION WEAVING:**\nIntegrate the following mapping naturally:\n`;
+      plan += `\n **💡 PROBLEM - SOLUTION WEAVING:**\nIntegrate the following mapping naturally: \n`;
       finalMappings.forEach(m => {
-        plan += `- Discuss "${m.painPoint}" -> Then present **${productBrief.brandName}** (or ${productBrief.productName}) as the solution using [${m.productFeature}].\n`;
+        plan += `- Discuss "${m.painPoint}" -> Then present ** ${productBrief.brandName}** (or ${productBrief.productName}) as the solution using[${m.productFeature}].\n`;
       });
     }
 
-    plan += `\n**CTA:** End with a natural link: [${productBrief.ctaLink}] (Anchor: Check ${productBrief.brandName} pricing/details).\n`;
+    plan += `\n ** CTA:** End with a natural link: [${productBrief.ctaLink}](Anchor: Check ${productBrief.brandName} pricing / details).\n`;
 
     return plan;
   },

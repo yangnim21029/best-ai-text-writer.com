@@ -118,12 +118,20 @@ const extractImagesFromContent = (text: string, range: number = 50): ScrapedImag
 
 const cleanJinaBySeparator = (rawText: string): { title: string, content: string, images: ScrapedImage[] } => {
     const titleMatch = rawText.match(/^Title:\s*(.+)$/m);
-    const title = titleMatch ? titleMatch[1].trim() : '';
+    let title = titleMatch ? titleMatch[1].trim() : '';
 
     let contentBody = rawText;
     if (rawText.includes('Markdown Content:')) {
         const parts = rawText.split('Markdown Content:');
         contentBody = parts.slice(1).join('Markdown Content:');
+    }
+
+    // Fallback: If no metadata title, find first H1
+    if (!title) {
+        const h1Match = contentBody.match(/^\s*#\s+(.+)$/m);
+        if (h1Match) {
+            title = h1Match[1].trim();
+        }
     }
 
     // Preserve heading structure: convert setext (=== / ---) to ATX (# / ##)

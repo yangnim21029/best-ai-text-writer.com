@@ -19,6 +19,7 @@ export interface AnalysisDependencies {
         setScrapedImages: (images: any[]) => void;
         setTargetAudience: (audience: any) => void;
         setArticleTitle: (title: string) => void;
+        setReferenceContent: (content: string) => void;
         setLanguageInstruction: (instruction: string) => void;
         setProductMapping: (mapping: any[]) => void;
         setActiveProductBrief: (brief: any) => void;
@@ -59,10 +60,11 @@ export const runAnalysisPipelineService = async (
     analysisStore.setScrapedImages(config.scrapedImages || []);
     analysisStore.setTargetAudience(config.targetAudience);
     analysisStore.setArticleTitle(config.title || '');
-    
+    analysisStore.setReferenceContent(config.referenceContent || '');
+
     const languageInstruction = getLanguageInstruction(config.targetAudience);
     analysisStore.setLanguageInstruction(languageInstruction);
-    
+
     appendAnalysisLog(`語言設定：${audienceLabel(config.targetAudience)}（${config.targetAudience}）`);
     appendAnalysisLog('Starting analysis...');
 
@@ -115,7 +117,7 @@ export const runAnalysisPipelineService = async (
         const finalLimit = Math.max(appStore.minKeywords, Math.min(appStore.maxKeywords, calculatedLimit));
 
         const keywordPlanCandidates = keywords.slice(0, finalLimit);
-        
+
         if (keywordPlanCandidates.length > 0 && !isStopped()) {
             generationStore.setGenerationStep('planning_keywords');
             try {
@@ -199,10 +201,10 @@ export const runAnalysisPipelineService = async (
     // Execution with simple staggered delay to avoid rate limits
     const productResult = await productTask();
     if (isStopped()) return;
-    
+
     await new Promise(r => setTimeout(r, 800));
     const structureResult = await structureTask();
-    
+
     await new Promise(r => setTimeout(r, 800));
     const [visualResult, regionalResult, keywordResult] = await Promise.all([
         visualTask(),

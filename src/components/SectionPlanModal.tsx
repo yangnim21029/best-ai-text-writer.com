@@ -23,6 +23,8 @@ interface SectionPlanModalProps {
     isSearchingAlternatives?: boolean; // Loading state for Stage 1
     onSaveReplacements?: (items: EditedReplacementItem[]) => void;
     humanWritingVoice?: string;
+    isSynthesis?: boolean;
+    sourceCount?: number;
 }
 
 type DraftSection = SectionAnalysis & {
@@ -74,6 +76,8 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
     onSaveReplacements,
     humanWritingVoice,
     localizedHumanWritingVoice,
+    isSynthesis = false,
+    sourceCount = 0,
 }) => {
     const [drafts, setDrafts] = useState<DraftSection[]>([]);
     const [editingIds, setEditingIds] = useState<Set<number>>(new Set());
@@ -178,12 +182,30 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
             <div className="relative bg-white w-full max-w-6xl h-[85vh] rounded-2xl shadow-2xl border border-gray-200 flex flex-col overflow-hidden">
                 <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/70 flex items-center justify-between gap-3">
                     <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-lg shadow-blue-200">
-                            <Layers className="w-5 h-5" />
+                        <div className={`w-10 h-10 rounded-xl ${isSynthesis ? 'bg-indigo-600 text-white shadow-indigo-200' : 'bg-blue-600 text-white shadow-blue-200'} flex items-center justify-center shadow-lg relative`}>
+                            {isSynthesis ? <Sparkles className="w-5 h-5" /> : <Layers className="w-5 h-5" />}
+                            {isSynthesis && (
+                                <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-[9px] font-bold px-1 rounded-full border border-white">
+                                    AI
+                                </span>
+                            )}
                         </div>
                         <div className="flex flex-col">
-                            <h3 className="text-lg font-bold text-gray-900 leading-tight">段落計劃預覽</h3>
-                            <p className="text-xs text-gray-500">可在寫作前調整段落內容與勾選要寫的段落。</p>
+                            <h3 className="text-lg font-bold text-gray-900 leading-tight flex items-center gap-2">
+                                {isSynthesis ? `AI Synthesized Plan` : '段落計劃預覽'}
+                                {isSynthesis && (
+                                    <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 flex items-center gap-1">
+                                        <Layers className="w-3 h-3" />
+                                        Merged {sourceCount} Sources
+                                    </span>
+                                )}
+                            </h3>
+                            <p className="text-xs text-gray-500">
+                                {isSynthesis
+                                    ? 'The AI has merged multiple analyses into this unified strategic plan.'
+                                    : '可在寫作前調整段落內容與勾選要寫的段落。'
+                                }
+                            </p>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">

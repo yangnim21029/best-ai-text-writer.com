@@ -18,11 +18,13 @@ interface AnalysisState {
     scrapedImages: ScrapedImage[];
     visualStyle: string;
     brandKnowledge: string;
+    brandRagUrl: string;
     coveredPoints: string[];
     targetAudience: TargetAudience;
     productMapping: ProblemProductMapping[];
     activeProductBrief: ProductBrief | undefined;
     articleTitle: string;
+    referenceContent: string;
     headingOptimizations: {
         h2_before: string;
         h2_after: string;
@@ -56,11 +58,13 @@ interface AnalysisState {
     setScrapedImages: (images: ScrapedImage[]) => void;
     setVisualStyle: (style: string) => void;
     setBrandKnowledge: (knowledge: string) => void;
+    setBrandRagUrl: (url: string) => void;
     setCoveredPoints: (points: string[] | ((prev: string[]) => string[])) => void;
     setTargetAudience: (audience: TargetAudience) => void;
     setProductMapping: (mapping: ProblemProductMapping[]) => void;
     setActiveProductBrief: (brief: ProductBrief | undefined) => void;
     setArticleTitle: (title: string) => void;
+    setReferenceContent: (content: string) => void;
     setHeadingOptimizations: (items: {
         h2_before: string;
         h2_after: string;
@@ -94,11 +98,13 @@ export const useAnalysisStore = create<AnalysisState>()(
             scrapedImages: [],
             visualStyle: '',
             brandKnowledge: '',
+            brandRagUrl: '',
             coveredPoints: [],
             targetAudience: 'zh-TW',
             productMapping: [],
             activeProductBrief: undefined,
             articleTitle: '',
+            referenceContent: '',
             headingOptimizations: [],
             languageInstruction: '',
             hkGroundingResult: null,
@@ -114,6 +120,7 @@ export const useAnalysisStore = create<AnalysisState>()(
             setScrapedImages: (images) => set({ scrapedImages: images }),
             setVisualStyle: (style) => set({ visualStyle: style }),
             setBrandKnowledge: (knowledge) => set({ brandKnowledge: knowledge }),
+            setBrandRagUrl: (url) => set({ brandRagUrl: url }),
             setCoveredPoints: (points) => set((state) => ({
                 coveredPoints: typeof points === 'function' ? points(state.coveredPoints) : points
             })),
@@ -121,6 +128,7 @@ export const useAnalysisStore = create<AnalysisState>()(
             setProductMapping: (mapping) => set({ productMapping: mapping }),
             setActiveProductBrief: (brief) => set({ activeProductBrief: brief }),
             setArticleTitle: (title) => set({ articleTitle: title }),
+            setReferenceContent: (content) => set({ referenceContent: content }),
             setHeadingOptimizations: (items) => set({ headingOptimizations: items }),
             setLanguageInstruction: (instruction) => set({ languageInstruction: instruction }),
             setHKGroundingResult: (result) => set({ hkGroundingResult: result }),
@@ -154,6 +162,8 @@ export const useAnalysisStore = create<AnalysisState>()(
                     productBrief: state.activeProductBrief ? { ...state.activeProductBrief } : undefined,
                     targetAudience: state.targetAudience,
                     languageInstruction: state.languageInstruction,
+                    sourceContent: state.referenceContent,
+                    brandRagUrl: state.brandRagUrl,
                 };
 
                 await db.documents.add(newDoc);
@@ -189,11 +199,13 @@ export const useAnalysisStore = create<AnalysisState>()(
                 scrapedImages: [],
                 visualStyle: '',
                 brandKnowledge: '',
+                brandRagUrl: '',
                 coveredPoints: [],
                 // targetAudience: 'zh-TW', // Keep audience
                 productMapping: [],
                 activeProductBrief: undefined,
                 articleTitle: '',
+                referenceContent: '',
                 headingOptimizations: [],
                 languageInstruction: '',
                 hkGroundingResult: null,
@@ -213,6 +225,7 @@ export const useAnalysisStore = create<AnalysisState>()(
                 scrapedImages: state.scrapedImages,
                 visualStyle: state.visualStyle,
                 brandKnowledge: state.brandKnowledge,
+                brandRagUrl: state.brandRagUrl,
                 coveredPoints: state.coveredPoints,
                 targetAudience: state.targetAudience,
                 articleTitle: state.articleTitle,

@@ -83,40 +83,40 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                     className="p-3 border-b border-gray-100 bg-gray-50/20 cursor-pointer hover:bg-gray-100/50 transition-colors"
                     onClick={() => setIsSourceInputOpen(!isSourceInputOpen)}
                 >
-                    <div className="flex justify-between items-center bg-transparent">
-                        <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="flex justify-between items-center gap-3">
+                        <div className="flex items-center gap-2 min-w-0 flex-1">
                             <label className="text-[11px] font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 flex-shrink-0">
-                                <Link2 className="w-3.5 h-3.5 text-indigo-500" />
+                                <Link2 className="w-3.5 h-3.5 text-blue-600" />
                                 Source Input
                             </label>
                             {isSourceInputOpen ? (
-                                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100/50 uppercase tracking-tighter">Required</span>
+                                <span className="text-[9px] font-bold text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-100/50 uppercase tracking-tighter flex-shrink-0">Required</span>
                             ) : (
-                                <span className="text-[10px] text-slate-400 font-medium italic truncate max-w-[180px]">
+                                <span className="text-[10px] text-slate-400 font-medium italic truncate">
                                     {inputType === 'url' ? (urlValue || 'No URL') : (refCharCount > 0 ? `${refCharCount} chars` : 'No text')}
                                 </span>
                             )}
                         </div>
-                        <div className="flex items-center gap-3">
+                        <div className="flex items-center gap-2.5 flex-shrink-0 ml-auto">
                             {isSourceInputOpen && (
-                                <div className="flex bg-white p-1 rounded-xl border border-gray-200 shadow-sm transition-all" onClick={e => e.stopPropagation()}>
+                                <div className="flex bg-white p-0.5 rounded-lg border border-gray-200 shadow-sm transition-all" onClick={e => e.stopPropagation()}>
                                     <button
                                         type="button"
                                         onClick={() => setInputType('text')}
-                                        className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all ${inputType === 'text' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+                                        className={`px-3 py-1 text-[10px] font-black rounded-[6px] transition-all ${inputType === 'text' ? 'bg-blue-600 text-white shadow-[0_2px_4px_rgba(37,99,235,0.2)]' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
                                         Manual
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setInputType('url')}
-                                        className={`px-4 py-1.5 text-[10px] font-bold rounded-lg transition-all ${inputType === 'url' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-100' : 'text-slate-400 hover:text-slate-600'}`}
+                                        className={`px-3 py-1 text-[10px] font-black rounded-[6px] transition-all ${inputType === 'url' ? 'bg-blue-600 text-white shadow-[0_2px_4px_rgba(37,99,235,0.2)]' : 'text-slate-400 hover:text-slate-600'}`}
                                     >
                                         URL
                                     </button>
                                 </div>
                             )}
-                            <ChevronDown className={`w-4 h-4 text-slate-400 transition-transform duration-300 ${isSourceInputOpen ? 'rotate-180' : ''}`} />
+                            <ChevronDown className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-300 ${isSourceInputOpen ? 'rotate-180' : ''}`} />
                         </div>
                     </div>
                 </div>
@@ -129,7 +129,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                                 <textarea
                                     {...register('referenceContent')}
                                     placeholder="Paste your source text here..."
-                                    className={`w-full h-44 px-4 py-3 bg-slate-50/30 rounded-xl border text-[13px] leading-relaxed font-medium text-slate-700 placeholder-slate-300 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 outline-none resize-none custom-scrollbar transition-all ${errors.referenceContent ? 'border-red-500' : 'border-slate-200'}`}
+                                    className={`w-full h-44 px-4 py-3 bg-slate-50/30 rounded-xl border text-[13px] leading-relaxed font-medium text-slate-700 placeholder-slate-300 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none resize-none custom-scrollbar transition-all ${errors.referenceContent ? 'border-red-500' : 'border-slate-200'}`}
                                 />
                                 {errors.referenceContent && <p className="text-[10px] text-red-500 mt-1">{errors.referenceContent.message}</p>}
                                 <div className="flex justify-between items-center mt-3 px-1">
@@ -141,7 +141,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                                         onClick={(e) => { e.stopPropagation(); onRequestSemanticFilter(); }}
                                         disabled={!canSemanticFilter}
                                         className={`inline-flex items-center gap-1.5 h-8 px-3 rounded-lg border text-[10px] font-bold transition-all active:scale-95 ${canSemanticFilter
-                                            ? 'border-indigo-100 text-indigo-600 bg-indigo-50/50 hover:bg-indigo-50 hover:border-indigo-200 shadow-sm'
+                                            ? 'border-blue-100 text-blue-600 bg-blue-50/50 hover:bg-blue-50 hover:border-blue-200 shadow-sm'
                                             : 'border-gray-50 text-gray-300 bg-gray-25 cursor-not-allowed opacity-50'
                                             }`}
                                     >
@@ -153,14 +153,14 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                         ) : (
                             <div className="flex gap-2 p-1">
                                 <div className="relative flex-1 group" onClick={e => e.stopPropagation()}>
-                                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-indigo-600 text-slate-400">
+                                    <div className="absolute left-3.5 top-1/2 -translate-y-1/2 transition-colors group-focus-within:text-blue-600 text-slate-400">
                                         <Link2 className="w-4 h-4" />
                                     </div>
                                     <input
                                         type="url"
                                         {...register('urlInput')}
                                         placeholder="https://example.com/article"
-                                        className="w-full h-11 pl-11 pr-3 bg-slate-50/50 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 placeholder-slate-300 focus:border-indigo-500 focus:bg-white focus:ring-4 focus:ring-indigo-500/5 outline-none transition-all shadow-inner"
+                                        className="w-full h-11 pl-11 pr-3 bg-slate-50/50 rounded-xl border border-slate-200 text-sm font-medium text-slate-700 placeholder-slate-300 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/5 outline-none transition-all shadow-inner"
                                         autoFocus
                                     />
                                 </div>
@@ -168,7 +168,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                                     type="button"
                                     onClick={(e) => { e.stopPropagation(); handleFetch(); }}
                                     disabled={isFetchingUrl || !urlValue}
-                                    className="h-11 px-5 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-indigo-500/20 active:scale-95 flex items-center justify-center min-w-[56px]"
+                                    className="h-11 px-5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-blue-500/20 active:scale-95 flex items-center justify-center min-w-[56px]"
                                 >
                                     {isFetchingUrl ? <Loader2 className="w-5 h-5 animate-spin" /> : <Download className="w-5 h-5" />}
                                 </button>

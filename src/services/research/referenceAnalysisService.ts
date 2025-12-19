@@ -7,12 +7,18 @@ import { Type } from '../engine/schemaTypes';
 export const extractWebsiteTypeAndTerm = async (content: string) => {
     // Lightweight helper for URL scraping flow to infer websiteType & authorityTerms.
     const prompt = `
-    Scan the following content and extract:
-    1) websiteType: e.g., "Medical Clinic", "Ecommerce", "Blog".
-    2) authorityTerms: up to 5 key terms related to brand authority (certifications, ingredients, key specs).
-    CONTENT:
+    Analyze the provided content and extract the website type and authority terms.
+    
+    CRITICAL: You must return ONLY a JSON object. No conversational text, no introductions, no "Here is the JSON".
+    
+    JSON STRUCTURE:
+    {
+      "websiteType": "The broad category of the site (e.g. 'Medical Clinic', 'Ecommerce', 'Tech Blog', 'Review Site')",
+      "authorityTerms": "Up to 5 comma-separated terms that establish clinical or brand authority (e.g. medical degrees, awards, proprietary ingredients, certifications)"
+    }
+
+    CONTENT TO ANALYZE:
     ${content.substring(0, 6000)}
-    OUTPUT JSON: { "websiteType": "...", "authorityTerms": "comma separated terms" }
     `;
 
     // Using runJson for structured output
@@ -211,5 +217,110 @@ export const analyzeReferenceStructure = async (
             cost: errorCost,
             duration: Date.now() - startTs
         };
+    }
+};
+
+/**
+ * Merges multiple ReferenceAnalysis objects into a single "Master Plan".
+ */
+export const mergeMultipleAnalyses = async (
+    analyses: ReferenceAnalysis[],
+    targetAudience: TargetAudience,
+    userInstruction?: string
+): Promise<ReferenceAnalysis> => {
+    // 0. Pre-check
+    if (!analyses || analyses.length === 0) throw new Error("No analyses to merge");
+    if (analyses.length === 1) return analyses[0];
+
+    const startTs = Date.now();
+    const languageInstruction = getLanguageInstruction(targetAudience);
+
+    // 1. Union "Sharable" Elements (Keywords, Rules, simple lists)
+    // Flatten lists and deduplicate
+    const allCompetitorBrands = Array.from(new Set(analyses.flatMap(a => a.competitorBrands || [])));
+    const allCompetitorProducts = Array.from(new Set(analyses.flatMap(a => a.competitorProducts || [])));
+    const allReplacements = Array.from(new Set(analyses.flatMap(a => a.regionalReplacements || []).map(x => JSON.stringify(x)))).map((s: any) => JSON.parse(s));
+
+    // For logical synthesis, we prepare a simplified input for the AI
+    // We strip out heavy content to save tokens, focusing on Structure & Strategy
+    const simplifiedInputs = analyses.map((a, idx) => ({
+        id: `Source_${idx + 1}`,
+        structure: a.structure.map(s => ({
+            title: s.title,
+            subheadings: s.subheadings,
+            coreFocus: s.coreFocus,
+            keyFacts: s.keyFacts
+        })),
+        generalPlan: a.generalPlan,
+        keyInformationPoints: a.keyInformationPoints,
+        humanWritingVoice: a.humanWritingVoice,
+        toneSensation: a.toneSensation
+    }));
+
+    // 2. AI Synthesis for Structure & Voice
+    console.log(`[RefAnalysis] Merging ${analyses.length} analyses...`);
+    const mergePrompt = promptTemplates.mergeAnalyses({
+        analysesJson: JSON.stringify(simplifiedInputs, null, 2),
+        targetAudience,
+        languageInstruction,
+        userInstruction
+    });
+
+    try {
+        const mergeRes = await aiService.runJson<ReferenceAnalysis>(mergePrompt, 'FLASH', {
+            type: Type.OBJECT,
+            properties: {
+                structure: {
+                    type: Type.ARRAY,
+                    items: {
+                        type: Type.OBJECT,
+                        properties: {
+                            title: { type: Type.STRING },
+                            subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            logicalFlow: { type: Type.STRING },
+                            keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                            coreFocus: { type: Type.STRING },
+                            writingMode: { type: Type.STRING }
+                        },
+                        required: ["title", "subheadings", "narrativePlan"]
+                    }
+                },
+                generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+                conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                humanWritingVoice: { type: Type.STRING },
+                regionVoiceDetect: { type: Type.STRING }
+            },
+            required: ["structure", "generalPlan", "humanWritingVoice"]
+        });
+
+        const mergedData = mergeRes.data;
+
+        // 3. Re-attach Unioned Data
+        return {
+            ...mergedData,
+            competitorBrands: allCompetitorBrands,
+            competitorProducts: allCompetitorProducts,
+            regionalReplacements: allReplacements,
+            // We use the AI's synthesized structure, but ensure defaults
+            structure: mergedData.structure.map(s => ({
+                ...s,
+                difficulty: 'medium', // Default for merged content
+                exclude: false,
+                subheadings: s.subheadings || [],
+                narrativePlan: s.narrativePlan || [],
+                keyFacts: s.keyFacts || [],
+                uspNotes: [],
+                suppress: [],
+                augment: []
+            }))
+        };
+
+    } catch (e) {
+        console.error("Merge failed", e);
+        // Fallback: Return the first analysis
+        return analyses[0];
     }
 };

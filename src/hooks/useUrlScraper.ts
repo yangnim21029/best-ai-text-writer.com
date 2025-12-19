@@ -4,37 +4,72 @@ import { useMutation } from '@tanstack/react-query';
 import { fetchUrlContent } from '../services/research/webScraper';
 import { extractWebsiteTypeAndTerm } from '../services/research/referenceAnalysisService';
 import { ArticleFormValues } from '../schemas/formSchema';
-import { CostBreakdown, ScrapedImage, TokenUsage } from '../types';
+import { CostBreakdown, ScrapedImage, TokenUsage, PageProfile } from '../types';
 import { dedupeScrapedImages } from '../utils/imageUtils';
 
 interface UseUrlScraperParams {
     setValue: UseFormSetValue<ArticleFormValues>;
     onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
     setInputType: (type: 'text' | 'url') => void;
+    onCreatePage?: (data: Partial<PageProfile> & { name: string }) => void;
+    targetAudience?: string;
+    scrapedImages: ScrapedImage[];
+    setScrapedImages: (images: ScrapedImage[]) => void;
 }
 
 export const useUrlScraper = ({
     setValue,
     onAddCost,
     setInputType,
+    onCreatePage,
+    targetAudience,
+    scrapedImages,
+    setScrapedImages,
 }: UseUrlScraperParams) => {
-    const [scrapedImages, setScrapedImages] = useState<ScrapedImage[]>([]);
     const mutation = useMutation({
         mutationFn: async (url: string) => {
             if (!url) throw new Error('URL is required');
             const { title, content, images } = await fetchUrlContent(url);
             return { title, content, images };
         },
-        onSuccess: async ({ title, content, images }) => {
+        onSuccess: async ({ title, content, images }, url) => {
             setValue('referenceContent', content);
             setScrapedImages(dedupeScrapedImages(images));
-            if (title) setValue('title', title);
+
+            if (title && title.length > 2) {
+                setValue('title', title);
+            } else {
+                // Fallback: Use URL hostname + path as title to avoid "Article Topic" duplicates
+                try {
+                    const u = new URL(url);
+                    const path = u.pathname === '/' ? 'Home' : u.pathname.split('/').pop() || 'Page';
+                    setValue('title', `${u.hostname} - ${path}`);
+                } catch {
+                    setValue('title', url);
+                }
+            }
 
             try {
                 const brandRes = await extractWebsiteTypeAndTerm(content);
-                if (brandRes.data.websiteType) setValue('websiteType', brandRes.data.websiteType);
-                if (brandRes.data.authorityTerms) setValue('authorityTerms', brandRes.data.authorityTerms);
+                const websiteType = brandRes.data.websiteType;
+                const authorityTerms = brandRes.data.authorityTerms;
+
+                if (websiteType) setValue('websiteType', websiteType);
+                if (authorityTerms) setValue('authorityTerms', authorityTerms);
                 if (onAddCost) onAddCost(brandRes.cost, brandRes.usage);
+
+                // Automatically create a page profile if callback exists
+                if (onCreatePage) {
+                    onCreatePage({
+                        name: title || url,
+                        title: title || '',
+                        referenceContent: content,
+                        scrapedImages: dedupeScrapedImages(images),
+                        websiteType,
+                        authorityTerms,
+                        targetAudience: (targetAudience as any) || 'zh-TW'
+                    });
+                }
             } catch (aiError) {
                 console.warn('Failed to auto-extract brand info', aiError);
             }

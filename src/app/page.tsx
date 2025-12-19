@@ -165,6 +165,10 @@ export default function AppPage() {
                             setSavedProfiles={app.setSavedProfiles}
                             activeProfile={app.activeProfile}
                             onSetActiveProfile={app.setActiveProfile}
+                            savedPages={app.savedPages}
+                            setSavedPages={app.setSavedPages}
+                            activePageId={app.activePageId}
+                            onSetActivePageId={app.setActivePageId}
                             inputType={app.inputType}
                             setInputType={app.setInputType}
                             brandKnowledge={analysisStore.brandKnowledge}
@@ -303,6 +307,8 @@ export default function AppPage() {
                             }))
                     });
                 }}
+                isSynthesis={analysisStore.refAnalysis?.isSynthesis}
+                sourceCount={analysisStore.refAnalysis?.sourceCount}
             />
 
         </div>
