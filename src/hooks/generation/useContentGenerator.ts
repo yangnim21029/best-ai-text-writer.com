@@ -47,16 +47,6 @@ export const runContentGeneration = async (
         isUsingCustomOutline = true;
     } else if (refAnalysisData?.structure && refAnalysisData.structure.length > 0) {
         sectionsToGenerate = [...refAnalysisData.structure]; // Clone to avoid mutating original
-
-        // Inject Introduction if available
-        if (refAnalysisData.introText && refAnalysisData.introText.trim().length > 0) {
-            sectionsToGenerate.unshift({
-                title: "前言", // Use generic Intro title
-                narrativePlan: [refAnalysisData.introText],
-                subheadings: [],
-                difficulty: 'easy'
-            });
-        }
         isUsingCustomOutline = false;
     } else {
         sectionsToGenerate = [
