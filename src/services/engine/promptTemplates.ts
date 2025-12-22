@@ -177,9 +177,6 @@ export const promptTemplates = {
 
     ## Conciseness Constraints
     - **General Rule**: Cut all fluff. Be crisp and direct. Stop immediately after answering the core question.
-    ${/introduction|conclusion|intro|outcome|result|summary|引言|結尾|結論/i.test(sectionTitle)
-        ? '- **SPECIAL CONSTRAINT**: Target 40~80 words. Write as a concise narrative. If using subheadings or lists, you MUST still use double newlines between them.'
-        : ''} 
     - **If difficulty = "easy"**: Target < 160 words. Get straight to the point. No preamble.
     - **If difficulty = "medium"**: Target 200~350 words. Explain efficiently using Lists if needed, but ensure narrative depth.
     - **If difficulty = "unclear"**: Focus on clarifying the ambiguity briefly with Lists.
@@ -982,56 +979,91 @@ TASK:
     targetAudience: string;
     languageInstruction: string;
   }) => `
-    You are an expert Narrative Strategist.Your mission is to fill the physical skeleton with DEEP LOGICAL FLOW and NARRATIVE PLANNING.
+    You are an expert Narrative Strategist. Your mission is to fill the physical skeleton with DEEP LOGICAL FLOW and NARRATIVE PLANNING.
 
     <OutlineStructure>
     ${outlineJson}
-</OutlineStructure>
+    </OutlineStructure>
 
-  <TargetAudience>
+    <TargetAudience>
     ${targetAudience}
-</TargetAudience>
+    </TargetAudience>
 
-  <LanguageInstruction>
+    <LanguageInstruction>
     ${languageInstruction}
-</LanguageInstruction>
+    </LanguageInstruction>
 
     STRICT RULES FOR EVERY SECTION:
-    - ** LANGUAGE LEVEL **: Use extremely simple, direct language(elementary school level simplicity).No jargon or flowery summaries.
-    - ** "logicalFlow" **: A one - sentence description of the INNER RELATIONSHIP / CONNECTION between points.Do NOT summarize what to do.Instead, explain the "Logic Bridge": "Why does point A lead to point B?".It supplements Narrative Plan / Key Facts by clarifying the hidden "Why" or "Transition Logic".
-    - ** "coreFocus" **: Defines the TONE and EMOTIONAL HOOK.Tell the writer * how * to emphasize things and what vibe to maintain(e.g., "Urgent warning: sound concerned", "Relief and comfort: sound like a calm expert").
-    - ** "narrativePlan" **: 4 - 6 specific writing instructions. 
-       - ** Mark each item as "[Primary]" or "[Secondary]" **.
+    - **LANGUAGE LEVEL**: Use extremely simple, direct language (elementary school level simplicity). No jargon or flowery summaries.
+    - **"logicalFlow"**: A one-sentence description of the INNER RELATIONSHIP / CONNECTION between points. Do NOT summarize what to do. Instead, explain the "Logic Bridge": "Why does point A lead to point B?". It supplements Narrative Plan / Key Facts by clarifying the hidden "Why" or "Transition Logic".
+    - **"coreFocus"**: Defines the TONE and EMOTIONAL HOOK. Tell the writer *how* to emphasize things and what vibe to maintain (e.g., "Urgent warning: sound concerned", "Relief and comfort: sound like a calm expert").
+    
+    - **"narrativePlan"**: 4-6 specific writing instructions.
+       - **Mark each item as "[Primary]" or "[Secondary]"**.
+       - **ALIGNMENT**: Ensure these steps provide a roadmap that covers all H3 subheadings for this section.
        - "[Primary]" items should focus on the core message or most critical information.
        - "[Secondary]" items should focus on edge cases, transitions, or minor supporting details.
-    - ** "keyFacts" **: 3 - 5 verifiable facts extracted from content.
-    - ** "coreQuestion" **: The main problem this section answers.
 
-    OUTPUT JSON(Array for the 'structure' property):
-  {
-    "structure": [
-      {
-        "title": "Matches outline title exactly",
-        "narrativePlan": ["Plan 1", "Plan 2", "Plan 3", "Plan 4", "Plan 5"],
-        "logicalFlow": "One-sentence logic chain description",
-        "coreFocus": "Description of emphasis",
-        "keyFacts": ["Fact 1", "Fact 2", "Fact 3"],
-        "coreQuestion": "Main question",
-        "difficulty": "easy | medium | unclear",
-        "writingMode": "direct | multi_solutions",
-        "uspNotes": ["..."],
-        "isChecklist": false,
-        "suppress": ["..."],
-        "augment": ["..."],
-        "sentenceStartFeatures": ["..."],
-        "sentenceEndFeatures": ["..."]
-      }
-    ]
-  }
+    - **"keyFacts"** / **"subsections"**:
+       - **Structure**: You must group facts under specific H3 subheadings.
+       - **Granularity**: Extract 2-3 atomic facts for EACH subheading (or for the main section if no subheadings).
+       - **Character Limit**: EACH fact must be **< 30 characters** (for Chinese) or **< 60 characters** (for English).
+       - **STRICT RULE**: Simple sentences only. No complex clauses.
+       - **Output**: Populate the 'subsections' array in the JSON.
 
-<ReferenceContent>
-  ${content}
-</ReferenceContent>
+    - **"coreQuestion"**: The main problem this section answers.
+
+    - **"sourceCharCount"**: 
+       - ESTIMATE the number of characters in the original source text that corresponds to this section (H2 + its H3s).
+       - This is critical for controlling the writing length later.
+
+    - **"instruction"**:
+       - **ROLE**: 你是總編輯，在截稿現場直接指導編輯寫作。(You are the Editor-in-Chief giving immediate, on-site directives).
+       - **CRITICAL**: 
+         1. **NO TONE INSTRUCTIONS**: The editor knows the tone. Focus purely on CONTENT strategy.
+         2. **USE CONTEXTUAL VOCABULARY**: Communicate instantly by using the *exact keywords, phrases, and concepts* found in the source text. Do not use abstract descriptions like "the concept" or "the first point".
+            - **Bad**: "Explain the main problem mentioned in the text." (Too slow, vague)
+            - **Good**: "Explain the 'Latency Spike' issue and why 'Buffer Bloat' is the root cause according to the 'Cisco Report'." (Specific, instant clarity)
+       - **LOGIC SEQUENCE** (Direct the content flow):
+         1. **[Core Facts]**: "Directly state X. Contrast it with Y."
+         2. **[Narrative Angle]**: "Use the 'Z event' to explain why..."
+         3. **[Red Lines]**: "Ignore the rumors about W."
+         4. **[Execution]**: "Keep to ~300 words. Cite the '2024 Study'."
+       - **FORMAT**:
+         - **Single Fluent Paragraph**.
+         - **Direct Command Style (Imperative)**.
+       - **EXAMPLE 1**: "直接把『義大利裔』和『姓名未公開』這兩點寫出來。針對論壇上的『假名謠言』，直接點出那是沒有根據的，甚至可以引用『官方聲明』來駁斥。這段控制在 350 字內，聚焦在事實查核。"
+       - **EXAMPLE 2**: "這段聚焦在『單親家庭』對她『性格孤僻』的影響。一定要引用那篇『2023年專訪』的內容來佐證，不要自己腦補心理戲。特別強調『外公外婆』的角色。"
+
+    OUTPUT JSON (Array for the 'structure' property):
+    {
+      "structure": [
+        {
+          "title": "Matches outline title exactly",
+          "narrativePlan": ["Plan 1", "Plan 2", "Plan 3"],
+          "logicalFlow": "One-sentence logic chain description",
+          "coreFocus": "Description of emphasis",
+          "subsections": [
+            { "title": "H3 Title 1", "keyFacts": ["Short Fact 1", "Short Fact 2"] },
+            { "title": "H3 Title 2", "keyFacts": ["Short Fact 3", "Short Fact 4"] }
+          ],
+          "keyFacts": ["Backwards compatible list of all facts above..."],
+          "coreQuestion": "Main question",
+          "difficulty": "easy | medium | unclear",
+          "writingMode": "direct | multi_solutions",
+          "uspNotes": ["..."],
+          "isChecklist": false,
+          "suppress": ["..."],
+          "augment": ["..."],
+          "sentenceStartFeatures": ["..."],
+          "sentenceEndFeatures": ["..."]
+        }
+      ]
+    }
+
+    <ReferenceContent>
+    ${content}
+    </ReferenceContent>
   `,
 
   regionalBrandAnalysis: ({ content, targetAudience }: { content: string; targetAudience: string }) => `

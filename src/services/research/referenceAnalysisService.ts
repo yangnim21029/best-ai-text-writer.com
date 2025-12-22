@@ -95,10 +95,18 @@ export const analyzeReferenceStructure = async (
         // Filter excluded sections for deep analysis
         const sectionsToAnalyze = (outlineData.structure || []).filter((item: any) => {
             if (item.exclude === true) return false;
-            const navKeywords = ['目錄', '導覽', '清單', '引言', '延伸閱讀', '相關文章', 'Table of Contents', 'TOC', 'Introduction'];
+            const navKeywords = ['目錄', '導覽', '清單', '引言', '前言', '延伸閱讀', '相關文章', 'Table of Contents', 'TOC', 'Introduction', 'Overview'];
             if (navKeywords.some(kw => item.title.includes(kw) && (item.title.length < 15))) return false;
             return true;
         });
+
+        // Inject Introduction as the first section if introText exists
+        if (outlineData.introText && outlineData.introText.length > 10) {
+            sectionsToAnalyze.unshift({
+                title: 'Introduction',
+                subheadings: [] // Intro usually doesn't have subheadings
+            });
+        }
 
         // --- STAGE 2: Deep Narrative Logic Analysis ---
         console.log(`[RefAnalysis] Stage 2: Deep Logic Analysis for ${sectionsToAnalyze.length} sections...`);
@@ -128,9 +136,22 @@ export const analyzeReferenceStructure = async (
                                 writingMode: { type: Type.STRING },
                                 uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
                                 suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
-                                augment: { type: Type.ARRAY, items: { type: Type.STRING } }
+                                augment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                                subsections: {
+                                    type: Type.ARRAY,
+                                    items: {
+                                        type: Type.OBJECT,
+                                        properties: {
+                                            title: { type: Type.STRING },
+                                            keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } }
+                                        },
+                                        required: ["title", "keyFacts"]
+                                    }
+                                },
+                                sourceCharCount: { type: Type.NUMBER },
+                                instruction: { type: Type.STRING }
                             },
-                            required: ["title", "narrativePlan", "logicalFlow", "keyFacts", "coreQuestion", "coreFocus"]
+                            required: ["title", "narrativePlan", "logicalFlow", "keyFacts", "coreQuestion", "coreFocus", "subsections", "instruction", "sourceCharCount"]
                         }
                     }
                 },
@@ -153,6 +174,8 @@ export const analyzeReferenceStructure = async (
                 uspNotes: logicItem.uspNotes || [],
                 suppress: logicItem.suppress || [],
                 augment: logicItem.augment || [],
+                subsections: logicItem.subsections || [],
+                keyFacts: logicItem.keyFacts || (logicItem.subsections ? logicItem.subsections.flatMap((s: any) => s.keyFacts) : []),
                 difficulty: logicItem.difficulty || 'easy',
                 writingMode: logicItem.writingMode || 'direct'
             };
