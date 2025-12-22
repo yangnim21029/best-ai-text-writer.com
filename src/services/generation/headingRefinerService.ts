@@ -144,45 +144,48 @@ export const refineHeadings = async (
     });
 
     const response = await aiService.runJson<{ headings: any[] }>(prompt, 'FLASH', {
-      type: Type.OBJECT,
-      properties: {
-        headings: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              h2_before: { type: Type.STRING },
-              h2_after: { type: Type.STRING },
-              h2_reason: { type: Type.STRING },
-              h2_options: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    text: { type: Type.STRING },
-                    reason: { type: Type.STRING },
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          headings: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                h2_before: { type: Type.STRING },
+                h2_after: { type: Type.STRING },
+                h2_reason: { type: Type.STRING },
+                h2_options: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      text: { type: Type.STRING },
+                      reason: { type: Type.STRING },
+                    },
+                    required: ['text'],
                   },
-                  required: ['text'],
+                },
+                h3: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      h3_before: { type: Type.STRING },
+                      h3_after: { type: Type.STRING },
+                      h3_reason: { type: Type.STRING },
+                    },
+                    required: ['h3_after'],
+                  },
                 },
               },
-              h3: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    h3_before: { type: Type.STRING },
-                    h3_after: { type: Type.STRING },
-                    h3_reason: { type: Type.STRING },
-                  },
-                  required: ['h3_after'],
-                },
-              },
+              required: ['h2_before', 'h2_after', 'h2_options', 'h3'],
             },
-            required: ['h2_before', 'h2_after', 'h2_options', 'h3'],
           },
         },
+        required: ['headings'],
       },
-      required: ['headings'],
+      promptId: 'heading_refinement',
     });
 
     const list = Array.isArray(response.data?.headings) ? response.data.headings : [];

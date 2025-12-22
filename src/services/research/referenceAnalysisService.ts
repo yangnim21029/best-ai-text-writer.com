@@ -22,13 +22,20 @@ export const extractWebsiteTypeAndTerm = async (content: string) => {
     `;
 
   // Using runJson for structured output
-  return await aiService.runJson<{ websiteType: string; authorityTerms: string }>(prompt, 'FLASH', {
-    type: Type.OBJECT,
-    properties: {
-      websiteType: { type: Type.STRING },
-      authorityTerms: { type: Type.STRING },
-    },
-  });
+  return await aiService.runJson<{ websiteType: string; authorityTerms: string }>(
+    prompt,
+    'FLASH',
+    {
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          websiteType: { type: Type.STRING },
+          authorityTerms: { type: Type.STRING },
+        },
+      },
+      promptId: 'website_type_extraction',
+    }
+  );
 };
 
 export const analyzeReferenceStructure = async (
@@ -48,25 +55,28 @@ export const analyzeReferenceStructure = async (
   try {
     // --- STAGE 0: Voice & Strategy Analysis (Can run in parallel with Stage 1) ---
     const voiceResPromise = aiService.runJson<any>(voicePrompt, 'FLASH', {
-      type: Type.OBJECT,
-      properties: {
-        generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-        conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-        brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-        competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
-        competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
-        regionVoiceDetect: { type: Type.STRING },
-        humanWritingVoice: { type: Type.STRING },
-        toneSensation: { type: Type.STRING },
-        entryPoint: { type: Type.STRING },
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+          conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+          brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+          competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
+          competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
+          regionVoiceDetect: { type: Type.STRING },
+          humanWritingVoice: { type: Type.STRING },
+          toneSensation: { type: Type.STRING },
+          entryPoint: { type: Type.STRING },
+        },
+        required: [
+          'generalPlan',
+          'conversionPlan',
+          'brandExclusivePoints',
+          'regionVoiceDetect',
+          'humanWritingVoice',
+        ],
       },
-      required: [
-        'generalPlan',
-        'conversionPlan',
-        'brandExclusivePoints',
-        'regionVoiceDetect',
-        'humanWritingVoice',
-      ],
+      promptId: 'voice_strategy_analysis',
     });
 
     // --- STAGE 1: Skeleton Extraction ---
@@ -77,26 +87,29 @@ export const analyzeReferenceStructure = async (
       languageInstruction,
     });
     const outlineRes = await aiService.runJson<any>(outlinePrompt, 'FLASH', {
-      type: Type.OBJECT,
-      properties: {
-        h1Title: { type: Type.STRING },
-        introText: { type: Type.STRING },
-        keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-        structure: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
-              exclude: { type: Type.BOOLEAN },
-              excludeReason: { type: Type.STRING },
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          h1Title: { type: Type.STRING },
+          introText: { type: Type.STRING },
+          keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+          structure: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
+                exclude: { type: Type.BOOLEAN },
+                excludeReason: { type: Type.STRING },
+              },
+              required: ['title'],
             },
-            required: ['title'],
           },
         },
+        required: ['h1Title', 'introText', 'structure', 'keyInformationPoints'],
       },
-      required: ['h1Title', 'introText', 'structure', 'keyInformationPoints'],
+      promptId: 'skeleton_extraction',
     });
 
     const outlineData = outlineRes.data;
@@ -143,53 +156,56 @@ export const analyzeReferenceStructure = async (
 
     const [logicRes, voiceRes] = await Promise.all([
       aiService.runJson<any>(logicPrompt, 'FLASH', {
-        type: Type.OBJECT,
-        properties: {
-          structure: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                logicalFlow: { type: Type.STRING },
-                coreFocus: { type: Type.STRING },
-                keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                coreQuestion: { type: Type.STRING },
-                difficulty: { type: Type.STRING },
-                writingMode: { type: Type.STRING },
-                uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
-                augment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                subsections: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING },
-                      keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+        schema: {
+          type: Type.OBJECT,
+          properties: {
+            structure: {
+              type: Type.ARRAY,
+              items: {
+                type: Type.OBJECT,
+                properties: {
+                  title: { type: Type.STRING },
+                  narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  logicalFlow: { type: Type.STRING },
+                  coreFocus: { type: Type.STRING },
+                  keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  coreQuestion: { type: Type.STRING },
+                  difficulty: { type: Type.STRING },
+                  writingMode: { type: Type.STRING },
+                  uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  augment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                  subsections: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        title: { type: Type.STRING },
+                        keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      },
+                      required: ['title', 'keyFacts'],
                     },
-                    required: ['title', 'keyFacts'],
                   },
+                  sourceCharCount: { type: Type.NUMBER },
+                  instruction: { type: Type.STRING },
                 },
-                sourceCharCount: { type: Type.NUMBER },
-                instruction: { type: Type.STRING },
+                required: [
+                  'title',
+                  'narrativePlan',
+                  'logicalFlow',
+                  'keyFacts',
+                  'coreQuestion',
+                  'coreFocus',
+                  'subsections',
+                  'instruction',
+                  'sourceCharCount',
+                ],
               },
-              required: [
-                'title',
-                'narrativePlan',
-                'logicalFlow',
-                'keyFacts',
-                'coreQuestion',
-                'coreFocus',
-                'subsections',
-                'instruction',
-                'sourceCharCount',
-              ],
             },
           },
+          required: ['structure'],
         },
-        required: ['structure'],
+        promptId: 'narrative_logic_analysis',
       }),
       voiceResPromise,
     ]);
@@ -350,32 +366,35 @@ export const mergeMultipleAnalyses = async (
 
   try {
     const mergeRes = await aiService.runJson<ReferenceAnalysis>(mergePrompt, 'FLASH', {
-      type: Type.OBJECT,
-      properties: {
-        structure: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              title: { type: Type.STRING },
-              subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
-              narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-              logicalFlow: { type: Type.STRING },
-              keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-              coreFocus: { type: Type.STRING },
-              writingMode: { type: Type.STRING },
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          structure: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                title: { type: Type.STRING },
+                subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
+                narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                logicalFlow: { type: Type.STRING },
+                keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                coreFocus: { type: Type.STRING },
+                writingMode: { type: Type.STRING },
+              },
+              required: ['title', 'subheadings', 'narrativePlan'],
             },
-            required: ['title', 'subheadings', 'narrativePlan'],
           },
+          generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+          keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+          brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+          conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+          humanWritingVoice: { type: Type.STRING },
+          regionVoiceDetect: { type: Type.STRING },
         },
-        generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-        keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-        brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-        conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-        humanWritingVoice: { type: Type.STRING },
-        regionVoiceDetect: { type: Type.STRING },
+        required: ['structure', 'generalPlan', 'humanWritingVoice'],
       },
-      required: ['structure', 'generalPlan', 'humanWritingVoice'],
+      promptId: 'analysis_synthesis_merge',
     });
 
     const mergedData = mergeRes.data;

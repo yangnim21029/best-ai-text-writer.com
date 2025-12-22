@@ -1,4 +1,7 @@
 import { ScrapedImage } from '../../types';
+import { fetchWithRetry } from '../../utils/fetchUtils';
+import { SCRAPING_JUNK_PHRASES, SCRAPING_NOISE_WORDS, BRAND_UI_JUNK } from '../../config/scrapingRules';
+
 /**
  * Web Scraper Service
  * Uses Jina AI Reader (https://jina.ai/reader) to turn URLs into LLM-friendly Markdown.
@@ -7,6 +10,7 @@ import { ScrapedImage } from '../../types';
 // Added options interface
 interface FetchOptions {
   includeNav?: boolean;
+  signal?: AbortSignal;
 }
 
 export const fetchUrlContent = async (
@@ -36,9 +40,10 @@ export const fetchUrlContent = async (
       headers['X-Remove-Selector'] = 'aside'; // Keep header/footer/nav for contact info
     }
 
-    const response = await fetch(`https://r.jina.ai/${url}`, {
+    const response = await fetchWithRetry(`https://r.jina.ai/${url}`, {
       method: 'GET',
       headers: headers,
+      signal: options.signal,
     });
 
     if (!response.ok) {
@@ -202,16 +207,9 @@ const cleanArtifacts = (text: string): string => {
   // ============================================================
 
   const junkPhrases = [
-    /^Ad Placement\s*:.*$/gim, // Remove "Ad Placement : xxxx" lines
-    /^(Login|登入|Sign In).*$/gim, // Remove lines starting with Login/登入
-    /^ADVERTISEMENT$/gim, // Remove strict "ADVERTISEMENT" lines
-    /^CONTINUE READING BELOW$/gim, // Remove "CONTINUE READING BELOW"
-    /^Share on:.*$/gim, // Remove "Share on: ..." lines
-    /^recommended$/gim, // Remove standalone "recommended" lines
-    /^Related Articles:?$/gim, // Common noise
-    /^Read More:?$/gim, // Common noise
-    /^SCROLL TO CONTINUE\s*:.*$/gim,
-    /^[ \t]*\S{1,2}[ \t]*$/gm, // Remove lines with < 3 chars (e.g. "US", "Go", "|", "。")
+    ...SCRAPING_JUNK_PHRASES,
+    ...SCRAPING_NOISE_WORDS,
+    ...BRAND_UI_JUNK,
   ];
 
   junkPhrases.forEach((regex) => {
@@ -293,15 +291,11 @@ const cleanArtifacts = (text: string): string => {
   // Google Analytics / Ads artifacts
   cleaned = cleaned.replace(/^\s*(UA-\d+-\d+|G-[A-Z0-9]+)\s*$/gm, '');
 
-  // Common noise words (Case insensitive)
-  cleaned = cleaned.replace(/^(holiday|girlstyle|businessfocus|mamidaily)\s*$/gim, '');
-
   // HK style "All Chinese" navs
   cleaned = cleaned.replace(/^All\s+[\u4e00-\u9fa5]+.*$/gm, '');
 
   // User-requested noise lines between content
   cleaned = cleaned.replace(/^\s*-{3,}\s*$/gm, ''); // ----- separators
-  cleaned = cleaned.replace(/^\s*\u25b2?\s*Cosmopolitan\.com\.hk\s*$/gim, ''); // Cosmopolitan.com.hk with optional ▲
 
   // Final Whitespace Cleanup
   cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();

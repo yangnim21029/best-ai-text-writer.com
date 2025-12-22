@@ -214,6 +214,7 @@ export interface AIRequestConfig {
   temperature?: number;
   topK?: number;
   topP?: number;
+  promptId?: string;
   providerOptions?: {
     vertex?: {
       useSearchGrounding?: boolean;

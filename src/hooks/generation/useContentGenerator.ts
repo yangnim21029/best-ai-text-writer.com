@@ -7,7 +7,7 @@ import { mergeTurboSections } from '../../services/generation/contentDisplayServ
 
 import { cleanHeadingText, stripLeadingHeading } from '../../utils/textUtils';
 import { planImagesForArticle, generateImage } from '../../services/generation/imageService';
-import { appendAnalysisLog } from './generationLogger';
+import { appendAnalysisLog } from '../../services/generation/generationLogger';
 import { aiService } from '../../services/engine/aiService';
 
 const isStopped = () => useGenerationStore.getState().isStopped;

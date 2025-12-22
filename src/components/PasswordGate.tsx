@@ -7,16 +7,9 @@ interface PasswordGateProps {
   onUnlock: () => void;
 }
 
-const hashText = async (text: string) => {
-  const encoder = new TextEncoder();
-  const data = encoder.encode(text);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', data);
-  return Array.from(new Uint8Array(hashBuffer))
-    .map((b) => b.toString(16).padStart(2, '0'))
-    .join('');
-};
+import { verifyPasswordAction } from '@/app/actions/auth';
 
-export const PasswordGate: React.FC<PasswordGateProps> = ({ passwordHash = '', onUnlock }) => {
+export const PasswordGate: React.FC<PasswordGateProps> = ({ onUnlock }) => {
   const [input, setInput] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -24,20 +17,17 @@ export const PasswordGate: React.FC<PasswordGateProps> = ({ passwordHash = '', o
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    if (!passwordHash) {
-      setError('Password is not configured. Please set VITE_APP_GUARD_HASH.');
-      return;
-    }
+    
     setIsLoading(true);
     try {
-      const hashed = await hashText(input.trim());
-      if (hashed === passwordHash) {
+      const result = await verifyPasswordAction(input);
+      if (result.success) {
         onUnlock();
       } else {
-        setError('Incorrect password.');
+        setError(result.error || 'Incorrect password.');
       }
     } catch (err) {
-      console.error('Password hash failed', err);
+      console.error('Authentication failed', err);
       setError('Something went wrong. Please try again.');
     } finally {
       setIsLoading(false);

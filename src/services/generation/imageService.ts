@@ -211,12 +211,14 @@ export const generateImagePromptFromContext = async (
   });
 
   try {
-    const response = await aiService.runJson<string[]>(prompt, 'FLASH', {
-      type: Type.ARRAY,
-      items: { type: Type.STRING },
-    });
-
-    return {
+      const response = await aiService.runJson<string[]>(prompt, 'FLASH', {
+        schema: {
+          type: Type.ARRAY,
+          items: { type: Type.STRING },
+        },
+        promptId: 'image_prompt_gen',
+      });
+        return {
       data: Array.isArray(response.data) ? response.data : [],
       usage: response.usage,
       cost: response.cost,
@@ -369,35 +371,38 @@ export const planImagesForArticle = async (
 
   try {
     const response = await aiService.runJson<any>(prompt, 'FLASH', {
-      type: Type.OBJECT,
-      properties: {
-        plans: {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              generatedPrompt: {
-                type: Type.STRING,
-                description: 'Detailed prompt including subject + visual style + mood.',
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          plans: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                generatedPrompt: {
+                  type: Type.STRING,
+                  description: 'Detailed prompt including subject + visual style + mood.',
+                },
+                category: {
+                  type: Type.STRING,
+                  enum: [
+                    'BRANDED_LIFESTYLE',
+                    'PRODUCT_DETAIL',
+                    'INFOGRAPHIC',
+                    'PRODUCT_INFOGRAPHIC',
+                    'ECOMMERCE_WHITE_BG',
+                  ],
+                },
+                insertAfter: { type: Type.STRING },
+                rationale: { type: Type.STRING },
               },
-              category: {
-                type: Type.STRING,
-                enum: [
-                  'BRANDED_LIFESTYLE',
-                  'PRODUCT_DETAIL',
-                  'INFOGRAPHIC',
-                  'PRODUCT_INFOGRAPHIC',
-                  'ECOMMERCE_WHITE_BG',
-                ],
-              },
-              insertAfter: { type: Type.STRING },
-              rationale: { type: Type.STRING },
+              required: ['generatedPrompt', 'category', 'insertAfter'],
             },
-            required: ['generatedPrompt', 'category', 'insertAfter'],
           },
         },
+        required: ['plans'],
       },
-      required: ['plans'],
+      promptId: 'visual_asset_planning',
     });
 
     const plans: any[] = response.data.plans || [];

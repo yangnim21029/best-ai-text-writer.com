@@ -8,28 +8,27 @@ import {
   ScrapedImage,
   TargetAudience,
   TokenUsage,
+  PageProfile,
 } from '@/types';
 import { ArticleFormValues } from '@/schemas/formSchema';
 import { summarizeBrandContent } from '@/services/research/productFeatureToPainPointMapper';
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
+import { AnalysisDocumentList } from './form/AnalysisDocumentList';
+import { SemanticFilterModal } from './form/SemanticFilterModal';
 import {
   LayoutTemplate,
   Trash2,
   Sparkles,
-  Settings2,
   Zap,
   BookOpen,
   Loader2,
-  Image as ImageIcon,
   ChevronDown,
-  Database,
   FileText,
   Link2,
   FileUp,
   Slack,
-  Github,
   FolderOpen,
 } from 'lucide-react';
 import { useArticleForm } from '@/hooks/useArticleForm';
@@ -41,7 +40,6 @@ import { ServiceLibraryModal } from './modals/ServiceLibraryModal';
 import { fetchUrlContent } from '@/services/research/webScraper';
 import { extractWebsiteTypeAndTerm } from '@/services/research/referenceAnalysisService';
 import { PageLibraryModal } from './modals/PageLibraryModal';
-import { PageProfile } from '@/types';
 
 interface InputFormProps {
   onGenerate: (config: ArticleConfig) => void;
@@ -68,49 +66,6 @@ interface InputFormProps {
   onShowPlan?: () => void;
   hasPlan?: boolean;
 }
-
-const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
-const PAGES_STORAGE_KEY = 'pro_content_writer_pages_v1';
-
-const ThresholdInput: React.FC<{
-  value: string;
-  onChange: (val: string) => void;
-  onCommit: (val?: string) => void;
-}> = ({ value, onChange, onCommit }) => {
-  const [localValue, setLocalValue] = React.useState(value);
-
-  React.useEffect(() => {
-    setLocalValue(value);
-  }, [value]);
-
-  const handleCommit = () => {
-    onCommit(localValue);
-  };
-
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      handleCommit();
-    }
-  };
-
-  return (
-    <input
-      type="number"
-      min="0"
-      max="1"
-      step="0.01"
-      value={localValue}
-      onChange={(e) => {
-        setLocalValue(e.target.value);
-        onChange(e.target.value);
-      }}
-      onBlur={handleCommit}
-      onKeyDown={handleKeyDown}
-      className="w-24 px-2 py-1 text-[11px] border border-gray-200 rounded-lg text-gray-800 shadow-inner"
-    />
-  );
-};
 
 export const InputForm: React.FC<InputFormProps> = ({
   onGenerate,
@@ -161,7 +116,6 @@ export const InputForm: React.FC<InputFormProps> = ({
     updateProfile,
     deleteProfile,
     applyProfileToForm,
-    loadProductFromProfile,
     createPage,
     updatePage,
     deletePage,
@@ -243,19 +197,6 @@ export const InputForm: React.FC<InputFormProps> = ({
     commitSemanticThreshold,
   } = useSemanticFilter();
 
-  const semanticThresholdValue = useMemo(() => {
-    const parsed = parseFloat(semanticThresholdInput);
-    if (!Number.isNaN(parsed)) {
-      return Math.min(1, Math.max(0, parsed));
-    }
-    return semanticThreshold;
-  }, [semanticThresholdInput, semanticThreshold]);
-
-  const semanticThresholdLabel = useMemo(
-    () => semanticThresholdValue.toFixed(2),
-    [semanticThresholdValue]
-  );
-
   const onSubmit: SubmitHandler<ArticleFormValues> = (data) => {
     const usableImages = scrapedImages.filter((img) => !img.ignored);
     onGenerate({
@@ -275,7 +216,6 @@ export const InputForm: React.FC<InputFormProps> = ({
 
   const handleFetchUrl = async () => {
     await fetchAndPopulate(watchedValues.urlInput || '');
-    // Do NOT reset activePageId here; useUrlScraper will set it to the new page.
   };
 
   const handleImportProductUrls = async () => {
@@ -318,8 +258,12 @@ export const InputForm: React.FC<InputFormProps> = ({
   const isReadyToGenerate = useMemo(() => {
     const hasTitle = (watchedValues.title || '').trim().length > 0;
     const hasRef = (watchedValues.referenceContent || '').trim().length > 0;
-    return hasTitle && hasRef && !isFetchingUrl && !isSummarizingProduct;
-  }, [watchedValues.title, watchedValues.referenceContent, isFetchingUrl, isSummarizingProduct]);
+    // If we have an active page config, it should imply we have the content ready 
+    // (even if watchedValues hasn't synced yet or we trust the activePageId state).
+    const hasActivePage = !!activePageId;
+
+    return (hasTitle || hasActivePage) && (hasRef || hasActivePage) && !isFetchingUrl && !isSummarizingProduct;
+  }, [watchedValues.title, watchedValues.referenceContent, activePageId, isFetchingUrl, isSummarizingProduct]);
 
   const handlePreviewSemanticFilter = () => {
     const content = (watchedValues.referenceContent || '').trim();
@@ -417,77 +361,7 @@ export const InputForm: React.FC<InputFormProps> = ({
               <label className="flex items-center gap-1.5 text-[10px] font-bold text-blue-700 uppercase mb-2">
                 <FileText className="w-3 h-3" /> Analysis Documents
               </label>
-              <div className="space-y-1.5 max-h-40 overflow-y-auto custom-scrollbar">
-                {analysisStore.analysisDocuments.length === 0 ? (
-                  <p className="text-[10px] text-gray-400 italic py-2 text-center">
-                    No knowledge objects yet. Run Step 1 to create one.
-                  </p>
-                ) : (
-                  analysisStore.analysisDocuments.map((doc) => {
-                    const isSelected = analysisStore.selectedDocumentIds.includes(doc.id);
-                    return (
-                      <div
-                        key={doc.id}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => analysisStore.toggleDocumentSelection(doc.id)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            e.preventDefault();
-                            analysisStore.toggleDocumentSelection(doc.id);
-                          }
-                        }}
-                        className={`w-full text-left p-2 rounded-lg border transition-all flex items-center gap-2 group/doc cursor-pointer ${isSelected
-                            ? 'bg-blue-600 border-blue-600 text-white shadow-md'
-                            : 'bg-white border-gray-100 text-gray-700 hover:border-blue-200 hover:bg-blue-50/50'
-                          }`}
-                      >
-                        <div
-                          className={`w-3 h-3 rounded border flex items-center justify-center transition-colors ${isSelected ? 'bg-white border-white' : 'border-gray-300'}`}
-                        >
-                          {isSelected && <div className="w-1.5 h-1.5 bg-blue-600 rounded-sm" />}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[11px] font-bold truncate">{doc.title}</div>
-                          <div
-                            className={`text-[9px] ${isSelected ? 'text-blue-100' : 'text-gray-400'}`}
-                          >
-                            {new Date(doc.timestamp).toLocaleString()}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-1 opacity-0 group-hover/doc:opacity-100 transition-opacity">
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              analysisStore.loadAnalysisDocument(doc.id).then(() => {
-                                onShowPlan?.();
-                              });
-                            }}
-                            className="p-1 rounded hover:bg-white/20 text-gray-300 hover:text-blue-500"
-                            title="Load & View Plan"
-                          >
-                            <FileText className="w-3 h-3" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (confirm('Delete this analysis document?')) {
-                                analysisStore.deleteDocument(doc.id);
-                              }
-                            }}
-                            className="p-1 rounded hover:bg-white/20 text-gray-300 hover:text-red-500"
-                            title="Delete Document"
-                          >
-                            <Trash2 className="w-3 h-3" />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
+              <AnalysisDocumentList onShowPlan={onShowPlan} />
             </div>
           </div>
 
@@ -610,8 +484,8 @@ export const InputForm: React.FC<InputFormProps> = ({
               type="submit"
               disabled={isGenerating || isWriting || !isReadyToGenerate}
               className={`w-full py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] ${isGenerating || isWriting || !isReadyToGenerate
-                  ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
+                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
                 }`}
             >
               {isGenerating ? (
@@ -622,7 +496,7 @@ export const InputForm: React.FC<InputFormProps> = ({
               ) : (
                 <>
                   <Sparkles className="w-4 h-4" />
-                  <span>Step 1：分析 (供審閱)</span>
+                  <span>語氣與大綱分析</span>
                 </>
               )}
             </button>
@@ -632,12 +506,12 @@ export const InputForm: React.FC<InputFormProps> = ({
               onClick={onShowPlan}
               disabled={!hasPlan}
               className={`w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all border ${hasPlan
-                  ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100'
-                  : 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed'
+                ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100'
+                : 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed'
                 }`}
             >
               <LayoutTemplate className="w-4 h-4" />
-              <span>檢視段落計劃</span>
+              <span>檢視文章大綱</span>
             </button>
 
             <p className="text-[11px] text-gray-500 text-center">
@@ -689,121 +563,28 @@ export const InputForm: React.FC<InputFormProps> = ({
           setIsPageModalOpen(false);
         }}
         onDelete={deletePage}
+        onUpdate={updatePage}
         onCreate={(name) => {
           createPage({ name, ...watchedValues, scrapedImages });
         }}
       />
 
-      {isChunkModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/25 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-3xl rounded-2xl shadow-2xl border border-gray-100 overflow-hidden flex flex-col max-h-[85vh]">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
-              <div>
-                <p className="text-sm font-bold text-gray-900">語意過濾分段確認</p>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  以空白行分段，顯示與標題的語意相似度 (閾值 {semanticThresholdLabel}).
-                </p>
-              </div>
-              <button
-                type="button"
-                className="text-xs text-gray-400 hover:text-gray-600"
-                onClick={() => setIsChunkModalOpen(false)}
-                disabled={isFilteringChunks}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="p-5 space-y-3 overflow-y-auto flex-1 custom-scrollbar">
-              {chunkPreview.map((chunk, idx) => (
-                <div
-                  key={`${idx}-${chunk.slice(0, 10)}`}
-                  className="border border-gray-100 rounded-lg p-3 bg-gray-50/60"
-                >
-                  <div className="flex items-center justify-between text-[11px] text-gray-500 mb-1">
-                    <span className="font-semibold text-gray-700">Chunk {idx + 1}</span>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setManualKeep((prev) => ({ ...prev, [idx]: !prev[idx] }))}
-                        className={`px-2 py-0.5 rounded-full border text-[10px] font-semibold transition-colors ${manualKeep[idx]
-                            ? 'border-blue-200 bg-blue-50 text-blue-700'
-                            : 'border-gray-200 bg-white text-gray-500 hover:border-blue-200 hover:text-blue-600'
-                          }`}
-                      >
-                        {manualKeep[idx] ? '手動通過' : '手動通過？'}
-                      </button>
-                      {typeof chunkScores[idx] === 'number' && !Number.isNaN(chunkScores[idx]) ? (
-                        <span
-                          className={`font-mono font-bold ${chunkScores[idx] >= semanticThresholdValue ? 'text-green-500' : 'text-amber-500'}`}
-                        >
-                          {(chunkScores[idx] * 100).toFixed(0)}% Match
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">Scoring...</span>
-                      )}
-                    </div>
-                  </div>
-                  <pre className="text-[10px] text-gray-600 font-sans whitespace-pre-wrap leading-relaxed">
-                    {chunk}
-                  </pre>
-                </div>
-              ))}
-
-              {!chunkPreview.length && !filterError && (
-                <div className="text-center py-10 space-y-3">
-                  <Loader2 className="w-8 h-8 animate-spin text-gray-200 mx-auto" />
-                  <p className="text-xs text-gray-400 italic">正在分析內容分段語意...</p>
-                </div>
-              )}
-
-              {filterError && (
-                <div className="p-4 bg-red-50 border border-red-100 rounded-xl text-center">
-                  <p className="text-xs text-red-600 font-semibold">{filterError}</p>
-                </div>
-              )}
-            </div>
-
-            <div className="p-4 border-t border-gray-100 bg-gray-50 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-bold text-gray-500 uppercase">
-                  語意閾值調整 (0-1)
-                </span>
-                <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded ring-1 ring-indigo-100">
-                    {semanticThresholdLabel} {isScoringChunks ? '...' : ''}
-                  </span>
-                  <ThresholdInput
-                    value={semanticThresholdInput}
-                    onChange={setSemanticThresholdInput}
-                    onCommit={commitSemanticThreshold}
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  className="flex-1 py-2 text-[12px] font-bold text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
-                  onClick={() => setIsChunkModalOpen(false)}
-                  disabled={isFilteringChunks || isScoringChunks}
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRunSemanticFilter}
-                  disabled={isFilteringChunks || isScoringChunks}
-                  className="px-3 py-2 text-[12px] font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md hover:brightness-110 transition-all disabled:opacity-60 flex items-center gap-2"
-                >
-                  {isFilteringChunks ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
-                  同意並過濾
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      <SemanticFilterModal
+        isOpen={isChunkModalOpen}
+        onClose={() => setIsChunkModalOpen(false)}
+        onApply={handleRunSemanticFilter}
+        chunkPreview={chunkPreview}
+        chunkScores={chunkScores}
+        isFilteringChunks={isFilteringChunks}
+        isScoringChunks={isScoringChunks}
+        filterError={filterError}
+        manualKeep={manualKeep}
+        setManualKeep={setManualKeep}
+        semanticThreshold={semanticThreshold}
+        semanticThresholdInput={semanticThresholdInput}
+        setSemanticThresholdInput={setSemanticThresholdInput}
+        commitSemanticThreshold={commitSemanticThreshold}
+      />
     </div>
   );
 };

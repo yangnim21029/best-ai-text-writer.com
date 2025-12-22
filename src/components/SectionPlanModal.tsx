@@ -237,17 +237,17 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
             </div>
             <div className="flex flex-col">
               <h3 className="text-lg font-bold text-gray-900 leading-tight flex items-center gap-2">
-                {isSynthesis ? `AI Synthesized Plan` : '段落計劃預覽'}
+                {isSynthesis ? `AI 綜合大綱計畫` : '文章大綱預覽'}
                 {isSynthesis && (
                   <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-100 flex items-center gap-1">
                     <Layers className="w-3 h-3" />
-                    Merged {sourceCount} Sources
+                    整合 {sourceCount} 個來源
                   </span>
                 )}
               </h3>
               <p className="text-xs text-gray-500">
                 {isSynthesis
-                  ? 'The AI has merged multiple analyses into this unified strategic plan.'
+                  ? 'AI 已綜合多個參考來源，為您產生這份完整的文章大綱。'
                   : '可在寫作前調整段落內容與勾選要寫的段落。'}
               </p>
             </div>
@@ -321,7 +321,7 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
             <div className="p-4 space-y-3 h-full overflow-y-auto custom-scrollbar">
               <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
                 <Map className="w-4 h-4 text-blue-600" />
-                Global Plan
+                全域大綱
                 {useLocalizedPlan && hasLocalizedPlan && (
                   <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
                     本地化
@@ -344,7 +344,7 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
               <div className="pt-4 border-t border-gray-100">
                 <div className="flex items-center gap-2 text-xs font-bold text-gray-500 uppercase tracking-wide">
                   <Target className="w-4 h-4 text-emerald-600" />
-                  Conversion Plan
+                  轉換策略大綱
                   {useLocalizedPlan && hasLocalizedPlan && (
                     <span className="text-[10px] px-1.5 py-0.5 bg-emerald-100 text-emerald-700 rounded-full">
                       本地化

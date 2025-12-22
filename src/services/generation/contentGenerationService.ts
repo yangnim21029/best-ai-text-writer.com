@@ -175,15 +175,18 @@ export const generateSectionContent = async (
   });
 
   const response = await aiService.runJson<any>(prompt, 'FLASH', {
-    type: Type.OBJECT,
-    properties: {
-      content: { type: Type.STRING },
-      usedPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-      injectedCount: {
-        type: Type.INTEGER,
-        description: 'How many times did you mention the Product Name?',
+    schema: {
+      type: Type.OBJECT,
+      properties: {
+        content: { type: Type.STRING },
+        usedPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+        injectedCount: {
+          type: Type.INTEGER,
+          description: 'How many times did you mention the Product Name?',
+        },
       },
     },
+    promptId: `section_gen_${sectionTitle.slice(0, 20)}`,
   });
 
   const payload = response.data || {};

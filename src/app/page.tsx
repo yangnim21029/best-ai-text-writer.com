@@ -22,10 +22,9 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { useAppAccess } from '@/hooks/useAppAccess';
 import { useContentScore } from '@/hooks/useContentScore';
 import { useAppHydration } from '@/hooks/useAppHydration';
+import { isAuthorizedAction } from '@/app/actions/auth';
 
 export default function AppPage() {
-  const passwordHash = useMemo(() => (process.env.NEXT_PUBLIC_APP_GUARD_HASH as string) || '', []);
-
   // Store & Hooks
   const app = useAppStore();
   const generationStore = useGenerationStore();
@@ -34,6 +33,15 @@ export default function AppPage() {
   const { structurePoints } = useContentScore();
   const { generate, startWriting, stop } = useGeneration();
   useAppHydration();
+
+  // Sync server session with client local storage state
+  useEffect(() => {
+    isAuthorizedAction().then((isAuth) => {
+      if (isAuth && !isUnlocked) {
+        unlock();
+      }
+    });
+  }, [isUnlocked, unlock]);
 
   const [isSearchingAlternatives, setIsSearchingAlternatives] = useState(false);
   const [isLocalizingPlan, setIsLocalizingPlan] = useState(false);
@@ -151,7 +159,7 @@ export default function AppPage() {
   };
 
   if (!isUnlocked) {
-    return <PasswordGate passwordHash={passwordHash} onUnlock={unlock} />;
+    return <PasswordGate onUnlock={unlock} />;
   }
 
   return (

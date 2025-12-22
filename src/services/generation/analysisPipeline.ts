@@ -4,7 +4,11 @@ import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
 import { runAnalysisPipelineService } from '@/services/generation/analysisCoordinator';
 
-export const runAnalysisPipeline = async (config: ArticleConfig) => {
+/**
+ * Orchestrates the analysis pipeline by connecting global store state to the analysis service.
+ * This is a service wrapper, not a hook.
+ */
+export const executeAnalysisPipeline = async (config: ArticleConfig) => {
   const generationStore = useGenerationStore.getState();
   const analysisStore = useAnalysisStore.getState();
   const appStore = useAppStore.getState();

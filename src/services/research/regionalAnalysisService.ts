@@ -28,15 +28,16 @@ export const analyzeRegionalTerms = async (
   const response = await aiService.runJson<
     { original: string; replacement: string; reason: string }[]
   >(prompt, 'FLASH', {
-    type: Type.ARRAY,
-    items: {
-      type: Type.OBJECT,
-      properties: {
-        original: { type: Type.STRING },
-        replacement: { type: Type.STRING },
-        reason: { type: Type.STRING },
+    schema: {
+      type: Type.ARRAY,
+      items: {
+        type: Type.OBJECT,
+        properties: {
+          original: { type: Type.STRING },
+          replacement: { type: Type.STRING },
+          reason: { type: Type.STRING },
+        },
       },
-      required: ['original', 'replacement', 'reason'],
     },
   });
 

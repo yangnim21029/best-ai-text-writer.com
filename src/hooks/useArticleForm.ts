@@ -146,10 +146,12 @@ export const useArticleForm = ({
 
   // Apply active profile
   useEffect(() => {
-    if (activeProfile) {
+    // Only apply website profile if we don't have an active page.
+    // If we HAVE an active page, we want to keep its content (title/reference).
+    if (activeProfile && !activePageId) {
       applyProfileToForm(activeProfile);
     }
-  }, [activeProfile, applyProfileToForm]);
+  }, [activeProfile, activePageId, applyProfileToForm]);
 
   const usableImages = useMemo(() => scrapedImages.filter((img) => !img.ignored), [scrapedImages]);
 

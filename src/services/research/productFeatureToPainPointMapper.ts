@@ -23,16 +23,18 @@ export const generateProductBrief = async (
 
   try {
     const response = await aiService.runJson<ProductBrief>(prompt, 'FLASH', {
-      type: Type.OBJECT,
-      properties: {
-        brandName: { type: Type.STRING },
-        productName: { type: Type.STRING },
-        productDescription: { type: Type.STRING },
-        usp: { type: Type.STRING },
-        primaryPainPoint: { type: Type.STRING },
-        ctaLink: { type: Type.STRING },
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          brandName: { type: Type.STRING },
+          productName: { type: Type.STRING },
+          productDescription: { type: Type.STRING },
+          usp: { type: Type.STRING },
+          primaryPainPoint: { type: Type.STRING },
+          ctaLink: { type: Type.STRING },
+        },
+        required: ['brandName', 'productName', 'usp', 'ctaLink'],
       },
-      required: ['brandName', 'productName', 'usp', 'ctaLink'],
     });
 
     // Fill in defaults if missing
@@ -78,15 +80,17 @@ export const mapProblemsToProduct = async (
 
   try {
     const response = await aiService.runJson<ProblemProductMapping[]>(prompt, 'FLASH', {
-      type: Type.ARRAY,
-      items: {
-        type: Type.OBJECT,
-        properties: {
-          painPoint: { type: Type.STRING },
-          productFeature: { type: Type.STRING },
-          relevanceKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+      schema: {
+        type: Type.ARRAY,
+        items: {
+          type: Type.OBJECT,
+          properties: {
+            painPoint: { type: Type.STRING },
+            productFeature: { type: Type.STRING },
+            relevanceKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
+          },
+          required: ['painPoint', 'productFeature', 'relevanceKeywords'],
         },
-        required: ['painPoint', 'productFeature', 'relevanceKeywords'],
       },
     });
 
@@ -117,15 +121,17 @@ export const parseProductContext = async (
 
   try {
     const response = await aiService.runJson<ProductBrief>(prompt, 'FLASH', {
-      type: Type.OBJECT,
-      properties: {
-        brandName: { type: Type.STRING },
-        productName: { type: Type.STRING },
-        usp: { type: Type.STRING },
-        primaryPainPoint: { type: Type.STRING },
-        ctaLink: { type: Type.STRING },
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          brandName: { type: Type.STRING },
+          productName: { type: Type.STRING },
+          usp: { type: Type.STRING },
+          primaryPainPoint: { type: Type.STRING },
+          ctaLink: { type: Type.STRING },
+        },
+        required: ['brandName', 'productName', 'usp', 'ctaLink'],
       },
-      required: ['brandName', 'productName', 'usp', 'ctaLink'],
     });
 
     const data = response.data;

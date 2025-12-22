@@ -4,7 +4,7 @@ import { ArticleConfig } from '@/types';
 import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { resetGenerationState } from '@/store/resetGenerationState';
-import { runAnalysisPipeline } from './generation/useAnalysisPipeline';
+import { executeAnalysisPipeline } from '@/services/generation/analysisPipeline';
 import { runContentGeneration } from './generation/useContentGenerator';
 
 const runAnalysisOnly = async (config: ArticleConfig) => {
@@ -17,7 +17,7 @@ const runAnalysisOnly = async (config: ArticleConfig) => {
 
   try {
     // 1. Analysis Phase
-    const analysisResults = await runAnalysisPipeline(config);
+    const analysisResults = await executeAnalysisPipeline(config);
 
     if (useGenerationStore.getState().isStopped) return;
 

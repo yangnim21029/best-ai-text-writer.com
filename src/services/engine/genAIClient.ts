@@ -39,12 +39,20 @@ export const buildAiUrl = (path: string) => {
 
 export const getAiHeaders = () => {
   const token = env.VITE_AI_TOKEN || env.AI_TOKEN;
+  const proxySecret = env.VITE_AI_PROXY_SECRET || env.AI_PROXY_SECRET;
+  
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
+  
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
+  
+  if (proxySecret) {
+    headers['x-ai-proxy-secret'] = proxySecret;
+  }
+  
   return headers;
 };
 
@@ -116,11 +124,12 @@ const extractTextFromUIMessage = (message: any): string => {
   return '';
 };
 
+import { JsonUtils } from '../../utils/jsonUtils';
+
 const parseSseTextContent = (
   raw: string
 ): { text: string; usageMetadata?: any; object?: any } | null => {
-  if (typeof raw !== 'string') return null;
-  if (!raw.includes('data:')) return null;
+  if (typeof raw !== 'string' || !raw.includes('data:')) return null;
 
   const chunks = raw.split(/data:\s*/).slice(1);
   if (chunks.length === 0) return null;
@@ -133,12 +142,8 @@ const parseSseTextContent = (
     const line = chunk.split(/\n/)[0].trim();
     if (!line || line === '[DONE]') continue;
 
-    let evt: any;
-    try {
-      evt = JSON.parse(line);
-    } catch {
-      continue;
-    }
+    const evt = JsonUtils.robustParse<any>(line);
+    if (!evt) continue;
 
     const type = evt.type || evt.event || evt.kind;
     if (type === 'text-delta') {
@@ -194,8 +199,8 @@ const consumeEventStream = async (body: ReadableStream<Uint8Array>): Promise<AIR
       const dataLines: string[] = [];
       for (const line of raw.split('\n')) {
         const trimmed = line.trim();
-        if (!trimmed) continue;
-        if (trimmed.startsWith(':')) continue; // comment line
+        if (!trimmed || trimmed.startsWith(':')) continue; 
+        
         if (trimmed.startsWith('event:')) {
           eventName = trimmed.slice('event:'.length).trim();
         } else if (trimmed.startsWith('data:')) {
@@ -206,12 +211,9 @@ const consumeEventStream = async (body: ReadableStream<Uint8Array>): Promise<AIR
       const payload = dataLines.join('\n').trim();
       if (!payload) continue;
 
-      let evt: any;
-      try {
-        evt = JSON.parse(payload);
-      } catch {
-        continue;
-      }
+      const evt = JsonUtils.robustParse<any>(payload);
+      if (!evt) continue;
+
       const type = evt.type || evt.event || evt.kind || eventName;
       if (type === 'text-delta') {
         const delta = evt.textDelta ?? evt.delta ?? evt.text;
@@ -298,17 +300,15 @@ const normalizeResponse = (raw: any): AIResponse => {
 
 export class GenAIClient {
   async request(
-    { model, contents, config, timeoutMs, signal }: GenAIRequest,
+    { model, contents, config, timeoutMs, signal, promptId }: GenAIRequest,
     retryOpts: RetryOptions = {}
   ): Promise<AIResponse> {
     const { attempts, delayMs } = { ...DEFAULT_RETRY, ...retryOpts };
-    const controller = new AbortController();
-    const combinedSignal = signal
-      ? new AbortSignalAny([signal, controller.signal]).signal
-      : controller.signal;
+    const taskLabel = promptId || 'unnamed_task';
+    const timeout = timeoutMs || DEFAULT_TIMEOUT;
 
     const prompt = buildPrompt(contents);
-    const payload: Record<string, any> = { model };
+    const payload: Record<string, any> = { model, promptId: taskLabel };
     if (prompt) payload.prompt = prompt;
 
     // Extract schema from config if present
@@ -336,14 +336,24 @@ export class GenAIClient {
 
     let lastError: unknown = null;
     for (let attempt = 0; attempt < attempts; attempt++) {
+      const controller = new AbortController();
+      
+      // Use modern AbortSignal.any if available, otherwise fallback to custom helper
+      const combinedSignal = signal
+        ? (typeof AbortSignal.any === 'function' 
+            ? AbortSignal.any([signal, controller.signal]) 
+            : new AbortSignalAny([signal, controller.signal]).signal)
+        : controller.signal;
+
       const timer = setTimeout(() => {
-        console.error('[GenAIClient] Request TIMEOUT after', timeoutMs || DEFAULT_TIMEOUT, 'ms');
-        controller.abort('GenAI request timed out');
-      }, timeoutMs || DEFAULT_TIMEOUT);
+        const timeoutMsg = `[GenAIClient] Request TIMEOUT for task "${taskLabel}" after ${timeout}ms (Model: ${model}, Attempt: ${attempt + 1})`;
+        console.error(timeoutMsg);
+        controller.abort(timeoutMsg);
+      }, timeout);
+
       try {
-        // DEBUG: Log request payload for debugging
-        console.log('[GenAIClient] Request payload:', JSON.stringify(payload, null, 2));
-        console.log('[GenAIClient] Request URL:', buildAiUrl('/generate'));
+        // DEBUG: Log request summary
+        console.log(`[GenAIClient] Sending request: ${taskLabel} (${model})`);
 
         const headers = getAiHeaders();
 
@@ -377,38 +387,48 @@ export class GenAIClient {
 
         if (isEventStream) {
           if (!response.body) throw new Error('Stream response missing body');
-          const streamed = await consumeEventStream(response.body);
-          clearTimeout(timer);
-          return streamed;
+          return await consumeEventStream(response.body);
         }
 
         const data = isJson ? await response.json() : { text: await response.text() };
-        clearTimeout(timer);
         return normalizeResponse(data);
       } catch (err: any) {
         lastError = err;
-        clearTimeout(timer);
-        const message = err?.message || '';
+        
+        // Enhance error message if it was a timeout
+        if (combinedSignal.aborted && typeof combinedSignal.reason === 'string') {
+          lastError = new Error(combinedSignal.reason);
+        }
+
+        const message = (lastError as Error)?.message || '';
         const retryable =
           message.includes('503') ||
           message.includes('UNAVAILABLE') ||
-          message.toLowerCase().includes('overloaded');
+          message.toLowerCase().includes('overloaded') ||
+          message.includes('TIMEOUT');
+
         if (attempt < attempts - 1 && retryable) {
           const wait = delayMs * (attempt + 1);
           console.warn(
-            `GenAI retry (${attempt + 1}/${attempts}) after ${wait}ms due to: ${message}`
+            `GenAI retry (${attempt + 1}/${attempts}) for "${taskLabel}" after ${wait}ms due to: ${message}`
           );
           await new Promise((res) => setTimeout(res, wait));
           continue;
         }
-        if (attempt < attempts - 1) {
+        
+        if (attempt < attempts - 1 && !message.includes('401') && !message.includes('403')) {
           await new Promise((res) => setTimeout(res, delayMs));
+          continue;
         }
+        
+        break; // Break loop if not retryable
+      } finally {
+        clearTimeout(timer);
       }
     }
     throw lastError instanceof Error
       ? lastError
-      : new Error(`GenAI request failed: ${String(lastError)}`);
+      : new Error(`GenAI request failed for "${taskLabel}": ${String(lastError)}`);
   }
 }
 

@@ -90,19 +90,21 @@ export const extractSemanticKeywordsAnalysis = async (
       try {
         console.log(`[SemanticKeywords] Starting batch ${batchIdx + 1}/${batches.length}...`);
         const planRes = await aiService.runJson<any[]>(planPrompt, 'FLASH', {
-          type: Type.ARRAY,
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              word: { type: Type.STRING },
-              plan: { type: Type.ARRAY, items: { type: Type.STRING } },
-              exampleSentence: { type: Type.STRING },
-              isSentenceStart: { type: Type.BOOLEAN },
-              isSentenceEnd: { type: Type.BOOLEAN },
-              isPrefix: { type: Type.BOOLEAN },
-              isSuffix: { type: Type.BOOLEAN },
+          schema: {
+            type: Type.ARRAY,
+            items: {
+              type: Type.OBJECT,
+              properties: {
+                word: { type: Type.STRING },
+                plan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                exampleSentence: { type: Type.STRING },
+                isSentenceStart: { type: Type.BOOLEAN },
+                isSentenceEnd: { type: Type.BOOLEAN },
+                isPrefix: { type: Type.BOOLEAN },
+                isSuffix: { type: Type.BOOLEAN },
+              },
+              required: ['word', 'plan', 'exampleSentence'],
             },
-            required: ['word', 'plan', 'exampleSentence'],
           },
         });
 

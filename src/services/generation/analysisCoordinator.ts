@@ -8,7 +8,7 @@ import { extractSemanticKeywordsAnalysis } from '@/services/research/termUsagePl
 import { analyzeReferenceStructure } from '@/services/research/referenceAnalysisService';
 import { analyzeAuthorityTerms } from '../../services/research/authorityService';
 import { analyzeVisualStyle } from '../../services/generation/imageService';
-import { appendAnalysisLog, summarizeList } from '../../hooks/generation/generationLogger';
+import { appendAnalysisLog, summarizeList } from '../../services/generation/generationLogger';
 import { getLanguageInstruction } from '../../services/engine/promptService';
 import { analyzeRegionalTerms } from '../../services/research/regionalAnalysisService';
 
@@ -73,7 +73,7 @@ export const runAnalysisPipelineService = async (
   appendAnalysisLog(
     `語言設定：${audienceLabel(config.targetAudience)}（${config.targetAudience}）`
   );
-  appendAnalysisLog('Starting analysis...');
+  appendAnalysisLog('開始語氣與大綱分析...');
 
   const fullConfig = {
     ...config,
@@ -154,7 +154,7 @@ export const runAnalysisPipelineService = async (
   const structureTask = async () => {
     if (isStopped()) return;
     generationStore.setGenerationStep('extracting_structure');
-    appendAnalysisLog('Extracting reference structure and authority signals...');
+    appendAnalysisLog('文章大綱與權威訊號提取中...');
     const [structRes, authRes] = await Promise.all([
       analyzeReferenceStructure(fullConfig.referenceContent, fullConfig.targetAudience),
       analyzeAuthorityTerms(
@@ -165,7 +165,7 @@ export const runAnalysisPipelineService = async (
       ),
     ]);
 
-    appendAnalysisLog(`Structure extracted.`);
+    appendAnalysisLog(`文章大綱提取完成。`);
     appStore.addCost(structRes.cost.totalCost, structRes.usage.totalTokens);
     appStore.addCost(authRes.cost.totalCost, authRes.usage.totalTokens);
 
@@ -246,7 +246,7 @@ export const runAnalysisPipelineService = async (
     }
   }
 
-  appendAnalysisLog('All analysis tasks completed. Preparing to write...');
+  appendAnalysisLog('語氣與大綱分析完成，準備寫作...');
   generationStore.setStatus('analysis_ready');
   generationStore.setGenerationStep('idle');
   analysisStore.saveCurrentToDocument();

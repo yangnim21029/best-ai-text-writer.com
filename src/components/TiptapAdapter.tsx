@@ -9,6 +9,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { cn } from '../utils/cn';
 import { AskAiMark } from './editor/AskAiMark';
 import { ImageResizeToolbar } from './editor/ImageResizeToolbar';
+import { SanitizeUtils } from '../utils/sanitizeUtils';
 
 interface TiptapAdapterProps {
   initialHtml: string;
@@ -377,12 +378,13 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
           if (from === to) return '';
           return editor.state.doc.textBetween(from, to, ' ');
         },
-        insertHtml: (html: string) => editor.chain().focus().insertContent(html).run(),
+        insertHtml: (html: string) =>
+          editor.chain().focus().insertContent(SanitizeUtils.sanitizeHtml(html)).run(),
         insertImage: (src: string, alt: string = '') =>
           editor.chain().focus().setImage({ src, alt }).run(),
         getPlainText: () => editor.state.doc.textBetween(0, editor.state.doc.content.size, ' '),
         getHtml: () => editor.getHTML(),
-        setHtml: (html: string) => editor.commands.setContent(html),
+        setHtml: (html: string) => editor.commands.setContent(SanitizeUtils.sanitizeHtml(html)),
         getSelectionRange: () => {
           const { from, to } = editor.state.selection;
           return { from, to };

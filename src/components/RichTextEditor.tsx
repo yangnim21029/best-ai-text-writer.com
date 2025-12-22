@@ -1,11 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { BookOpen, FileText, Loader2, Type, Copy, X } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import {
   TargetAudience,
   CostBreakdown,
   TokenUsage,
   ScrapedImage,
-  ImageAssetPlan,
   ProductBrief,
 } from '../types';
 import { TiptapAdapter } from './TiptapAdapter';
@@ -22,12 +21,12 @@ import { useAskAi } from '../hooks/useAskAi';
 import { useEditorAutosave } from '../hooks/useEditorAutosave';
 import { smartInjectPoint } from '../services/generation/contentGenerationService';
 import { useAnalysisStore } from '../store/useAnalysisStore';
-
-type AskAiMode = 'edit' | 'format';
+import { FormattingCleanupModal } from './editor/FormattingCleanupModal';
 
 interface RichTextEditorProps {
   initialHtml: string;
   onChange?: (html: string) => void;
+  // Many of these are now optional because they can be pulled from EditorContext
   keyPoints?: string[];
   brandExclusivePoints?: string[];
   checkedPoints?: string[];
@@ -54,9 +53,9 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   scrapedImages: scrapedImagesProp = [],
   visualStyle = '',
   onTogglePoint,
-  targetAudience = 'zh-TW',
+  targetAudience,
   onAddCost,
-  productBrief = null,
+  productBrief,
   displayScale,
   articleTitle,
   onTitleChange,
@@ -65,6 +64,19 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   toolbarExtras,
 }) => {
   const ctx = useOptionalEditorContext();
+  
+  // Effective values: Favor props if provided, fallback to context
+  const effectiveKeyPoints = keyPointsProp.length ? keyPointsProp : ctx?.keyPoints || [];
+  const effectiveBrandPoints = brandPointsProp.length ? brandPointsProp : ctx?.brandExclusivePoints || [];
+  const effectiveCheckedPoints = checkedPointsProp.length ? checkedPointsProp : ctx?.checkedPoints || [];
+  const effectiveScrapedImages = scrapedImagesProp.length ? scrapedImagesProp : ctx?.scrapedImages || [];
+  const effectiveTargetAudience = targetAudience || (ctx?.targetAudience as TargetAudience) || 'zh-TW';
+  const effectiveVisualStyle = visualStyle || ctx?.visualStyle || '';
+  const effectiveProductBrief = productBrief || ctx?.productBrief || null;
+  const effectiveOutline = outlineSections.length ? outlineSections : ctx?.outlineSections || [];
+  const effectiveScale = displayScale ?? ctx?.displayScale ?? 1;
+  const effectiveArticleTitle = articleTitle ?? ctx?.articleTitle ?? '';
+
   const [html, setHtml] = useState(initialHtml);
   const [selectionData, setSelectionData] = useState<{
     text: string;
@@ -77,7 +89,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [showKeyPoints, setShowKeyPoints] = useState(false);
   const [showMetaPanel, setShowMetaPanel] = useState(false);
   const [isAiRunning, setIsAiRunning] = useState(false);
-  const effectiveScale = displayScale ?? ctx?.displayScale ?? 1;
 
   const editorContainerRef = useRef<HTMLDivElement>(null);
   const hasRestoredDraftRef = useRef(false);
@@ -87,98 +98,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     blockquotes: 0,
     quoteChars: 0,
   });
-  const [cleanupBlocks, setCleanupBlocks] = useState<
-    Array<{
-      from: number;
-      to: number;
-      text: string;
-      boldMarks: number;
-      blockquotes: number;
-      quoteChars: number;
-      type: string;
-    }>
-  >([]);
+  const [cleanupBlocks, setCleanupBlocks] = useState<any[]>([]);
   const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
   const [refiningPoint, setRefiningPoint] = useState<string | null>(null);
   const [hasAutoCheckedPoints, setHasAutoCheckedPoints] = useState(false);
-  const [tiptapApi, setTiptapApi] = useState<{
-    getSelectedText: () => string;
-    insertHtml: (html: string) => void;
-    insertImage: (src: string, alt?: string) => void;
-    getPlainText: () => string;
-    getHtml: () => string;
-    setHtml: (html: string) => void;
-    toggleUnderline: () => void;
-    toggleBold: () => void;
-    toggleItalic: () => void;
-    toggleHeading: (level: 1 | 2 | 3) => void;
-    toggleBlockquote: () => void;
-    toggleBulletList: () => void;
-    toggleOrderedList: () => void;
-    setTextAlign: (align: 'left' | 'center' | 'right' | 'justify') => void;
-    setLink: (href: string) => void;
-    unsetLink: () => void;
-    undo: () => void;
-    redo: () => void;
-    clearBold: (options?: {
-      removeBold?: boolean;
-      removeBlockquotes?: boolean;
-      removeQuotes?: boolean;
-      target?: 'selection' | 'document';
-      scope?: { from: number; to: number };
-    }) => boolean;
-    summarizeFormatting: () => {
-      boldMarks: number;
-      blockquotes: number;
-      quoteChars: number;
-      blocks: Array<{
-        from: number;
-        to: number;
-        text: string;
-        boldMarks: number;
-        blockquotes: number;
-        quoteChars: number;
-        type: string;
-      }>;
-    };
-    listCleanupTargets: () => Array<{
-      from: number;
-      to: number;
-      text: string;
-      boldMarks: number;
-      blockquotes: number;
-      quoteChars: number;
-      type: string;
-    }>;
-    getSelectionRange: () => { from: number; to: number };
-    replaceRange: (range: { from: number; to: number }, html: string) => void;
-    markAskAiRange: (range: { from: number; to: number }, taskId: string) => void;
-    clearAskAiMarks: (taskId?: string) => void;
-    findAskAiRange: (taskId: string) => { from: number; to: number } | null;
-    focus: () => void;
-    editor?: any;
-  } | null>(null);
+  
+  const [tiptapApi, setTiptapApi] = useState<any>(null);
   const askAiRef = useRef<AskAiSelectionHandle>(null);
 
   useEffect(() => {
     setHtml(initialHtml);
   }, [initialHtml]);
 
-  const effectiveKeyPoints = keyPointsProp.length ? keyPointsProp : ctx?.keyPoints || [];
-  const effectiveBrandPoints = brandPointsProp.length
-    ? brandPointsProp
-    : ctx?.brandExclusivePoints || [];
-  const effectiveCheckedPoints = checkedPointsProp.length
-    ? checkedPointsProp
-    : ctx?.checkedPoints || [];
-  const effectiveScrapedImages = scrapedImagesProp.length
-    ? scrapedImagesProp
-    : ctx?.scrapedImages || [];
-  const effectiveTargetAudience =
-    targetAudience || (ctx?.targetAudience as TargetAudience) || 'zh-TW';
-  const effectiveVisualStyle = visualStyle || ctx?.visualStyle || '';
-  const effectiveProductBrief = productBrief || ctx?.productBrief || null;
-  const effectiveOutline = outlineSections.length ? outlineSections : ctx?.outlineSections || [];
   const { recordHtml, recordMeta, consumeDraft } = useEditorAutosave({
     storageKey: 'ai_writer_editor_autosave_v1',
   });
@@ -231,7 +162,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     setCleanupSummary(summary);
     const blocks = tiptapApi.listCleanupTargets ? tiptapApi.listCleanupTargets() : [];
     setCleanupBlocks(blocks);
-    setSelectedBlocks(new Set(blocks.map((b, idx) => `${b.from}-${b.to}-${idx}`)));
+    setSelectedBlocks(new Set(blocks.map((b: any, idx: number) => `${b.from}-${b.to}-${idx}`)));
   }, [tiptapApi]);
 
   const handleOpenCleanupModal = useCallback(() => {
@@ -242,7 +173,6 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
 
   const handleApplyCleanup = useCallback(() => {
     if (!tiptapApi) return;
-    // Apply in reverse order to keep ranges stable.
     const blocksToClean = cleanupBlocks
       .map((b, idx) => ({ ...b, id: `${b.from}-${b.to}-${idx}` }))
       .filter((b) => selectedBlocks.has(b.id))
@@ -261,6 +191,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         scope: { from: block.from, to: block.to },
       });
     });
+    
     const plain = tiptapApi.getPlainText();
     const htmlValue = tiptapApi.getHtml();
     setHtml(htmlValue);
@@ -272,8 +203,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   }, [cleanupBlocks, ctx, onChange, recordHtml, selectedBlocks, tiptapApi, updateCounts]);
 
   const autoCheckKeyPoints = useCallback(() => {
-    if (hasAutoCheckedPoints) return;
-    if (!tiptapApi) return;
+    if (hasAutoCheckedPoints || !tiptapApi) return;
 
     const plain = (tiptapApi.getPlainText ? tiptapApi.getPlainText() : '') || '';
     if (!plain.trim()) return;
@@ -341,79 +271,44 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         setIsAiRunning(false);
       }
     },
-    [
-      ctx,
-      effectiveTargetAudience,
-      onAddCost,
-      onChange,
-      onTogglePoint,
-      recordHtml,
-      tiptapApi,
-      updateCounts,
-    ]
+    [ctx, effectiveTargetAudience, onAddCost, onChange, onTogglePoint, recordHtml, tiptapApi, updateCounts]
   );
 
   const handleToolbarCommand = (command: string, value?: string) => {
     if (!tiptapApi) return;
     switch (command) {
-      case 'bold':
-        return tiptapApi.toggleBold();
-      case 'italic':
-        return tiptapApi.toggleItalic();
-      case 'underline':
-        return tiptapApi.toggleUnderline?.();
-      case 'blockquote':
-        return tiptapApi.toggleBlockquote();
-      case 'insertUnorderedList':
-        return tiptapApi.toggleBulletList();
-      case 'insertOrderedList':
-        return tiptapApi.toggleOrderedList();
-      case 'alignLeft':
-        return tiptapApi.setTextAlign?.('left');
-      case 'alignCenter':
-        return tiptapApi.setTextAlign?.('center');
-      case 'alignRight':
-        return tiptapApi.setTextAlign?.('right');
+      case 'bold': return tiptapApi.toggleBold();
+      case 'italic': return tiptapApi.toggleItalic();
+      case 'underline': return tiptapApi.toggleUnderline?.();
+      case 'blockquote': return tiptapApi.toggleBlockquote();
+      case 'insertUnorderedList': return tiptapApi.toggleBulletList();
+      case 'insertOrderedList': return tiptapApi.toggleOrderedList();
+      case 'alignLeft': return tiptapApi.setTextAlign?.('left');
+      case 'alignCenter': return tiptapApi.setTextAlign?.('center');
+      case 'alignRight': return tiptapApi.setTextAlign?.('right');
       case 'formatBlock':
         if (value === '<h2>') return tiptapApi.toggleHeading(2);
         if (value === '<h3>') return tiptapApi.toggleHeading(3);
         if (value === 'blockquote') return tiptapApi.toggleBlockquote();
         return tiptapApi.toggleHeading(1);
-      case 'undo':
-        return tiptapApi.undo();
-      case 'redo':
-        return tiptapApi.redo();
+      case 'undo': return tiptapApi.undo();
+      case 'redo': return tiptapApi.redo();
       case 'link': {
         const href = window.prompt('Enter URL');
         if (href) tiptapApi.setLink(href);
         return;
       }
-      case 'unlink':
-        return tiptapApi.unsetLink();
-      default:
-        return;
+      case 'unlink': return tiptapApi.unsetLink();
+      default: return;
     }
   };
 
   const {
-    isDownloadingImages,
-    imagePlans,
-    isPlanning,
-    isBatchProcessing,
-    openImageModal,
-    downloadImages,
-    updatePlanPrompt,
-    deletePlan,
-    injectImageIntoEditor,
-    autoPlanImages,
-    generateSinglePlan,
-    handleBatchProcess,
-    showBatchModal,
-    setShowBatchModal,
-    localModelAppearance: imageEditorModelAppearance,
-    setLocalModelAppearance: setImageEditorModelAppearance,
-    localDesignStyle,
-    setLocalDesignStyle,
+    isDownloadingImages, imagePlans, isPlanning, isBatchProcessing,
+    downloadImages, updatePlanPrompt, deletePlan, injectImageIntoEditor,
+    autoPlanImages, generateSinglePlan, handleBatchProcess, showBatchModal, setShowBatchModal,
+    localModelAppearance: imageEditorModelAppearance, setLocalModelAppearance: setImageEditorModelAppearance,
+    localDesignStyle, setLocalDesignStyle,
   } = useImageEditor({
     editorRef: editorContainerRef,
     tiptapApi,
@@ -423,12 +318,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     scrapedImages: effectiveScrapedImages,
     onAddCost,
     handleInput: () => {
-      const plain = tiptapApi?.getPlainText
-        ? tiptapApi.getPlainText()
-        : editorContainerRef.current?.innerText || '';
-      const htmlValue = tiptapApi?.getHtml
-        ? tiptapApi.getHtml()
-        : editorContainerRef.current?.innerHTML || '';
+      const plain = tiptapApi?.getPlainText ? tiptapApi.getPlainText() : editorContainerRef.current?.innerText || '';
+      const htmlValue = tiptapApi?.getHtml ? tiptapApi.getHtml() : editorContainerRef.current?.innerHTML || '';
       onChange?.(htmlValue);
       ctx?.setContent?.(htmlValue);
       updateCounts(plain);
@@ -439,11 +330,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   });
 
   const {
-    runAskAiAction,
-    handleAskAiInsert,
-    clearAskAiState,
-    lockAskAiRange,
-    highlightAskAiTarget,
+    runAskAiAction, handleAskAiInsert, lockAskAiRange, highlightAskAiTarget,
   } = useAskAi({
     tiptapApi,
     targetAudience: effectiveTargetAudience as TargetAudience,
@@ -458,15 +345,8 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     },
   });
 
-  const uniqueCoveredCount = useMemo(() => {
-    return Array.from(new Set(effectiveCheckedPoints)).length;
-  }, [effectiveCheckedPoints]);
+  const uniqueCoveredCount = useMemo(() => Array.from(new Set(effectiveCheckedPoints)).length, [effectiveCheckedPoints]);
   const totalPoints = effectiveKeyPoints.length + effectiveBrandPoints.length;
-
-  const autoCheckResetKey = useMemo(
-    () => `${initialHtml}||${effectiveKeyPoints.join('||')}||${effectiveBrandPoints.join('||')}`,
-    [initialHtml, effectiveBrandPoints, effectiveKeyPoints]
-  );
 
   useEffect(() => {
     if (!tiptapApi || hasRestoredDraftRef.current) return;
@@ -484,36 +364,27 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       }
     }
     hasRestoredDraftRef.current = true;
-  }, [
-    consumeDraft,
-    ctx,
-    onTitleChange,
-    tiptapApi,
-    updateCounts,
-    setMetaTitle,
-    setMetaDescription,
-    setUrlSlug,
-  ]);
+  }, [consumeDraft, ctx, onTitleChange, tiptapApi, updateCounts, setMetaTitle, setMetaDescription, setUrlSlug]);
 
   useEffect(() => {
     recordMeta({
       metaTitle,
       metaDescription,
       urlSlug,
-      articleTitle: articleTitle || ctx?.articleTitle || '',
+      articleTitle: effectiveArticleTitle,
     });
-  }, [articleTitle, ctx?.articleTitle, metaDescription, metaTitle, recordMeta, urlSlug]);
+  }, [effectiveArticleTitle, metaDescription, metaTitle, recordMeta, urlSlug]);
 
   useEffect(() => {
     setHasAutoCheckedPoints(false);
-  }, [autoCheckResetKey]);
+  }, [initialHtml]);
 
   return (
     <div className="rte-container flex flex-col h-full w-full min-h-0 bg-white overflow-hidden relative">
       <div className="rte-header flex flex-col gap-3 px-4 py-3 border-b border-gray-200 bg-white">
         <div className="mb-1">
           <input
-            value={articleTitle || ctx?.articleTitle || ''}
+            value={effectiveArticleTitle}
             onChange={(e) => {
               onTitleChange?.(e.target.value);
               ctx?.setArticleTitle?.(e.target.value);
@@ -567,32 +438,18 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <div className="rte-scroll-area flex-1 min-h-0 overflow-y-auto">
             <div
               className="rte-content-wrapper px-6 pb-6 pt-8 min-h-full flex flex-col cursor-text"
-              onClick={(e) => {
-                if (tiptapApi) {
-                  tiptapApi.focus();
-                }
-              }}
+              onClick={() => tiptapApi?.focus()}
             >
               <TiptapAdapter
                 initialHtml={html}
                 onChange={(nextHtml, plain) => handleInput(nextHtml, plain)}
                 onReady={(api) => {
                   setTiptapApi(api);
-                  const plain = api.getPlainText ? api.getPlainText() : '';
-                  updateCounts(plain);
+                  updateCounts(api.getPlainText());
                   recordHtml(api.getHtml());
                 }}
-                onSelectionChange={(data) => {
-                  setSelectionData({
-                    text: data.text,
-                    html: data.html,
-                    rect: data.rect,
-                    range: data.range,
-                  });
-                }}
-                onAskAiClick={(taskId) => {
-                  askAiRef.current?.openTask(taskId);
-                }}
+                onSelectionChange={(data) => setSelectionData(data)}
+                onAskAiClick={(taskId) => askAiRef.current?.openTask(taskId)}
                 containerRef={editorContainerRef}
                 className="min-h-[420px]"
                 placeholder=""
@@ -609,124 +466,25 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           <AskAiSelection
             ref={askAiRef}
             onRunAction={runAskAiAction}
-            onInsert={(html, taskId) => {
-              handleAskAiInsert(html, taskId);
-            }}
-            onLockSelectionRange={(taskId) => lockAskAiRange(taskId)}
-            onHighlightTask={(taskId) => {
-              // Ensure the saved task gets a persistent highlight in the editor.
-              highlightAskAiTarget(taskId);
-            }}
+            onInsert={handleAskAiInsert}
+            onLockSelectionRange={lockAskAiRange}
+            onHighlightTask={highlightAskAiTarget}
             selectionText={selectionData.text}
             selectionHtml={selectionData.html}
             selectionRect={selectionData.rect}
             selectionRange={selectionData.range}
           />
 
-          {showCleanupModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm px-4">
-              <div className="w-full max-w-md bg-white rounded-xl shadow-2xl border border-gray-200 p-5 space-y-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-800">清理粗體與引號</h3>
-                    <p className="text-sm text-gray-500">
-                      勾選需要清理的段落，會移除粗體、引用區塊與引號。
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowCleanupModal(false)}
-                    className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
-                    aria-label="Close cleanup modal"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="text-xs text-gray-600 bg-gray-50 border border-gray-100 rounded-md p-3 leading-relaxed">
-                    勾選要清理的段落即可，系統會同時清除粗體、引用區塊與引號字元。掃描結果：粗體{' '}
-                    {cleanupSummary.boldMarks}、引用 {cleanupSummary.blockquotes}、引號{' '}
-                    {cleanupSummary.quoteChars}。
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="text-xs font-semibold text-gray-700">選擇要清理的段落</div>
-                    <div className="max-h-48 overflow-y-auto custom-scrollbar space-y-1">
-                      {cleanupBlocks.map((block, idx) => {
-                        const id = `${block.from}-${block.to}-${idx}`;
-                        const checked = selectedBlocks.has(id);
-                        return (
-                          <label
-                            key={id}
-                            className="flex items-start gap-3 p-3 rounded-lg border border-gray-100 hover:border-gray-200 transition-colors"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={(e) => {
-                                setSelectedBlocks((prev) => {
-                                  const next = new Set(prev);
-                                  if (e.target.checked) next.add(id);
-                                  else next.delete(id);
-                                  return next;
-                                });
-                              }}
-                              className="mt-1 accent-blue-600"
-                            />
-                            <div className="flex-1 min-w-0 space-y-1">
-                              <div className="text-sm font-semibold text-gray-800 flex items-center gap-2">
-                                <span className="px-2 py-0.5 text-[10px] rounded-full bg-gray-100 text-gray-600 border border-gray-200">
-                                  {block.type}
-                                </span>
-                                <span className="text-xs text-gray-500">
-                                  粗體 {block.boldMarks} · 引用 {block.blockquotes} · 引號{' '}
-                                  {block.quoteChars}
-                                </span>
-                              </div>
-                              <div className="text-xs text-gray-700 whitespace-pre-wrap break-words leading-relaxed">
-                                {block.text || '（空白段落）'}
-                              </div>
-                            </div>
-                          </label>
-                        );
-                      })}
-                      {cleanupBlocks.length === 0 && (
-                        <div className="text-xs text-gray-400 p-2 bg-gray-50 border border-dashed border-gray-200 rounded">
-                          沒有找到包含粗體或引號的段落。
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between text-xs text-gray-500">
-                  <button
-                    type="button"
-                    onClick={refreshCleanupSummary}
-                    className="text-blue-600 hover:text-blue-700 font-semibold"
-                  >
-                    重新掃描
-                  </button>
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setShowCleanupModal(false)}
-                      className="px-3 py-2 rounded-md border border-gray-200 text-gray-700 hover:bg-gray-50 transition-colors"
-                    >
-                      取消
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleApplyCleanup}
-                      className="px-3 py-2 rounded-md text-white font-semibold transition-colors bg-blue-600 hover:bg-blue-700"
-                    >
-                      套用清理
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
+          <FormattingCleanupModal
+            isOpen={showCleanupModal}
+            onClose={() => setShowCleanupModal(false)}
+            onApply={handleApplyCleanup}
+            onRefresh={refreshCleanupSummary}
+            cleanupSummary={cleanupSummary}
+            cleanupBlocks={cleanupBlocks}
+            selectedBlocks={selectedBlocks}
+            setSelectedBlocks={setSelectedBlocks}
+          />
 
           {showMetaPanel && (
             <MetaPanel

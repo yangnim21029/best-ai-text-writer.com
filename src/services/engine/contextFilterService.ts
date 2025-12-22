@@ -3,6 +3,8 @@ import { calculateCost, getLanguageInstruction } from './promptService';
 import { Type } from './schemaTypes';
 import { aiService } from './aiService';
 
+import { TokenUtils } from '../../utils/tokenUtils';
+
 // Smart Context Filter with Knowledge Base Support (Stronger RAG)
 export const filterSectionContext = async (
   sectionTitle: string,
@@ -38,6 +40,10 @@ export const filterSectionContext = async (
 
   const languageInstruction = getLanguageInstruction(targetAudience);
 
+  // Use accurate token counting for context management
+  const kbContext = brandKnowledgeBase ? TokenUtils.truncateToTokens(brandKnowledgeBase, 15000) : 'N/A';
+  const sourceContext = referenceContent ? TokenUtils.truncateToTokens(referenceContent, 40000) : 'N/A';
+
   const prompt = `
     I am writing a specific section titled: "${sectionTitle}".
     
@@ -62,16 +68,19 @@ export const filterSectionContext = async (
     Authority Terms: ${JSON.stringify(allAuthTerms)}
     
     BRAND KNOWLEDGE BASE:
-    ${brandKnowledgeBase ? brandKnowledgeBase.substring(0, 50000) : 'N/A'}
+    ${kbContext}
 
     SOURCE MATERIAL:
-    ${referenceContent ? referenceContent.substring(0, 200000) : 'N/A'}
+    ${sourceContext}
     `;
 
   try {
-    const response = await aiService.runText(prompt, 'FLASH', {
-      responseMimeType: 'application/json',
-      responseSchema: {
+    const response = await aiService.runJson<{
+      filteredPoints: string[];
+      filteredAuthTerms: string[];
+      knowledgeInsights: string[];
+    }>(prompt, 'FLASH', {
+      schema: {
         type: Type.OBJECT,
         properties: {
           filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -81,8 +90,8 @@ export const filterSectionContext = async (
       },
     });
 
-    const data = JSON.parse(response.text || '{}');
-    const metrics = calculateCost(response.usage, 'FLASH');
+    const data = response.data;
+    const metrics = { usage: response.usage, cost: response.cost };
 
     return {
       data: {

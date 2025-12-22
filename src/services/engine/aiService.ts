@@ -4,6 +4,8 @@ import { calculateCost } from './promptService';
 import { TokenUsage, CostBreakdown, AIRequestConfig, AIResponse } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 
+import { JsonUtils } from '../../utils/jsonUtils';
+
 export type LlmModelKey = keyof typeof MODEL;
 
 class AIService {
@@ -30,6 +32,7 @@ class AIService {
         model,
         contents: prompt,
         config,
+        promptId: config?.promptId,
       });
 
       const { usage, cost } = calculateCost(response.usageMetadata, modelKey);
@@ -52,46 +55,36 @@ class AIService {
   async runJson<T>(
     prompt: string,
     modelKey: LlmModelKey = 'FLASH',
-    schema?: any
+    options: { schema?: any; useSearch?: boolean; promptId?: string } = {}
   ): Promise<{ data: T; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
     const start = Date.now();
     const model = this.getModel(modelKey);
     const config: AIRequestConfig = {
       responseMimeType: 'application/json',
-      responseSchema: schema,
+      responseSchema: options.schema,
     };
+
+    if (options.useSearch) {
+      config.providerOptions = {
+        vertex: {
+          useSearchGrounding: true,
+        },
+      };
+    }
 
     try {
       const response = await genAIClient.request({
         model,
         contents: prompt,
         config,
+        promptId: options.promptId,
       });
 
       const { usage, cost } = calculateCost(response.usageMetadata, modelKey);
 
-      let data: T;
-      if (response.object) {
-        data = response.object as T;
-      } else {
-        try {
-          // Robust JSON extraction: Find the first '{' and last '}'
-          const text = response.text;
-          const firstBrace = text.indexOf('{');
-          const lastBrace = text.lastIndexOf('}');
-
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            const jsonStr = text.substring(firstBrace, lastBrace + 1);
-            data = JSON.parse(jsonStr) as T;
-          } else {
-            // Fallback to original cleaning logic
-            const cleanText = text.replace(/```(?:json)?\n?|\n?```/gi, '').trim();
-            data = JSON.parse(cleanText) as T;
-          }
-        } catch (e) {
-          throw new Error(`Failed to parse JSON response: ${response.text.substring(0, 200)}...`);
-        }
-      }
+      const data = response.object
+        ? (response.object as T)
+        : JsonUtils.robustParse<T>(response.text);
 
       return {
         data,
@@ -101,71 +94,6 @@ class AIService {
       };
     } catch (error) {
       console.error(`[AIService] runJson failed for ${modelKey}`, error);
-      throw error;
-    }
-  }
-
-  /**
-   * Run a JSON generation request with Google Search Grounding enabled
-   * Use this for queries that need real-time web information (e.g., finding local brand alternatives)
-   */
-  async runJsonWithSearch<T>(
-    prompt: string,
-    modelKey: LlmModelKey = 'FLASH',
-    schema?: any
-  ): Promise<{ data: T; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
-    const start = Date.now();
-    const model = this.getModel(modelKey);
-    const config: AIRequestConfig = {
-      responseMimeType: 'application/json',
-      responseSchema: schema,
-      providerOptions: {
-        vertex: {
-          useSearchGrounding: true,
-        },
-      },
-    };
-
-    try {
-      const response = await genAIClient.request({
-        model,
-        contents: prompt,
-        config,
-      });
-
-      const { usage, cost } = calculateCost(response.usageMetadata, modelKey);
-
-      let data: T;
-      if (response.object) {
-        data = response.object as T;
-      } else {
-        try {
-          // Robust JSON extraction: Find the first '{' and last '}'
-          const text = response.text;
-          const firstBrace = text.indexOf('{');
-          const lastBrace = text.lastIndexOf('}');
-
-          if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
-            const jsonStr = text.substring(firstBrace, lastBrace + 1);
-            data = JSON.parse(jsonStr) as T;
-          } else {
-            // Fallback to original cleaning logic
-            const cleanText = text.replace(/```(?:json)?\n?|\n?```/gi, '').trim();
-            data = JSON.parse(cleanText) as T;
-          }
-        } catch (e) {
-          throw new Error(`Failed to parse JSON response: ${response.text.substring(0, 200)}...`);
-        }
-      }
-
-      return {
-        data,
-        usage,
-        cost,
-        duration: Date.now() - start,
-      };
-    } catch (error) {
-      console.error(`[AIService] runJsonWithSearch failed for ${modelKey}`, error);
       throw error;
     }
   }

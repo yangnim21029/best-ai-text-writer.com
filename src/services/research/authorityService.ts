@@ -28,25 +28,22 @@ export const analyzeAuthorityTerms = async (
   });
 
   try {
-    const response = await aiService.runJson<AuthorityAnalysis>(prompt, 'FLASH', {
+  const response = await aiService.runJson<AuthorityAnalysis>(prompt, 'FLASH', {
+    schema: {
       type: Type.OBJECT,
       properties: {
-        relevantTerms: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-          description: 'Filtered high-relevance authority terms',
-        },
-        combinations: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-          description: 'Strategic ways to combine these terms',
-        },
+        relevantTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
+        combinations: { type: Type.ARRAY, items: { type: Type.STRING } },
       },
-      required: ['relevantTerms', 'combinations'],
-    });
+    },
+    promptId: 'authority_analysis',
+  });
 
     return {
-      data: response.data,
+      data: {
+        relevantTerms: response.data.relevantTerms || [],
+        combinations: response.data.combinations || [],
+      },
       usage: toTokenUsage(response.usage),
       cost: response.cost,
       duration: response.duration,
