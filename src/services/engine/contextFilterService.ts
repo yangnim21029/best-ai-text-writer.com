@@ -5,29 +5,40 @@ import { aiService } from './aiService';
 
 // Smart Context Filter with Knowledge Base Support (Stronger RAG)
 export const filterSectionContext = async (
-    sectionTitle: string,
-    allKeyPoints: string[],
-    allAuthTerms: string[],
-    brandKnowledgeBase: string | undefined,
-    referenceContent: string | undefined, // NEW: RAG Source
-    targetAudience: TargetAudience
-): Promise<ServiceResponse<{ filteredPoints: string[], filteredAuthTerms: string[], knowledgeInsights: string[] }>> => {
+  sectionTitle: string,
+  allKeyPoints: string[],
+  allAuthTerms: string[],
+  brandKnowledgeBase: string | undefined,
+  referenceContent: string | undefined, // NEW: RAG Source
+  targetAudience: TargetAudience
+): Promise<
+  ServiceResponse<{
+    filteredPoints: string[];
+    filteredAuthTerms: string[];
+    knowledgeInsights: string[];
+  }>
+> => {
+  const startTs = Date.now();
+  const hasKnowledge =
+    (brandKnowledgeBase && brandKnowledgeBase.trim().length > 10) ||
+    (referenceContent && referenceContent.trim().length > 10);
 
-    const startTs = Date.now();
-    const hasKnowledge = (brandKnowledgeBase && brandKnowledgeBase.trim().length > 10) || (referenceContent && referenceContent.trim().length > 10);
+  if (!hasKnowledge && allKeyPoints.length <= 5 && allAuthTerms.length <= 5) {
+    return {
+      data: {
+        filteredPoints: allKeyPoints,
+        filteredAuthTerms: allAuthTerms,
+        knowledgeInsights: [],
+      },
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+      duration: 0,
+    };
+  }
 
-    if (!hasKnowledge && allKeyPoints.length <= 5 && allAuthTerms.length <= 5) {
-        return {
-            data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-            duration: 0
-        };
-    }
+  const languageInstruction = getLanguageInstruction(targetAudience);
 
-    const languageInstruction = getLanguageInstruction(targetAudience);
-
-    const prompt = `
+  const prompt = `
     I am writing a specific section titled: "${sectionTitle}".
     
     I have:
@@ -51,44 +62,48 @@ export const filterSectionContext = async (
     Authority Terms: ${JSON.stringify(allAuthTerms)}
     
     BRAND KNOWLEDGE BASE:
-    ${brandKnowledgeBase ? brandKnowledgeBase.substring(0, 50000) : "N/A"}
+    ${brandKnowledgeBase ? brandKnowledgeBase.substring(0, 50000) : 'N/A'}
 
     SOURCE MATERIAL:
-    ${referenceContent ? referenceContent.substring(0, 200000) : "N/A"}
+    ${referenceContent ? referenceContent.substring(0, 200000) : 'N/A'}
     `;
 
-    try {
-        const response = await aiService.runText(prompt, 'FLASH', {
-            responseMimeType: 'application/json',
-            responseSchema: {
-                type: Type.OBJECT,
-                properties: {
-                    filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    filteredAuthTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
-                    knowledgeInsights: { type: Type.ARRAY, items: { type: Type.STRING } },
-                }
-            }
-        });
+  try {
+    const response = await aiService.runText(prompt, 'FLASH', {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: Type.OBJECT,
+        properties: {
+          filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
+          filteredAuthTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
+          knowledgeInsights: { type: Type.ARRAY, items: { type: Type.STRING } },
+        },
+      },
+    });
 
-        const data = JSON.parse(response.text || "{}");
-        const metrics = calculateCost(response.usage, 'FLASH');
+    const data = JSON.parse(response.text || '{}');
+    const metrics = calculateCost(response.usage, 'FLASH');
 
-        return {
-            data: {
-                filteredPoints: data.filteredPoints || [],
-                filteredAuthTerms: data.filteredAuthTerms || [],
-                knowledgeInsights: data.knowledgeInsights || []
-            },
-            ...metrics,
-            duration: response.duration
-        };
-    } catch (e) {
-        console.error("Context filter failed", e);
-        return {
-            data: { filteredPoints: allKeyPoints, filteredAuthTerms: allAuthTerms, knowledgeInsights: [] },
-            usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-            cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-            duration: Date.now() - startTs
-        };
-    }
+    return {
+      data: {
+        filteredPoints: data.filteredPoints || [],
+        filteredAuthTerms: data.filteredAuthTerms || [],
+        knowledgeInsights: data.knowledgeInsights || [],
+      },
+      ...metrics,
+      duration: response.duration,
+    };
+  } catch (e) {
+    console.error('Context filter failed', e);
+    return {
+      data: {
+        filteredPoints: allKeyPoints,
+        filteredAuthTerms: allAuthTerms,
+        knowledgeInsights: [],
+      },
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+      duration: Date.now() - startTs,
+    };
+  }
 };

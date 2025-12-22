@@ -2,7 +2,7 @@ import { EMBED_MODEL_ID } from '../../config/constants';
 import { buildAiUrl } from './genAIClient';
 
 const env =
-  (typeof import.meta !== 'undefined' && (import.meta as any).env)
+  typeof import.meta !== 'undefined' && (import.meta as any).env
     ? (import.meta as any).env
     : (process.env as any);
 
@@ -15,7 +15,10 @@ interface EmbedOptions {
 interface EmbedResponse {
   embeddings?: number[][];
   embedding?: number[];
-  data?: { embeddings?: number[][]; embedding?: number[] } | number[] | Array<{ embeddings?: number[][]; embedding?: number[] }>;
+  data?:
+    | { embeddings?: number[][]; embedding?: number[] }
+    | number[]
+    | Array<{ embeddings?: number[][]; embedding?: number[] }>;
 }
 
 const asVector = (value: any): number[] | null => {
@@ -42,12 +45,16 @@ const extractEmbeddings = (payload: EmbedResponse): number[][] => {
 
   if (Array.isArray(dataField)) {
     const vectors = dataField
-      .map((entry: any) => asMatrix(entry?.embeddings)?.[0] || asVector(entry?.embedding) || asVector(entry))
+      .map(
+        (entry: any) =>
+          asMatrix(entry?.embeddings)?.[0] || asVector(entry?.embedding) || asVector(entry)
+      )
       .filter(Boolean) as number[][];
     if (vectors.length) return vectors;
   }
 
-  const single = asVector(payload.embedding) || asVector(dataField?.embedding) || asVector(dataField);
+  const single =
+    asVector(payload.embedding) || asVector(dataField?.embedding) || asVector(dataField);
   return single ? [single] : [];
 };
 
@@ -59,7 +66,8 @@ export const embedTexts = async (
 
   const providerOptions: any = {};
   if (options.taskType) providerOptions.taskType = options.taskType;
-  if (options.outputDimensionality) providerOptions.outputDimensionality = options.outputDimensionality;
+  if (options.outputDimensionality)
+    providerOptions.outputDimensionality = options.outputDimensionality;
 
   const body: any = {
     texts,
@@ -93,7 +101,8 @@ export const embedTexts = async (
 
   if (!response.ok) {
     const detail = isJson ? await response.json().catch(() => undefined) : await response.text();
-    const message = typeof detail === 'string' ? detail : (detail as any)?.error || JSON.stringify(detail || '');
+    const message =
+      typeof detail === 'string' ? detail : (detail as any)?.error || JSON.stringify(detail || '');
     throw new Error(`Failed to fetch embeddings: ${response.status} ${message || ''}`.trim());
   }
 

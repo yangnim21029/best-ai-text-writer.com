@@ -28,7 +28,7 @@ export const analyzeText = async (text: string): Promise<KeywordData[]> => {
       body: JSON.stringify({
         text: text,
         min_length: 2,
-        stop_words: [] // Empty array as per requirement, can be populated if needed
+        stop_words: [], // Empty array as per requirement, can be populated if needed
       }),
     });
 
@@ -43,13 +43,13 @@ export const analyzeText = async (text: string): Promise<KeywordData[]> => {
       // Sort by count descending to get high-frequency words first
       // Filter out 1-character tokens generally, though API min_length handles most
       return json.data.frequencies
-        .filter(f => f.token.length > 1)
+        .filter((f) => f.token.length > 1)
         .sort((a, b) => b.count - a.count);
     }
 
     return [];
   } catch (error) {
-    console.error("NLP Service Error:", error);
+    console.error('NLP Service Error:', error);
     return [];
   }
 };

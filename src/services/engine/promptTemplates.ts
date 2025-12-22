@@ -1,7 +1,9 @@
 import { TargetAudience } from '../../types';
 
 export type PromptBuilderPayload = Record<string, any>;
-export type PromptBuilder<T extends PromptBuilderPayload = PromptBuilderPayload> = (payload: T) => string;
+export type PromptBuilder<T extends PromptBuilderPayload = PromptBuilderPayload> = (
+  payload: T
+) => string;
 
 export const promptTemplates = {
   sectionContent: ({
@@ -81,76 +83,103 @@ export const promptTemplates = {
     DEFINITION: The main topic of the entire article.
 
     <PreviousSections>
-    ${previousSections.slice(-2).map((s: string) => s.substring(0, 100) + "...").join(" | ")}
+    ${previousSections
+      .slice(-2)
+      .map((s: string) => s.substring(0, 100) + '...')
+      .join(' | ')}
     </PreviousSections>
     DEFINITION: Summaries of the immediately preceding sections.
 
     <UpcomingSections>
-    ${futureSections.join(", ")}
+    ${futureSections.join(', ')}
     </UpcomingSections>
     DEFINITION: Titles of sections to be written later.
 
 
     ## Strategy & Style
     <OverallVoice>
-    ${generalPlan?.join("; ") || "Professional, authoritative"}
+    ${generalPlan?.join('; ') || 'Professional, authoritative'}
     </OverallVoice>
     DEFINITION: The desired tone and persona for the article.
 
     <SectionStrategy>
-    ${specificPlan?.join("; ") || "Explain thoroughly"}
-    ${logicalFlow ? `\n    LOGICAL FLOW: ${logicalFlow}` : ""}
-    ${coreFocus ? `\n    CORE EMPHASIS: ${coreFocus}` : ""}
+    ${specificPlan?.join('; ') || 'Explain thoroughly'}
+    ${logicalFlow ? `\n    LOGICAL FLOW: ${logicalFlow}` : ''}
+    ${coreFocus ? `\n    CORE EMPHASIS: ${coreFocus}` : ''}
     </SectionStrategy>
     DEFINITION: Specific goals or angles for this section.
 
     <BrandKnowledge>
-    ${kbInsights.length > 0 ? kbInsights.join("; ") : "None"}
+    ${kbInsights.length > 0 ? kbInsights.join('; ') : 'None'}
     </BrandKnowledge>
     DEFINITION: Background facts or guidelines about the brand.
 
-    ${humanWritingVoice ? `
+    ${
+      humanWritingVoice
+        ? `
     <HumanWritingVoice>
     ${humanWritingVoice}
     </HumanWritingVoice>
     DEFINITION: Instructions on how to sound human and not like an AI.
-    ` : ''}
+    `
+        : ''
+    }
 
-    ${regionVoiceDetect ? `
+    ${
+      regionVoiceDetect
+        ? `
     <RegionVoiceProfile>
     ${regionVoiceDetect}
     </RegionVoiceProfile>
     DEFINITION: The detected regional voice composition (e.g., 70% HK / 30% TW).
     INSTRUCTION: Adhere to the dominant regional tone.
-    ` : ''}
+    `
+        : ''
+    }
 
 
     ## Localization & Safety
-    ${(replacementRules && replacementRules.length > 0) || (regionReplacements && regionReplacements.length > 0) ? `
+    ${
+      (replacementRules && replacementRules.length > 0) ||
+      (regionReplacements && regionReplacements.length > 0)
+        ? `
     <LocalizationAndSafety>
-    ${replacementRules && replacementRules.length > 0 ? `
+    ${
+      replacementRules && replacementRules.length > 0
+        ? `
     **Blocked Terms (DO NOT USE):**
-    ${replacementRules.map(r => `- ❌ ${r}`).join('\n')}
-    ` : ''}
-    ${regionReplacements && regionReplacements.length > 0 ? `
+    ${replacementRules.map((r) => `- ❌ ${r}`).join('\n')}
+    `
+        : ''
+    }
+    ${
+      regionReplacements && regionReplacements.length > 0
+        ? `
     **Regional Replacements (MANDATORY):**
-    ${regionReplacements.map(r => r.replacement
-      ? `- "${r.original}" → "${r.replacement}"`
-      : `- "${r.original}" → [REMOVE from text]`
-    ).join('\n')}
-    ` : ''}
+    ${regionReplacements
+      .map((r) =>
+        r.replacement
+          ? `- "${r.original}" → "${r.replacement}"`
+          : `- "${r.original}" → [REMOVE from text]`
+      )
+      .join('\n')}
+    `
+        : ''
+    }
     </LocalizationAndSafety>
     DEFINITION: Terms to avoid and mandatory vocabulary corrections for the target region.
     INSTRUCTION:
     1. NEVER use any Blocked Terms.
     2. ALWAYS replace "original" terms with their "replacement".
     3. If replacement is [REMOVE], rewrite the sentence to exclude that term entirely.
-    ` : '(No localization constraints)'}
+    `
+        : '(No localization constraints)'
+    }
 
 
     ## Task Definition
     <CoreQuestion>
-    ${coreQuestion || "Infer the precise question and answer it"}
+    ${coreQuestion || 'Infer the precise question and answer it'}
     </CoreQuestion>
     DEFINITION: The comprehensive question this section must answer.
 
@@ -160,14 +189,15 @@ export const promptTemplates = {
     DEFINITION: The complexity level of the topic (easy, medium, unclear).
 
     <WritingMode>
-    ${mode === 'direct' ? "direct answer first" : "multi solutions then synthesize"}
+    ${mode === 'direct' ? 'direct answer first' : 'multi solutions then synthesize'}
     </WritingMode>
     DEFINITION: The structural approach (Direct vs Multi-angle).
     
-    ${mode === 'multi_solutions'
+    ${
+      mode === 'multi_solutions'
         ? `- Provide 2-3 distinct, non-overlapping solution paths before the final synthesized answer.`
         : `- Lead with a concise, direct answer to the core question.`
-      }
+    }
 
 
     ## Strategic Execution (CRITICAL)
@@ -186,44 +216,55 @@ export const promptTemplates = {
     - **Narrative Plan Execution**: You will see points marked as "[Primary]" or "[Secondary]".
       - **[Primary]**: Expand extensively on these. This is the core of the section.
       - **[Secondary]**: Mention these concisely as supporting details.
-    ${renderMode === 'checklist'
+    ${
+      renderMode === 'checklist'
         ? '- OUTPUT FORMAT: Use checklist/bulleted list. Include every provided Key Fact; do not drop items. Ensure each item is on a new line with a hyphen.'
         : '- OUTPUT FORMAT: Narrative Markdown. Use **double newlines** (`\\n\\n`) between paragraphs and before any H3 header.'
-      }
+    }
 
 
     ## Structure Enforcement
-    ${subheadings && subheadings.length > 0 ? `
+    ${
+      subheadings && subheadings.length > 0
+        ? `
     <MandatorySubheadings>
     ${subheadings.map((h, i) => `${i + 1}. ${h}`).join('\n')}
     </MandatorySubheadings>
     DEFINITION: The exact H3 subheadings you must use.
-    ` : '(No predefined subheadings)'
-      }
+    `
+        : '(No predefined subheadings)'
+    }
 
 
     ## Solution Angles
-    ${mode === 'multi_solutions'
-        ? (solutionAngles && solutionAngles.length > 0 ? `
+    ${
+      mode === 'multi_solutions'
+        ? solutionAngles && solutionAngles.length > 0
+          ? `
         <DefinedAngles>
-        ${solutionAngles.join("; ")}
+        ${solutionAngles.join('; ')}
         </DefinedAngles>
         DEFINITION: The specific angles/perspectives to cover.
-        ` : "None provided; create 2 distinct angles.")
-        : "Not needed for direct mode."
-      }
+        `
+          : 'None provided; create 2 distinct angles.'
+        : 'Not needed for direct mode.'
+    }
 
 
     ## Resources & Keywords
     <SemanticKeywords>
-    ${keywordPlans.map((k: any) => `
-    - "${k.word}": ${k.plan?.join('; ') || 'Use naturally.'}`).join('')}
+    ${keywordPlans
+      .map(
+        (k: any) => `
+    - "${k.word}": ${k.plan?.join('; ') || 'Use naturally.'}`
+      )
+      .join('')}
     </SemanticKeywords>
     DEFINITION: SEO keywords with semantic usage rules.
     INSTRUCTION: Use these words according to their "Semantic Context" rules to maintain the original depth.
 
     <AuthorityTerms>
-    ${relevantAuthTerms.slice(0, 5).join(", ")}
+    ${relevantAuthTerms.slice(0, 5).join(', ')}
     </AuthorityTerms>
     DEFINITION: Technical or authoritative terms.
 
@@ -231,7 +272,7 @@ export const promptTemplates = {
     ## Key Facts & Narrative Points
     - **WRITING RULE**: Use clean, direct sentence structures. Ensure structural clarity.
     <KeyPoints>
-    ${points.length > 0 ? points.join("; ") : "(No new key points needed for this section, focus on narrative)"}
+    ${points.length > 0 ? points.join('; ') : '(No new key points needed for this section, focus on narrative)'}
     </KeyPoints>
     DEFINITION: The core facts and information for this section.
 
@@ -241,21 +282,27 @@ export const promptTemplates = {
 
 
     ## Exclusion Rules
-    ${suppressHints && suppressHints.length > 0 ? `
+    ${
+      suppressHints && suppressHints.length > 0
+        ? `
     <StrictExclusion>
-    ${suppressHints.map(c => `- ${c}`).join('\n')}
+    ${suppressHints.map((c) => `- ${c}`).join('\n')}
     </StrictExclusion>
     DEFINITION: Topics that are strictly forbidden here.
-    ` : '(None)'
-      }
+    `
+        : '(None)'
+    }
 
-    ${avoidContent && avoidContent.length > 0 ? `
+    ${
+      avoidContent && avoidContent.length > 0
+        ? `
     <NegativeConstraints>
-    ${avoidContent.map(c => `- ${c}`).join('\n')}
+    ${avoidContent.map((c) => `- ${c}`).join('\n')}
     </NegativeConstraints>
     DEFINITION: Content to avoid to prevent repetition/redundancy.
-    ` : ''
-      }
+    `
+        : ''
+    }
 
 
     ## Output Schema
@@ -422,7 +469,7 @@ export const promptTemplates = {
     ACTION: Ensure style matches this industry.
     
     <SourceImageDescriptions>
-    ${analyzedSamples && analyzedSamples.length > 0 ? analyzedSamples : "No source images available. Infer style strictly from Website Context."}
+    ${analyzedSamples && analyzedSamples.length > 0 ? analyzedSamples : 'No source images available. Infer style strictly from Website Context.'}
     </SourceImageDescriptions>
     DEFINITION: Descriptions of actual images on the site.
     ACTION: Mimic this existing style.
@@ -503,7 +550,7 @@ export const promptTemplates = {
     ACTION: Condense these into a short heading title.
 
     <ImportantKeywords>
-    ${keywordPlans.map(k => k.word).join(', ')}
+    ${keywordPlans.map((k) => k.word).join(', ')}
     </ImportantKeywords>
     DEFINITION: Keywords to include.
     ACTION: Use these if they fit naturally.
@@ -595,7 +642,15 @@ export const promptTemplates = {
     - If a heading is already good, repeat it in "h2_after".
     `,
 
-  metaSeo: ({ targetAudience, contextLines, articlePreview }: { targetAudience: string; contextLines: string[]; articlePreview: string; }) => `
+  metaSeo: ({
+    targetAudience,
+    contextLines,
+    articlePreview,
+  }: {
+    targetAudience: string;
+    contextLines: string[];
+    articlePreview: string;
+  }) => `
     You are an SEO expert. Generate meta Title, Description, and URL slug for the article.
 
     <TargetAudience>
@@ -787,7 +842,15 @@ export const promptTemplates = {
 
     Return JSON only, no extra text or markdown fences.`,
 
-  keywordAnalysis: ({ content, targetAudience, languageInstruction }: { content: string; targetAudience: string; languageInstruction: string }) => `
+  keywordAnalysis: ({
+    content,
+    targetAudience,
+    languageInstruction,
+  }: {
+    content: string;
+    targetAudience: string;
+    languageInstruction: string;
+  }) => `
     Analyze the reference content to extract high-frequency keywords and their semantic roles.
     
     <TargetAudience>
@@ -813,7 +876,17 @@ export const promptTemplates = {
     ]
   `,
 
-  mergeAnalyses: ({ analysesJson, targetAudience, languageInstruction, userInstruction }: { analysesJson: string; targetAudience: string; languageInstruction: string; userInstruction?: string }) => `
+  mergeAnalyses: ({
+    analysesJson,
+    targetAudience,
+    languageInstruction,
+    userInstruction,
+  }: {
+    analysesJson: string;
+    targetAudience: string;
+    languageInstruction: string;
+    userInstruction?: string;
+  }) => `
     You are an Expert Strategic Editor.
     Your task is to SYNTHESIZE multiple content analyses into ONE "Grand Master Plan" for a definitive article.
 
@@ -830,13 +903,17 @@ export const promptTemplates = {
     ${languageInstruction}
     </LanguageInstruction>
 
-    ${userInstruction ? `
+    ${
+      userInstruction
+        ? `
     <UserGuidance>
     ${userInstruction}
     </UserGuidance>
     DEFINITION: Specific direction from the user on how to mix/synthesize.
     CRITICAL INSTRUCTION: Analyze the inputs through this lens. If the user wants a "Specific Focus" (e.g. Price Comparison), prioritize structure/facts that support that focus.
-    ` : ''}
+    `
+        : ''
+    }
 
     ## Synthesis Strategy (CRITICAL)
     1. **Structure (Synthesize Logic)**:
@@ -877,7 +954,19 @@ export const promptTemplates = {
     }
   `,
 
-  imagePromptFromContext: ({ contextText, languageInstruction, visualStyle, guide, modelAppearance }: { contextText: string; languageInstruction: string; visualStyle: string; guide: string; modelAppearance: string }) => `
+  imagePromptFromContext: ({
+    contextText,
+    languageInstruction,
+    visualStyle,
+    guide,
+    modelAppearance,
+  }: {
+    contextText: string;
+    languageInstruction: string;
+    visualStyle: string;
+    guide: string;
+    modelAppearance: string;
+  }) => `
     Generate 3 distinct image generation prompt options based on the following context.
     
     <ModelAppearance>
@@ -918,7 +1007,6 @@ TASK:
   "Option 3: Another distinct variation..."
 ]
   `,
-
 
   // --- 1. SKELETON EXTRACTION ---
   extractOutline: ({
@@ -1066,7 +1154,13 @@ TASK:
     </ReferenceContent>
   `,
 
-  regionalBrandAnalysis: ({ content, targetAudience }: { content: string; targetAudience: string }) => `
+  regionalBrandAnalysis: ({
+    content,
+    targetAudience,
+  }: {
+    content: string;
+    targetAudience: string;
+  }) => `
 TASK: Analyze the content for ** Regional Terminology ** and ** Brand Availability ** conflicts in: ${targetAudience}.
 
 <TargetAudience>
@@ -1111,8 +1205,15 @@ TASK: Analyze the content for ** Regional Terminology ** and ** Brand Availabili
     isSolutionSection: boolean;
     fallbackMappings: { painPoint: string; productFeature: string }[];
   }) => {
-    const allTargets = [...new Set([...competitorBrands, ...competitorProducts, ...replacementRules])];
-    const finalMappings = relevantMappings.length > 0 ? relevantMappings : (forceInjection || isSolutionSection ? fallbackMappings : []);
+    const allTargets = [
+      ...new Set([...competitorBrands, ...competitorProducts, ...replacementRules]),
+    ];
+    const finalMappings =
+      relevantMappings.length > 0
+        ? relevantMappings
+        : forceInjection || isSolutionSection
+          ? fallbackMappings
+          : [];
 
     let plan = `### 💎 COMMERCIAL & SERVICE STRATEGY(HIGH PRIORITY) \n`;
 
@@ -1120,7 +1221,7 @@ TASK: Analyze the content for ** Regional Terminology ** and ** Brand Availabili
       plan += `
   **🛡️ SANITIZATION PROTOCOL(ABSOLUTE RULES):**
     You are writing for the brand: ** "${productBrief.brandName}" **.
-        The Reference Text mentions competitors: ${allTargets.map(t => `"${t}"`).join(', ')}.
+        The Reference Text mentions competitors: ${allTargets.map((t) => `"${t}"`).join(', ')}.
 
 1. ** TOTAL ANNIHILATION:** Never output these competitor words in the final text.
         2. ** NO HYBRIDS:** Do NOT write "CompName as ${productBrief.brandName}".That is nonsense.
@@ -1146,7 +1247,7 @@ TASK: Analyze the content for ** Regional Terminology ** and ** Brand Availabili
 
     if (finalMappings.length > 0) {
       plan += `\n **💡 PROBLEM - SOLUTION WEAVING:**\nIntegrate the following mapping naturally: \n`;
-      finalMappings.forEach(m => {
+      finalMappings.forEach((m) => {
         plan += `- Discuss "${m.painPoint}" -> Then present ** ${productBrief.brandName}** (or ${productBrief.productName}) as the solution using[${m.productFeature}].\n`;
       });
     }
