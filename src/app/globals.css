@@ -7,7 +7,8 @@
   --foreground: #111827;
 }
 
-html, body {
+html,
+body {
   height: 100%;
   overscroll-behavior: contain;
 }

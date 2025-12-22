@@ -2,8 +2,27 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { marked } from 'marked';
-import { Copy, Check, AlertCircle, Code, Eye, Terminal, FileDown, Loader2, Sparkles } from 'lucide-react';
-import { GenerationStatus, TargetAudience, CostBreakdown, TokenUsage, SavedProfile, ScrapedImage, GenerationStep, ProductBrief } from '@/types';
+import {
+  Copy,
+  Check,
+  AlertCircle,
+  Code,
+  Eye,
+  Terminal,
+  FileDown,
+  Loader2,
+  Sparkles,
+} from 'lucide-react';
+import {
+  GenerationStatus,
+  TargetAudience,
+  CostBreakdown,
+  TokenUsage,
+  SavedProfile,
+  ScrapedImage,
+  GenerationStep,
+  ProductBrief,
+} from '@/types';
 import { RichTextEditor } from './RichTextEditor';
 import { EditorProvider } from './editor/EditorContext';
 import { StreamingModal } from './StreamingModal';
@@ -61,9 +80,15 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
   variant = 'light',
 }) => {
   const isDark = variant === 'dark';
-  const toggleBase = isDark ? 'border-gray-700 bg-gray-800 text-gray-200' : 'border-gray-200 bg-white text-gray-700';
-  const toggleActive = isDark ? 'bg-blue-900/40 text-blue-100 border border-blue-500/40' : 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm';
-  const toggleInactive = isDark ? 'text-gray-300 hover:text-white hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-50';
+  const toggleBase = isDark
+    ? 'border-gray-700 bg-gray-800 text-gray-200'
+    : 'border-gray-200 bg-white text-gray-700';
+  const toggleActive = isDark
+    ? 'bg-blue-900/40 text-blue-100 border border-blue-500/40'
+    : 'bg-blue-50 text-blue-700 border border-blue-200 shadow-sm';
+  const toggleInactive = isDark
+    ? 'text-gray-300 hover:text-white hover:bg-gray-700'
+    : 'text-gray-600 hover:bg-gray-50';
   const copyButton = isDark
     ? 'bg-gray-800 border border-gray-700 text-gray-200 hover:bg-gray-700'
     : 'bg-white border border-gray-200 text-gray-600 hover:bg-gray-50';
@@ -89,8 +114,11 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
 
       <button
         onClick={onCopyMarkdown}
-        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors ${isDark ? 'bg-amber-900/30 text-amber-200 border border-amber-800 hover:bg-amber-900/50' : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-          }`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors ${
+          isDark
+            ? 'bg-amber-900/30 text-amber-200 border border-amber-800 hover:bg-amber-900/50'
+            : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+        }`}
         title="Copy Markdown"
       >
         <span>Copy MD</span>
@@ -98,8 +126,11 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
 
       <button
         onClick={onOptimizeHeadings}
-        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors border ${isDark ? 'bg-indigo-900/20 text-indigo-300 border-indigo-800 hover:bg-indigo-900/40' : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
-          }`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors border ${
+          isDark
+            ? 'bg-indigo-900/20 text-indigo-300 border-indigo-800 hover:bg-indigo-900/40'
+            : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+        }`}
         title="Refine H2/H3 Headings with AI"
       >
         <Sparkles className="w-4 h-4" />
@@ -146,35 +177,42 @@ export const Preview: React.FC<PreviewProps> = ({
   const [editorHtml, setEditorHtml] = useState('');
   const [showHeadingOptimizer, setShowHeadingOptimizer] = useState(false);
 
-
   // Region grounding modal state
-  const { pendingGroundingResult, showGroundingModal, setPendingGroundingResult, setShowGroundingModal } = useAnalysisStore();
+  const {
+    pendingGroundingResult,
+    showGroundingModal,
+    setPendingGroundingResult,
+    setShowGroundingModal,
+  } = useAnalysisStore();
   const generationStore = useGenerationStore();
 
   const isAnalyzing = status === 'analyzing';
 
   // Handle applying selected grounding replacements
-  const handleApplyGrounding = useCallback((selectedIssues: { original: string; regionEquivalent: string }[]) => {
-    if (selectedIssues.length === 0) {
-      setPendingGroundingResult(null);
-      return;
-    }
-
-    let currentContent = generationStore.content;
-
-    // Apply each selected replacement
-    for (const issue of selectedIssues) {
-      if (issue.original && issue.regionEquivalent) {
-        // Use regex for global replacement
-        const regex = new RegExp(issue.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
-        currentContent = currentContent.replace(regex, issue.regionEquivalent);
+  const handleApplyGrounding = useCallback(
+    (selectedIssues: { original: string; regionEquivalent: string }[]) => {
+      if (selectedIssues.length === 0) {
+        setPendingGroundingResult(null);
+        return;
       }
-    }
 
-    generationStore.setContent(currentContent);
-    setPendingGroundingResult(null);
-    console.log(`[RegionGrounding] Applied ${selectedIssues.length} replacements`);
-  }, [generationStore, setPendingGroundingResult]);
+      let currentContent = generationStore.content;
+
+      // Apply each selected replacement
+      for (const issue of selectedIssues) {
+        if (issue.original && issue.regionEquivalent) {
+          // Use regex for global replacement
+          const regex = new RegExp(issue.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+          currentContent = currentContent.replace(regex, issue.regionEquivalent);
+        }
+      }
+
+      generationStore.setContent(currentContent);
+      setPendingGroundingResult(null);
+      console.log(`[RegionGrounding] Applied ${selectedIssues.length} replacements`);
+    },
+    [generationStore, setPendingGroundingResult]
+  );
 
   // Handle skipping grounding (keep original)
   const handleSkipGrounding = useCallback(() => {
@@ -209,47 +247,47 @@ export const Preview: React.FC<PreviewProps> = ({
     let md = html;
 
     // Block elements to newlines
-    md = md.replace(/<p[^>]*>/gi, "").replace(/<\/p>/gi, "\n\n");
-    md = md.replace(/<br\s*\/?>/gi, "\n");
-    md = md.replace(/<div[^>]*>/gi, "").replace(/<\/div>/gi, "\n");
-    md = md.replace(/<hr[^>]*>/gi, "\n---\n");
+    md = md.replace(/<p[^>]*>/gi, '').replace(/<\/p>/gi, '\n\n');
+    md = md.replace(/<br\s*\/?>/gi, '\n');
+    md = md.replace(/<div[^>]*>/gi, '').replace(/<\/div>/gi, '\n');
+    md = md.replace(/<hr[^>]*>/gi, '\n---\n');
 
     // Headings
-    md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, "# $1\n\n");
-    md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, "## $1\n\n");
-    md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, "### $1\n\n");
-    md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, "#### $1\n\n");
+    md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gi, '# $1\n\n');
+    md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gi, '## $1\n\n');
+    md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gi, '### $1\n\n');
+    md = md.replace(/<h4[^>]*>(.*?)<\/h4>/gi, '#### $1\n\n');
 
     // Bold/Italic
-    md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, "**$1**");
-    md = md.replace(/<b[^>]*>(.*?)<\/b>/gi, "**$1**");
-    md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, "*$1*");
-    md = md.replace(/<i[^>]*>(.*?)<\/i>/gi, "*$1*");
+    md = md.replace(/<strong[^>]*>(.*?)<\/strong>/gi, '**$1**');
+    md = md.replace(/<b[^>]*>(.*?)<\/b>/gi, '**$1**');
+    md = md.replace(/<em[^>]*>(.*?)<\/em>/gi, '*$1*');
+    md = md.replace(/<i[^>]*>(.*?)<\/i>/gi, '*$1*');
 
     // Lists (Simple implementation)
-    md = md.replace(/<ul[^>]*>/gi, "").replace(/<\/ul>/gi, "\n");
-    md = md.replace(/<ol[^>]*>/gi, "").replace(/<\/ol>/gi, "\n");
-    md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, "- $1\n");
+    md = md.replace(/<ul[^>]*>/gi, '').replace(/<\/ul>/gi, '\n');
+    md = md.replace(/<ol[^>]*>/gi, '').replace(/<\/ol>/gi, '\n');
+    md = md.replace(/<li[^>]*>(.*?)<\/li>/gi, '- $1\n');
 
     // Images
-    md = md.replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/gi, "![$2]($1)");
-    md = md.replace(/<img[^>]*src="([^"]*)"[^>]*>/gi, "![]($1)");
+    md = md.replace(/<img[^>]*src="([^"]*)"[^>]*alt="([^"]*)"[^>]*>/gi, '![$2]($1)');
+    md = md.replace(/<img[^>]*src="([^"]*)"[^>]*>/gi, '![]($1)');
 
     // Links
-    md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, "[$2]($1)");
+    md = md.replace(/<a[^>]*href="([^"]*)"[^>]*>(.*?)<\/a>/gi, '[$2]($1)');
 
     // Blockquotes
-    md = md.replace(/<blockquote[^>]*>/gi, "> ").replace(/<\/blockquote>/gi, "\n\n");
+    md = md.replace(/<blockquote[^>]*>/gi, '> ').replace(/<\/blockquote>/gi, '\n\n');
 
     // Cleanup HTML entities (basic)
-    md = md.replace(/&nbsp;/g, " ");
-    md = md.replace(/&amp;/g, "&");
-    md = md.replace(/&lt;/g, "<");
-    md = md.replace(/&gt;/g, ">");
+    md = md.replace(/&nbsp;/g, ' ');
+    md = md.replace(/&amp;/g, '&');
+    md = md.replace(/&lt;/g, '<');
+    md = md.replace(/&gt;/g, '>');
     md = md.replace(/&quot;/g, '"');
 
     // Cleanup multiple newlines
-    md = md.replace(/\n\s*\n\s*\n/g, "\n\n");
+    md = md.replace(/\n\s*\n\s*\n/g, '\n\n');
 
     return md.trim();
   };
@@ -257,7 +295,7 @@ export const Preview: React.FC<PreviewProps> = ({
   const handleCopyMarkdown = () => {
     const md = htmlToMarkdown(editorHtml);
     navigator.clipboard.writeText(md);
-    alert("Markdown copied to clipboard!");
+    alert('Markdown copied to clipboard!');
   };
 
   const renderToolbarActions = (variant: 'light' | 'dark' = 'light') => (
@@ -268,21 +306,28 @@ export const Preview: React.FC<PreviewProps> = ({
       onCopyMarkdown={handleCopyMarkdown}
       onOptimizeHeadings={() => setShowHeadingOptimizer(true)}
       copied={copied}
-
       variant={variant}
     />
   );
 
   const getStepLabel = (step?: GenerationStep) => {
     switch (step) {
-      case 'parsing_product': return '正在讀取產品資訊';
-      case 'nlp_analysis': return '正在整理重點字詞';
-      case 'extracting_structure': return '正在歸納段落架構';
-      case 'analyzing_visuals': return '正在偵測圖片風格';
-      case 'planning_keywords': return '正在規劃常用詞與例句';
-      case 'mapping_product': return '正在配對痛點與賣點';
-      case 'localizing_hk': return '正在套用香港市場用語';
-      default: return 'AI 正在準備';
+      case 'parsing_product':
+        return '正在讀取產品資訊';
+      case 'nlp_analysis':
+        return '正在整理重點字詞';
+      case 'extracting_structure':
+        return '正在歸納段落架構';
+      case 'analyzing_visuals':
+        return '正在偵測圖片風格';
+      case 'planning_keywords':
+        return '正在規劃常用詞與例句';
+      case 'mapping_product':
+        return '正在配對痛點與賣點';
+      case 'localizing_hk':
+        return '正在套用香港市場用語';
+      default:
+        return 'AI 正在準備';
     }
   };
 
@@ -299,7 +344,9 @@ export const Preview: React.FC<PreviewProps> = ({
           <h3 className="text-xl font-bold text-gray-800 tracking-tight">
             {getStepLabel(generationStep)}
           </h3>
-          <p className="text-sm text-gray-500 font-medium mt-1">請查看右側面板以獲取即時分析結果...</p>
+          <p className="text-sm text-gray-500 font-medium mt-1">
+            請查看右側面板以獲取即時分析結果...
+          </p>
         </div>
       </div>
     </div>
@@ -357,10 +404,7 @@ export const Preview: React.FC<PreviewProps> = ({
 
         {isAnalyzing && <InlineAnalysisIndicator />}
 
-        <RegionGroundingModal
-          onApply={handleApplyGrounding}
-          onSkip={handleSkipGrounding}
-        />
+        <RegionGroundingModal onApply={handleApplyGrounding} onSkip={handleSkipGrounding} />
 
         <HeadingOptimizerModal
           isOpen={showHeadingOptimizer}
@@ -375,8 +419,6 @@ export const Preview: React.FC<PreviewProps> = ({
           content={content}
           step={generationStep || 'writing_content'}
         />
-
-
       </div>
     </div>
   );
