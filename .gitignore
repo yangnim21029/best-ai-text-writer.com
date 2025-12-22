@@ -38,3 +38,4 @@ vertex_key.json
 ai-text-writer-nextjs
 output/*
 .next/
+*.tsbuildinfo
