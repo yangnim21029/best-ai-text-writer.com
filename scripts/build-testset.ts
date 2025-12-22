@@ -451,7 +451,8 @@ const dataset = {
   schema_version: '1.0.0',
   dataset_id: 'beauty-hair-nail-mini-v1',
   name: 'Beauty/Hair/Nail Mini Test Set',
-  description: 'Small zh-Hant-heavy test set of beauty, hair, nail, Olive Young shopping, and wellness URLs.',
+  description:
+    'Small zh-Hant-heavy test set of beauty, hair, nail, Olive Young shopping, and wellness URLs.',
   created_at: new Date().toISOString(),
   locale: ['zh-Hant'],
   total_cases: cases.length,

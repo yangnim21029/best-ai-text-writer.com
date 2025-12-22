@@ -20,7 +20,6 @@ const main = async () => {
     return logSkip('AI_BASE_URL not provided');
   }
 
-
   const generateUrl = `${base}${generatePath}`;
   const headers = { 'Content-Type': 'application/json' };
   if (token) {
@@ -30,7 +29,7 @@ const main = async () => {
   const res = await fetch(generateUrl, {
     method: 'POST',
     headers,
-    body: JSON.stringify({ prompt, model })
+    body: JSON.stringify({ prompt, model }),
   });
 
   const contentType = res.headers.get('content-type') || '';
@@ -38,14 +37,16 @@ const main = async () => {
 
   if (!res.ok) {
     const detail = isJson ? await res.json() : await res.text();
-    const message = typeof detail === 'string' ? detail : (detail?.error || JSON.stringify(detail));
+    const message = typeof detail === 'string' ? detail : detail?.error || JSON.stringify(detail);
     throw new Error(`AI generate check failed (${res.status}): ${message}`);
   }
 
   const data = isJson ? await res.json() : { text: await res.text() };
   const text = data?.text || (typeof data === 'string' ? data : '');
   assert(text !== undefined, 'AI backend responded without text');
-  console.log(`AI generate OK (${generateUrl}): "${String(text).slice(0, 60)}${String(text).length > 60 ? '...' : ''}"`);
+  console.log(
+    `AI generate OK (${generateUrl}): "${String(text).slice(0, 60)}${String(text).length > 60 ? '...' : ''}"`
+  );
 };
 
 main().catch((err) => {

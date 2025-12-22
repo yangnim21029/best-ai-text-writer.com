@@ -7,10 +7,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "lint": "next lint",
+    "format": "prettier --write .",
     "postbuild": "npm run ai:check",
-    "ai:check": "node scripts/verify-ai.js",
+    "ai:check": "tsx scripts/verify-ai.ts",
     "test:ai": "tsx test/ai-smoke.ts",
     "test:jina": "tsx scripts/test-jina-quality.ts"
+  },
+  "engines": {
+    "node": ">=18.18.0"
   },
   "dependencies": {
     "@google-cloud/vertexai": "^1.10.0",
@@ -48,6 +53,7 @@
     "autoprefixer": "^10.4.20",
     "dotenv": "^17.2.3",
     "postcss": "^8.4.49",
+    "prettier": "^3.3.3",
     "tailwindcss": "^3.4.17",
     "tsx": "^4.19.2",
     "typescript": "~5.8.2"
