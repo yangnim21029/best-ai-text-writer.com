@@ -80,6 +80,7 @@ interface AnalysisState {
     toggleGroundingIssueSelection: (index: number) => void;
     setLocalizedRefAnalysis: (analysis: ReferenceAnalysis | null) => void;
     saveCurrentToDocument: () => Promise<void>;
+    loadAnalysisDocument: (id: string) => Promise<void>;
     setSelectedDocumentIds: (ids: string[]) => void;
     toggleDocumentSelection: (id: string) => void;
     deleteDocument: (id: string) => Promise<void>;
@@ -171,6 +172,26 @@ export const useAnalysisStore = create<AnalysisState>()(
                 set({
                     analysisDocuments: allDocs,
                     selectedDocumentIds: [newDoc.id]
+                });
+            },
+            loadAnalysisDocument: async (id: string) => {
+                const doc = await db.documents.get(id);
+                if (!doc) return;
+
+                set({
+                    articleTitle: doc.title,
+                    keywordPlans: doc.keywordPlans,
+                    refAnalysis: doc.refAnalysis,
+                    authAnalysis: doc.authAnalysis,
+                    visualStyle: doc.visualStyle,
+                    productMapping: doc.productMapping,
+                    activeProductBrief: doc.productBrief,
+                    targetAudience: doc.targetAudience,
+                    languageInstruction: doc.languageInstruction,
+                    referenceContent: doc.sourceContent,
+                    brandRagUrl: doc.brandRagUrl,
+                    // Keep existing generic state or reset it? 
+                    // Usually loading a doc implies full restoration.
                 });
             },
             setSelectedDocumentIds: (ids) => set({ selectedDocumentIds: ids }),

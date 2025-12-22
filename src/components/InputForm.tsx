@@ -418,19 +418,34 @@ export const InputForm: React.FC<InputFormProps> = ({
                                                         {new Date(doc.timestamp).toLocaleString()}
                                                     </div>
                                                 </div>
-                                                <button
-                                                    type="button"
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (confirm('Delete this analysis document?')) {
-                                                            analysisStore.deleteDocument(doc.id);
-                                                        }
-                                                    }}
-                                                    className={`p-1 rounded hover:bg-white/20 transition-opacity ${isSelected ? 'opacity-80' : 'opacity-0 group-hover/doc:opacity-100 text-gray-300 hover:text-red-500'
-                                                        }`}
-                                                >
-                                                    <Trash2 className="w-3 h-3" />
-                                                </button>
+                                                <div className="flex items-center gap-1 opacity-0 group-hover/doc:opacity-100 transition-opacity">
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            analysisStore.loadAnalysisDocument(doc.id).then(() => {
+                                                                onShowPlan?.();
+                                                            });
+                                                        }}
+                                                        className="p-1 rounded hover:bg-white/20 text-gray-300 hover:text-blue-500"
+                                                        title="Load & View Plan"
+                                                    >
+                                                        <FileText className="w-3 h-3" />
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (confirm('Delete this analysis document?')) {
+                                                                analysisStore.deleteDocument(doc.id);
+                                                            }
+                                                        }}
+                                                        className="p-1 rounded hover:bg-white/20 text-gray-300 hover:text-red-500"
+                                                        title="Delete Document"
+                                                    >
+                                                        <Trash2 className="w-3 h-3" />
+                                                    </button>
+                                                </div>
                                             </div>
                                         );
                                     })

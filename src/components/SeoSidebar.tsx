@@ -269,16 +269,42 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                     </div>
                 )}
 
-                {(section.subheadings && section.subheadings.length > 0) && (
-                    <div className="pl-3 border-l-2 border-slate-100 space-y-1 mt-2">
-                        <p className="text-[9px] font-black text-gray-300 uppercase">Subtitles (H3s)</p>
-                        {section.subheadings.map((sub, sIdx) => (
-                            <div key={sIdx} className="text-[10px] text-gray-500 flex items-center gap-1.5 font-medium">
-                                <ArrowRight className="w-2.5 h-2.5 text-slate-300" />
-                                <span>{sub}</span>
+                {/* Subsections with Key Facts (New Granular Mode) */}
+                {section.subsections && section.subsections.length > 0 ? (
+                    <div className="pl-3 border-l-2 border-slate-100 space-y-3 mt-2">
+                        <p className="text-[9px] font-black text-gray-300 uppercase">H3 Structure & Facts</p>
+                        {section.subsections.map((sub, sIdx) => (
+                            <div key={sIdx} className="space-y-1">
+                                <div className="text-[10px] text-gray-600 flex items-center gap-1.5 font-bold">
+                                    <ArrowRight className="w-2.5 h-2.5 text-amber-500" />
+                                    <span>{sub.title}</span>
+                                </div>
+                                {sub.keyFacts && sub.keyFacts.length > 0 && (
+                                    <div className="pl-4 space-y-1">
+                                        {sub.keyFacts.map((fact, fIdx) => (
+                                            <div key={fIdx} className="flex gap-1.5 text-[9px] text-gray-500 leading-snug">
+                                                <span className="text-emerald-300">•</span>
+                                                <span className="break-words">{fact}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
                             </div>
                         ))}
                     </div>
+                ) : (
+                    /* Fallback to legacy flat H3s */
+                    (section.subheadings && section.subheadings.length > 0) && (
+                        <div className="pl-3 border-l-2 border-slate-100 space-y-1 mt-2">
+                            <p className="text-[9px] font-black text-gray-300 uppercase">Subtitles (H3s)</p>
+                            {section.subheadings.map((sub, sIdx) => (
+                                <div key={sIdx} className="text-[10px] text-gray-500 flex items-center gap-1.5 font-medium">
+                                    <ArrowRight className="w-2.5 h-2.5 text-slate-300" />
+                                    <span>{sub}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )
                 )}
 
                 {section.keyFacts && section.keyFacts.length > 0 && (

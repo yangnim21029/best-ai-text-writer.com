@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ContentScore, SavedProfile, ScrapedImage, PageProfile } from '@/types';
+import { ContentScore, SavedProfile, ScrapedImage, PageProfile, VisualProfile } from '@/types';
 import { MODEL, KEYWORD_CHAR_DIVISOR, MIN_KEYWORDS, SEMANTIC_KEYWORD_LIMIT } from '@/config/constants';
 
 interface AppState {

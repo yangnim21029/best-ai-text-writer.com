@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Pencil, Ban, CheckSquare, RefreshCw, Languages, Settings2 } from 'lucide-react';
+import { X, Layers, ListChecks, Sparkles, ArrowRight, CircleDot, Map, Target, Pencil, Ban, CheckSquare, RefreshCw, Languages, Settings2, BrainCircuit } from 'lucide-react';
 import { SectionAnalysis } from '../types';
 import { ReplacementEditorModal, EditedReplacementItem, ReplacementItem } from './ReplacementEditorModal';
 
@@ -606,18 +606,67 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                                         placeholder="每行一個 H3 建議"
                                                     />
                                                 ) : (
-                                                    <div className="mt-2 flex flex-wrap gap-2">
-                                                        {(section.data.subheadings || []).map((h3, hi) => (
-                                                            <span key={hi} className="text-xs px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 break-words">
-                                                                {h3}
-                                                            </span>
-                                                        ))}
-                                                        {(section.data.subheadings || []).length === 0 && (
+                                                    <div className="mt-2 space-y-2">
+                                                        {section.data.subsections && section.data.subsections.length > 0 ? (
+                                                            /* Detailed Subsections View */
+                                                            section.data.subsections.map((sub, hi) => (
+                                                                <div key={hi} className="bg-white border border-amber-100 rounded-lg p-2 space-y-1">
+                                                                    <div className="flex items-center gap-1.5">
+                                                                        <span className="text-[10px] font-bold text-amber-600 bg-amber-50 px-1.5 rounded">{hi + 1}</span>
+                                                                        <span className="text-xs font-bold text-amber-800 break-words">{sub.title}</span>
+                                                                    </div>
+                                                                    {sub.keyFacts && sub.keyFacts.length > 0 && (
+                                                                        <div className="pl-6 space-y-0.5">
+                                                                            {sub.keyFacts.map((fact, fi) => (
+                                                                                <div key={fi} className="flex items-start gap-1.5">
+                                                                                    <span className="text-[8px] text-amber-300 mt-1">●</span>
+                                                                                    <span className="text-[10px] text-gray-600 leading-snug">{fact}</span>
+                                                                                </div>
+                                                                            ))}
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            ))
+                                                        ) : (
+                                                            /* Legacy Flat List */
+                                                            <div className="flex flex-wrap gap-2">
+                                                                {(section.data.subheadings || []).map((h3, hi) => (
+                                                                    <span key={hi} className="text-xs px-2.5 py-1 rounded-full bg-white border border-amber-200 text-amber-700 break-words">
+                                                                        {h3}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        )}
+
+                                                        {(!section.data.subsections?.length && (!section.data.subheadings || section.data.subheadings.length === 0)) && (
                                                             <span className="text-xs text-amber-500">未提供 H3 建議</span>
                                                         )}
                                                     </div>
                                                 )}
                                             </div>
+
+                                            {/* Source Char Count Badge */}
+                                            {section.data.sourceCharCount && (
+                                                <div className="absolute top-2 right-2 text-[9px] font-mono text-gray-400 bg-gray-50 px-1.5 py-0.5 rounded border border-gray-100">
+                                                    Src: {section.data.sourceCharCount}c
+                                                </div>
+                                            )}
+                                            {/* END Source Char Count */}
+
+                                            {/* Writing Instruction Card */}
+                                            {section.data.instruction && (
+                                                <div className="mt-4 p-3 bg-blue-50/50 border border-blue-100 rounded-xl relative group/inst hover:bg-blue-50 transition-colors">
+                                                    <div className="absolute top-0 right-0 p-1.5 opacity-20">
+                                                        <BrainCircuit className="w-8 h-8 text-blue-400" />
+                                                    </div>
+                                                    <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                                                        <BrainCircuit className="w-3 h-3" /> Writing Instruction
+                                                    </p>
+                                                    <p className="text-[11px] text-blue-900 leading-[1.6] font-medium whitespace-pre-wrap">
+                                                        {section.data.instruction}
+                                                    </p>
+                                                </div>
+                                            )}
 
                                             {/* Suppress (不應有) */}
                                             {section.data.suppress && section.data.suppress.length > 0 && (
@@ -643,10 +692,10 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                         )}
                     </div>
                 </div>
-            </div>
+            </div >
 
             {/* Replacement Editor Modal */}
-            <ReplacementEditorModal
+            < ReplacementEditorModal
                 open={showReplacementEditor}
                 onClose={() => setShowReplacementEditor(false)}
                 items={regionalReplacements}
@@ -657,6 +706,6 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                     setShowReplacementEditor(false);
                 }}
             />
-        </div>
+        </div >
     );
 };
