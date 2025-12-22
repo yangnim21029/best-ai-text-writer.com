@@ -11,183 +11,184 @@ import { dedupeScrapedImages } from '../utils/imageUtils';
 const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
 
 interface UseArticleFormParams {
-    brandKnowledge?: string;
-    savedProfiles?: SavedProfile[];
-    setSavedProfiles?: (profiles: SavedProfile[]) => void;
-    activeProfile?: SavedProfile | null;
-    onSetActiveProfile?: (profile: SavedProfile | null) => void;
-    // Page Profiles
-    savedPages?: PageProfile[];
-    setSavedPages?: (pages: PageProfile[]) => void;
-    activePageId?: string;
-    onSetActivePageId?: (id: string | undefined) => void;
-    setBrandRagUrl?: (url: string) => void;
-    onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
+  brandKnowledge?: string;
+  savedProfiles?: SavedProfile[];
+  setSavedProfiles?: (profiles: SavedProfile[]) => void;
+  activeProfile?: SavedProfile | null;
+  onSetActiveProfile?: (profile: SavedProfile | null) => void;
+  // Page Profiles
+  savedPages?: PageProfile[];
+  setSavedPages?: (pages: PageProfile[]) => void;
+  activePageId?: string;
+  onSetActivePageId?: (id: string | undefined) => void;
+  setBrandRagUrl?: (url: string) => void;
+  onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
 
-    setInputType: (type: 'text' | 'url') => void;
+  setInputType: (type: 'text' | 'url') => void;
 }
 
 export const useArticleForm = ({
-    brandKnowledge = '',
-    savedProfiles = [],
+  brandKnowledge = '',
+  savedProfiles = [],
+  setSavedProfiles,
+  activeProfile,
+  onSetActiveProfile,
+  savedPages = [],
+  setSavedPages,
+  activePageId,
+  onSetActivePageId,
+  setBrandRagUrl,
+  onAddCost,
+  setInputType,
+}: UseArticleFormParams) => {
+  const {
+    register,
+    handleSubmit,
+    setValue,
+    watch,
+    reset,
+    formState: { errors },
+  } = useForm<ArticleFormValues>({
+    resolver: zodResolver(articleFormSchema),
+    defaultValues: {
+      title: '',
+      referenceContent: '',
+      sampleOutline: '',
+      authorityTerms: '',
+      websiteType: '',
+      targetAudience: 'zh-TW',
+      productRawText: '',
+      urlInput: '',
+      productUrlList: '',
+    },
+  });
+
+  const watchedValues = watch();
+
+  const [scrapedImages, setScrapedImages] = useState<ScrapedImage[]>([]);
+  const [productMode, setProductMode] = useState<'text' | 'url'>('text');
+  const [isSummarizingProduct, setIsSummarizingProduct] = useState(false);
+  const [refCharCount, setRefCharCount] = useState(0);
+  const [refWordCount, setRefWordCount] = useState(0);
+  const { clearAll } = useStorageReset();
+
+  const {
+    createProfile,
+    updateProfile,
+    deleteProfile,
+    applyProfileToForm,
+    loadProductFromProfile,
+    createPage,
+    updatePage,
+    deletePage,
+    applyPageToForm,
+  } = useProfileManager({
+    savedProfiles,
     setSavedProfiles,
     activeProfile,
     onSetActiveProfile,
-    savedPages = [],
+    savedPages,
     setSavedPages,
     activePageId,
     onSetActivePageId,
+    brandKnowledge,
+    setValue,
+    setScrapedImages,
     setBrandRagUrl,
+  });
+
+  const { isFetchingUrl, fetchAndPopulate } = useUrlScraper({
+    setValue,
     onAddCost,
     setInputType,
-}: UseArticleFormParams) => {
-    const {
-        register,
-        handleSubmit,
-        setValue,
-        watch,
-        reset,
-        formState: { errors }
-    } = useForm<ArticleFormValues>({
-        resolver: zodResolver(articleFormSchema),
-        defaultValues: {
-            title: '',
-            referenceContent: '',
-            sampleOutline: '',
-            authorityTerms: '',
-            websiteType: '',
-            targetAudience: 'zh-TW',
-            productRawText: '',
-            urlInput: '',
-            productUrlList: ''
-        }
-    });
+    onCreatePage: createPage,
+    targetAudience: watch('targetAudience'),
+    scrapedImages,
+    setScrapedImages,
+  });
 
-    const watchedValues = watch();
-
-    const [scrapedImages, setScrapedImages] = useState<ScrapedImage[]>([]);
-    const [productMode, setProductMode] = useState<'text' | 'url'>('text');
-    const [isSummarizingProduct, setIsSummarizingProduct] = useState(false);
-    const [refCharCount, setRefCharCount] = useState(0);
-    const [refWordCount, setRefWordCount] = useState(0);
-    const { clearAll } = useStorageReset();
-
-    const {
-        createProfile,
-        updateProfile,
-        deleteProfile,
-        applyProfileToForm,
-        loadProductFromProfile,
-        createPage,
-        updatePage,
-        deletePage,
-        applyPageToForm,
-    } = useProfileManager({
-        savedProfiles,
-        setSavedProfiles,
-        activeProfile,
-        onSetActiveProfile,
-        savedPages,
-        setSavedPages,
-        activePageId,
-        onSetActivePageId,
-        brandKnowledge,
-        setValue,
-        setScrapedImages,
-        setBrandRagUrl,
-    });
-
-    const {
-        isFetchingUrl,
-        fetchAndPopulate,
-    } = useUrlScraper({
-        setValue,
-        onAddCost,
-        setInputType,
-        onCreatePage: createPage,
-        targetAudience: watch('targetAudience'),
-        scrapedImages,
-        setScrapedImages,
-    });
-
-    // Restore persisted form
-    useEffect(() => {
-        if (typeof window === 'undefined') return;
-        const saved = localStorage.getItem(STORAGE_KEY);
-        if (saved) {
-            try {
-                const parsed = JSON.parse(saved);
-                Object.keys(parsed).forEach(key => {
-                    // @ts-ignore
-                    setValue(key, parsed[key]);
-                });
-                if (parsed.scrapedImages) setScrapedImages(dedupeScrapedImages(parsed.scrapedImages));
-            } catch (e) {
-                console.warn('Failed to restore persisted form', e);
-            }
-        }
-    }, [setScrapedImages, setValue]);
-
-    // Persist + counts
-    useEffect(() => {
-        const subscription = watch((values) => {
-            const dataToSave = { ...values, scrapedImages };
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
-
-            const content = values.referenceContent || '';
-            setRefCharCount(content.length);
-            const cjkCount = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
-            const nonCjkText = content.replace(/[\u4e00-\u9fa5]/g, ' ');
-            const englishWords = nonCjkText.trim().split(/\s+/).filter(w => w.length > 0);
-            setRefWordCount(cjkCount + englishWords.length);
+  // Restore persisted form
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        Object.keys(parsed).forEach((key) => {
+          // @ts-ignore
+          setValue(key, parsed[key]);
         });
-        return () => subscription.unsubscribe();
-    }, [scrapedImages, watch]);
+        if (parsed.scrapedImages) setScrapedImages(dedupeScrapedImages(parsed.scrapedImages));
+      } catch (e) {
+        console.warn('Failed to restore persisted form', e);
+      }
+    }
+  }, [setScrapedImages, setValue]);
 
-    // Apply active profile
-    useEffect(() => {
-        if (activeProfile) {
-            applyProfileToForm(activeProfile);
-        }
-    }, [activeProfile, applyProfileToForm]);
+  // Persist + counts
+  useEffect(() => {
+    const subscription = watch((values) => {
+      const dataToSave = { ...values, scrapedImages };
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
 
-    const usableImages = useMemo(() => scrapedImages.filter(img => !img.ignored), [scrapedImages]);
+      const content = values.referenceContent || '';
+      setRefCharCount(content.length);
+      const cjkCount = (content.match(/[\u4e00-\u9fa5]/g) || []).length;
+      const nonCjkText = content.replace(/[\u4e00-\u9fa5]/g, ' ');
+      const englishWords = nonCjkText
+        .trim()
+        .split(/\s+/)
+        .filter((w) => w.length > 0);
+      setRefWordCount(cjkCount + englishWords.length);
+    });
+    return () => subscription.unsubscribe();
+  }, [scrapedImages, watch]);
 
-    const handleClear = useCallback(() => {
-        if (typeof window === 'undefined') return;
-        if (!confirm('確定要清空所有輸入與紀錄嗎？\n這會重置表單、分析與草稿，並重新整理頁面。')) return;
-        reset();
-        setScrapedImages([]);
-        setValue('targetAudience', 'zh-TW');
-        clearAll({ reload: true, includeForm: true });
-    }, [clearAll, reset, setScrapedImages, setValue]);
+  // Apply active profile
+  useEffect(() => {
+    if (activeProfile) {
+      applyProfileToForm(activeProfile);
+    }
+  }, [activeProfile, applyProfileToForm]);
 
-    return {
-        register,
-        handleSubmit,
-        setValue,
-        watchedValues,
-        errors,
-        productMode,
-        setProductMode,
-        isSummarizingProduct,
-        setIsSummarizingProduct,
-        refCharCount,
-        refWordCount,
-        scrapedImages,
-        setScrapedImages,
-        isFetchingUrl,
-        fetchAndPopulate,
-        createProfile,
-        updateProfile,
-        deleteProfile,
-        applyProfileToForm,
-        loadProductFromProfile,
-        createPage,
-        updatePage,
-        deletePage,
-        applyPageToForm,
-        usableImages,
-        handleClear,
-    };
+  const usableImages = useMemo(() => scrapedImages.filter((img) => !img.ignored), [scrapedImages]);
+
+  const handleClear = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    if (!confirm('確定要清空所有輸入與紀錄嗎？\n這會重置表單、分析與草稿，並重新整理頁面。'))
+      return;
+    reset();
+    setScrapedImages([]);
+    setValue('targetAudience', 'zh-TW');
+    clearAll({ reload: true, includeForm: true });
+  }, [clearAll, reset, setScrapedImages, setValue]);
+
+  return {
+    register,
+    handleSubmit,
+    setValue,
+    watchedValues,
+    errors,
+    productMode,
+    setProductMode,
+    isSummarizingProduct,
+    setIsSummarizingProduct,
+    refCharCount,
+    refWordCount,
+    scrapedImages,
+    setScrapedImages,
+    isFetchingUrl,
+    fetchAndPopulate,
+    createProfile,
+    updateProfile,
+    deleteProfile,
+    applyProfileToForm,
+    loadProductFromProfile,
+    createPage,
+    updatePage,
+    deletePage,
+    applyPageToForm,
+    usableImages,
+    handleClear,
+  };
 };
