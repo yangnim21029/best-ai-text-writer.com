@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { Header } from '@/components/Header';
 import { InputForm } from '@/components/InputForm';
 import { Preview } from '@/components/Preview';
@@ -8,31 +8,46 @@ import { SeoSidebar } from '@/components/SeoSidebar';
 import { Changelog } from '@/components/Changelog';
 import { PasswordGate } from '@/components/PasswordGate';
 import { useGeneration } from '@/hooks/useGeneration';
-import { parseProductContext } from '@/services/research/productFeatureToPainPointMapper';
-import {
-  findRegionEquivalents,
-  localizePlanWithAI,
-} from '@/services/research/regionGroundingService';
-import { SavedProfile, ScrapedImage } from '@/types';
 import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
-import { useAppStore } from '@/store/useAppStore';
+// Modular Stores
+import { useUIStore } from '@/store/useUIStore';
+import { useSettingsStore } from '@/store/useSettingsStore';
+import { useProfileStore } from '@/store/useProfileStore';
+import { useMetricsStore } from '@/store/useMetricsStore';
+
 import { SectionPlanModal } from '@/components/SectionPlanModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { useAppAccess } from '@/hooks/useAppAccess';
 import { useContentScore } from '@/hooks/useContentScore';
 import { useAppHydration } from '@/hooks/useAppHydration';
 import { isAuthorizedAction } from '@/app/actions/auth';
+import { useAlternativeSearch } from '@/hooks/useAlternativeSearch';
+import { usePlanLocalization } from '@/hooks/usePlanLocalization';
+import { useProfileManagement } from '@/hooks/useProfileManagement';
+import { useAutoShowUI } from '@/hooks/useAutoShowUI';
 
 export default function AppPage() {
-  // Store & Hooks
-  const app = useAppStore();
+  // Modular Stores (Aggregated for backward compatibility in this component)
+  const ui = useUIStore();
+  const settings = useSettingsStore();
+  const profiles = useProfileStore();
+  const metrics = useMetricsStore();
+  
+  const app = useMemo(() => ({ ...ui, ...settings, ...profiles, ...metrics }), [ui, settings, profiles, metrics]);
+
   const generationStore = useGenerationStore();
   const analysisStore = useAnalysisStore();
   const { isUnlocked, unlock } = useAppAccess();
   const { structurePoints } = useContentScore();
   const { generate, startWriting, stop } = useGeneration();
   useAppHydration();
+
+  // Custom Business Logic Hooks
+  const { isSearchingAlternatives, handleSearchLocalAlternatives } = useAlternativeSearch();
+  const { isLocalizingPlan, handleLocalizePlan } = usePlanLocalization();
+  const { handleLoadProfile, handleRemoveScrapedImage } = useProfileManagement();
+  useAutoShowUI();
 
   // Sync server session with client local storage state
   useEffect(() => {
@@ -42,121 +57,6 @@ export default function AppPage() {
       }
     });
   }, [isUnlocked, unlock]);
-
-  const [isSearchingAlternatives, setIsSearchingAlternatives] = useState(false);
-  const [isLocalizingPlan, setIsLocalizingPlan] = useState(false);
-  const [hasAutoShownSidebar, setHasAutoShownSidebar] = useState(false);
-  const [hasAutoShownPlanModal, setHasAutoShownPlanModal] = useState(false);
-
-  // Reset auto-show flags when starting a new analysis
-  useEffect(() => {
-    if (generationStore.status === 'analyzing') {
-      setHasAutoShownSidebar(false);
-      setHasAutoShownPlanModal(false);
-    }
-  }, [generationStore.status]);
-
-  // Sidebar Auto-show
-  useEffect(() => {
-    if (generationStore.status === 'analyzing' && !app.showSidebar && !hasAutoShownSidebar) {
-      app.setShowSidebar(true);
-      setHasAutoShownSidebar(true);
-    }
-  }, [generationStore.status, app.showSidebar, hasAutoShownSidebar, app]);
-
-  // Plan Modal Auto-show
-  useEffect(() => {
-    const hasStructure = Boolean(analysisStore.refAnalysis?.structure?.length);
-    if (
-      generationStore.status === 'analysis_ready' &&
-      hasStructure &&
-      !app.showPlanModal &&
-      !hasAutoShownPlanModal
-    ) {
-      // Only show if we just finished analysis
-      if (generationStore.generationStep === 'idle') {
-        app.setShowPlanModal(true);
-        setHasAutoShownPlanModal(true);
-      }
-    }
-  }, [
-    generationStore.status,
-    generationStore.generationStep,
-    analysisStore.refAnalysis?.structure,
-    app.showPlanModal,
-    hasAutoShownPlanModal,
-    app,
-  ]);
-
-  const handleLoadProfile = async (profile: SavedProfile) => {
-    app.setActiveProfile(profile);
-    analysisStore.setTargetAudience(profile.targetAudience);
-    analysisStore.setBrandKnowledge(profile.brandKnowledge || '');
-
-    if (profile.productRawText) {
-      const res = await parseProductContext(profile.productRawText);
-      analysisStore.setActiveProductBrief(res.data);
-    }
-  };
-
-  const handleRemoveScrapedImage = (image: ScrapedImage) => {
-    const keyToMatch = image.id || image.url || image.altText;
-    if (!keyToMatch) return;
-    const updated = analysisStore.scrapedImages.map((img, idx) => {
-      const key = img.id || img.url || img.altText || `${idx}`;
-      if (key !== keyToMatch) return img;
-      return { ...img, ignored: !img.ignored };
-    });
-    analysisStore.setScrapedImages(updated);
-  };
-
-  const handleSearchLocalAlternatives = async () => {
-    const refAnalysis = analysisStore.refAnalysis;
-    if (!refAnalysis) return;
-
-    const entities = [
-      ...(refAnalysis.competitorBrands || []).map((b) => ({
-        text: b,
-        type: 'brand' as const,
-        region: 'OTHER',
-      })),
-      ...(refAnalysis.competitorProducts || []).map((p) => ({
-        text: p,
-        type: 'service' as const,
-        region: 'OTHER',
-      })),
-    ];
-
-    if (entities.length === 0) return;
-
-    setIsSearchingAlternatives(true);
-    try {
-      const result = await findRegionEquivalents(entities, analysisStore.targetAudience);
-      app.addCost(result.cost.totalCost, result.usage.totalTokens);
-
-      if (result.mappings.length > 0) {
-        const existingReplacements = refAnalysis.regionalReplacements || [];
-        const newReplacements = result.mappings.map((m) => ({
-          original: m.original,
-          replacement: m.regionEquivalent,
-          reason: m.context,
-        }));
-
-        const mergedReplacements = [...existingReplacements];
-        newReplacements.forEach((nr) => {
-          if (!mergedReplacements.some((er) => er.original === nr.original)) {
-            mergedReplacements.push(nr);
-          }
-        });
-
-        analysisStore.setRefAnalysis({ ...refAnalysis, regionalReplacements: mergedReplacements });
-      }
-    } catch (error) {
-      console.error('[App] Search local alternatives failed', error);
-    } finally {
-      setIsSearchingAlternatives(false);
-    }
-  };
 
   if (!isUnlocked) {
     return <PasswordGate onUnlock={unlock} />;
@@ -282,43 +182,7 @@ export default function AppPage() {
         isSearchingAlternatives={isSearchingAlternatives}
         humanWritingVoice={analysisStore.refAnalysis?.humanWritingVoice}
         localizedHumanWritingVoice={analysisStore.localizedRefAnalysis?.humanWritingVoice}
-        onLocalizeAll={async () => {
-          const current = analysisStore.refAnalysis;
-          if (!current) return;
-
-          setIsLocalizingPlan(true);
-          try {
-            const result = await localizePlanWithAI(
-              {
-                generalPlan: current.generalPlan || [],
-                conversionPlan: current.conversionPlan || [],
-                sections: current.structure,
-                humanWritingVoice: current.humanWritingVoice,
-              },
-              current.regionalReplacements,
-              analysisStore.targetAudience
-            );
-
-            app.addCost(result.cost.totalCost, result.usage.totalTokens);
-
-            const localizedStructure = current.structure.map((original, idx) => ({
-              ...original,
-              ...result.localizedSections[idx],
-            }));
-
-            analysisStore.setLocalizedRefAnalysis({
-              ...current,
-              structure: localizedStructure,
-              generalPlan: result.localizedGeneralPlan,
-              conversionPlan: result.localizedConversionPlan,
-              humanWritingVoice: result.localizedHumanWritingVoice,
-            });
-          } catch (error) {
-            console.error('[App] AI Plan localization failed', error);
-          } finally {
-            setIsLocalizingPlan(false);
-          }
-        }}
+        onLocalizeAll={handleLocalizePlan}
         isLocalizing={isLocalizingPlan}
         onStartWriting={(selected) => {
           const current = analysisStore.refAnalysis;

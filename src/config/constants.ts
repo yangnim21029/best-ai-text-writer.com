@@ -1,3 +1,5 @@
+import { serverEnv } from './env';
+
 const env =
   typeof import.meta !== 'undefined' && (import.meta as any).env
     ? (import.meta as any).env
@@ -8,11 +10,7 @@ export const MODEL = {
   IMAGE_PREVIEW: 'gemini-2.5-image-flash',
 };
 
-export const EMBED_MODEL_ID =
-  env?.VITE_EMBED_MODEL_ID ||
-  env?.VITE_AI_EMBED_MODEL_ID ||
-  env?.AI_EMBED_MODEL_ID ||
-  'gemini-embedding-001';
+export const EMBED_MODEL_ID = serverEnv.AI_EMBED_MODEL_ID;
 
 export const PRICING = {
   FLASH: {
