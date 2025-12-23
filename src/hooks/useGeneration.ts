@@ -19,7 +19,7 @@ const runAnalysisOnly = async (config: ArticleConfig) => {
     // 1. Analysis Phase
     const analysisResults = await executeAnalysisPipeline(config);
 
-    if (useGenerationStore.getState().isStopped) return;
+    if (useGenerationStore.getState().isStopped || !analysisResults) return;
 
     generationStore.setAnalysisResults(analysisResults);
     generationStore.setStatus('analysis_ready');
@@ -70,7 +70,7 @@ const runWritingPhase = async () => {
 
   generationStore.setError(null);
   try {
-    await runContentGeneration(config, analysisResults);
+    await runContentGeneration(config, analysisResults!);
   } catch (err: any) {
     console.error(err);
     generationStore.setError(err?.message || '生成段落時發生錯誤，請重試。');

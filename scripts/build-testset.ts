@@ -6,7 +6,18 @@ const here = path.dirname(fileURLToPath(import.meta.url));
 const outputDir = path.join(here, '..', 'output');
 const outputFile = path.join(outputDir, 'testset-beauty-hair-nail.json');
 
-const rawSources = [
+const rawSources: Array<{
+  url: string;
+  bucket: string;
+  title: string;
+  topic: string;
+  use_case: string;
+  intent: string;
+  language: string;
+  region: string;
+  tags: string[];
+  content_type?: string;
+}> = [
   {
     url: 'https://www.cosmopolitan.com.hk/cosmobody/partridge-soup-recipe-recommendations',
     bucket: 'wellness',
@@ -445,7 +456,7 @@ const cases = rawSources.map((item, index) => ({
 const bucketSummary = cases.reduce((acc, { bucket }) => {
   acc[bucket] = (acc[bucket] || 0) + 1;
   return acc;
-}, {});
+}, {} as Record<string, number>);
 
 const dataset = {
   schema_version: '1.0.0',

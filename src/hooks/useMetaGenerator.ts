@@ -14,7 +14,7 @@ interface MetaContext {
 }
 
 interface UseMetaGeneratorParams {
-  editorRef: React.RefObject<HTMLDivElement>;
+  editorRef: React.RefObject<HTMLDivElement | null>;
   tiptapApi?: { getPlainText: () => string } | null;
   targetAudience: TargetAudience;
   context: MetaContext;

@@ -5,6 +5,8 @@ import { aiService } from './aiService';
 
 import { TokenUtils } from '../../utils/tokenUtils';
 
+import { promptTemplates } from './promptTemplates';
+
 // Smart Context Filter with Knowledge Base Support (Stronger RAG)
 export const filterSectionContext = async (
   sectionTitle: string,
@@ -44,35 +46,14 @@ export const filterSectionContext = async (
   const kbContext = brandKnowledgeBase ? TokenUtils.truncateToTokens(brandKnowledgeBase, 15000) : 'N/A';
   const sourceContext = referenceContent ? TokenUtils.truncateToTokens(referenceContent, 40000) : 'N/A';
 
-  const prompt = `
-    I am writing a specific section titled: "${sectionTitle}".
-    
-    I have:
-    1. A database of "Key Information Points".
-    2. A database of "Authority Terms".
-    3. A "BRAND KNOWLEDGE BASE" (Guidelines/Specs).
-    4. "SOURCE MATERIAL" (Original content/articles).
-    
-    TASK:
-    1. **Filter Data**: Select ONLY the Key Points and Authority Terms strictly relevant to "${sectionTitle}".
-    2. **Agentic Retrieval**: 
-       - Read the "BRAND KNOWLEDGE BASE" and "SOURCE MATERIAL".
-       - Extract 3-5 specific constraints, facts, or technical details that MUST be applied to this specific section "${sectionTitle}".
-       - Focus on concrete details (percentages, specs, quotes, unique facts) found in the Source Material.
-       - If nothing is relevant, return empty list.
-    
-    ${languageInstruction}
-    
-    DATABASE:
-    Key Points: ${JSON.stringify(allKeyPoints)}
-    Authority Terms: ${JSON.stringify(allAuthTerms)}
-    
-    BRAND KNOWLEDGE BASE:
-    ${kbContext}
-
-    SOURCE MATERIAL:
-    ${sourceContext}
-    `;
+  const prompt = promptTemplates.filterSectionContext({
+    kbContext,
+    sourceContext,
+    allKeyPoints,
+    allAuthTerms,
+    sectionTitle,
+    languageInstruction,
+  });
 
   try {
     const response = await aiService.runJson<{
@@ -88,6 +69,7 @@ export const filterSectionContext = async (
           knowledgeInsights: { type: Type.ARRAY, items: { type: Type.STRING } },
         },
       },
+      promptId: 'context_filter',
     });
 
     const data = response.data;

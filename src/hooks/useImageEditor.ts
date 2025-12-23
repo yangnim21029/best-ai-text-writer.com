@@ -11,7 +11,7 @@ import { compressImage } from '../utils/imageUtils';
 import { saveImageToCache, getImageFromCache, deleteImageFromCache } from '../utils/storage/db';
 
 interface UseImageEditorParams {
-  editorRef: React.RefObject<HTMLDivElement>;
+  editorRef: React.RefObject<HTMLDivElement | null>;
   tiptapApi?: {
     insertImage: (src: string, alt?: string) => void;
     getPlainText?: () => string;
@@ -20,7 +20,7 @@ interface UseImageEditorParams {
     insertHtml?: (html: string) => void;
     getSelectionRange?: () => { from: number; to: number };
   };
-  imageContainerRef?: React.RefObject<HTMLElement>;
+  imageContainerRef?: React.RefObject<HTMLElement | null>;
   targetAudience: TargetAudience;
   visualStyle?: string;
   scrapedImages: ScrapedImage[];
@@ -129,7 +129,7 @@ export const useImageEditor = ({
     setImagePrompts(['Analyzing context...']);
 
     let contextText = '';
-    if (tiptapApi?.getPlainText) {
+    if (tiptapApi?.getPlainText && tiptapApi?.getSelectionRange) {
       const text = tiptapApi.getPlainText();
       const { from } = tiptapApi.getSelectionRange();
       const start = Math.max(0, from - 500);
@@ -176,7 +176,7 @@ export const useImageEditor = ({
       const anchorText = `[Generating Image... id:${anchorId}]`;
       const anchorHtml = `<p id="anchor-${anchorId}" style="color: #db2777; font-weight: bold; padding: 12px; background: #fdf2f8; border-radius: 12px; border: 2px dashed #f9a8d4; text-align: center; margin: 20px 0;">${anchorText}</p>`;
 
-      if (tiptapApi) {
+      if (tiptapApi?.insertHtml) {
         tiptapApi.insertHtml(anchorHtml);
       } else {
         restoreSelection();

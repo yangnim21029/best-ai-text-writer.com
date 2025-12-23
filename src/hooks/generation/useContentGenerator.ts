@@ -5,7 +5,7 @@ import { useAppStore } from '@/store/useAppStore';
 import { generateSectionContent } from '../../services/generation/contentGenerationService';
 import { mergeTurboSections } from '../../services/generation/contentDisplayService';
 
-import { cleanHeadingText, stripLeadingHeading } from '../../utils/textUtils';
+import { cleanHeadingText, stripLeadingHeading, throttle } from '../../utils/parsingUtils';
 import { planImagesForArticle, generateImage } from '../../services/generation/imageService';
 import { appendAnalysisLog } from '../../services/generation/generationLogger';
 import { aiService } from '../../services/engine/aiService';
@@ -153,6 +153,11 @@ export const runContentGeneration = async (
   const renderProgressSections = () =>
     sectionBodies.map((_, idx) => renderSectionBlock(idx)).join('\n\n');
 
+  // Performance: Throttle the UI update to avoid React overhead during high-concurrency generation
+  const throttledUpdateUI = throttle(() => {
+    generationStore.setContent(renderTurboSections());
+  }, 120);
+
   const getKeywordPlans = () => useAnalysisStore.getState().keywordPlans || [];
 
   const outlineSourceLabel = isUsingCustomOutline
@@ -216,7 +221,7 @@ export const runContentGeneration = async (
             : undefined,
         });
 
-        generationStore.setContent(renderTurboSections());
+        throttledUpdateUI();
         appStore.addCost(res.cost.totalCost, res.usage.totalTokens);
 
         if (res.data.usedPoints && res.data.usedPoints.length > 0) {
@@ -229,11 +234,14 @@ export const runContentGeneration = async (
     } catch (err) {
       console.error(`Parallel gen error for ${section.title}`, err);
       sectionBodies[i] = ''; // Suppress error message in content
-      generationStore.setContent(renderTurboSections());
+      throttledUpdateUI();
     }
   });
 
   await Promise.all(promises);
+  
+  // Ensure the final state is rendered, as the last throttled call might have been dropped
+  generationStore.setContent(renderTurboSections());
 
   if (!isStopped()) {
     generationStore.setContent(renderProgressSections());

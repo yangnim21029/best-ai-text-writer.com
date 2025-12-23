@@ -211,14 +211,14 @@ export const generateImagePromptFromContext = async (
   });
 
   try {
-      const response = await aiService.runJson<string[]>(prompt, 'FLASH', {
-        schema: {
-          type: Type.ARRAY,
-          items: { type: Type.STRING },
-        },
-        promptId: 'image_prompt_gen',
-      });
-        return {
+    const response = await aiService.runJson<string[]>(prompt, 'FLASH', {
+      schema: {
+        type: Type.ARRAY,
+        items: { type: Type.STRING },
+      },
+      promptId: 'image_prompt_gen',
+    });
+    return {
       data: Array.isArray(response.data) ? response.data : [],
       usage: response.usage,
       cost: response.cost,
@@ -267,10 +267,10 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
     const usageData =
       payload && typeof payload === 'object'
         ? payload.totalUsage ||
-          payload.usageMetadata ||
-          payload.usage ||
-          payload.metadata?.usage ||
-          {}
+        payload.usageMetadata ||
+        payload.usage ||
+        payload.metadata?.usage ||
+        {}
         : {};
 
     const metrics = calculateCost(usageData, 'IMAGE_GEN');
@@ -337,37 +337,25 @@ export const planImagesForArticle = async (
   const startTs = Date.now();
   const languageInstruction = getLanguageInstruction(targetAudience);
 
-  const maxImages = scrapedImages.length > 0 ? scrapedImages.length + 1 : 2;
+  const paragraphCount = articleContent.split(/\n\s*\n/).filter((p) => p.trim().length > 50).length;
+  // Rule: 1-2 images per paragraph.
+  // We set a loose upper limit (2 per paragraph) + some buffer or existing scraped images count.
+  const densityBasedMax = Math.max(2, paragraphCount * 2);
+  const maxImages = Math.max(densityBasedMax, scrapedImages.length + 2);
 
   const imageContexts = scrapedImages.slice(0, 30).map((img) => ({
     alt: img.altText,
     aiAnalysis: img.aiDescription || 'N/A',
   }));
 
-  const prompt = `
-    I have a draft ARTICLE and a list of SOURCE IMAGES.
-    I also have a MANDATORY GLOBAL VISUAL STYLE that must be applied to all generated images.
-
-    GLOBAL VISUAL STYLE: "${visualStyle || 'Clean, modern, professional style'}"
-    
-    TASK:
-    Create a "Visual Asset Plan" for the new article.
-    
-    ${VISUAL_STYLE_GUIDE}
-    
-    **ADDITIONAL CONSTRAINTS:**
-    1. **Quantity:** Generate a plan for **MAXIMUM ${maxImages} images**.
-    2. **Context & Culture:** Ensure the image description is culturally relevant.
-       ${languageInstruction}
-    3. **Insertion Anchor:** Select a unique text phrase (6-12 chars) from the content.
-    4. **Unified Style:** In the 'generatedPrompt', you MUST Explicitly describe how the "Global Visual Style" applies to this specific subject. Do NOT frame as an infographic; focus on photography, product, or lifestyle visuals.
-
-    ARTICLE CONTENT:
-    ${articleContent.substring(0, 20000)}
-
-    SOURCE IMAGES (Analyzed Reference):
-    ${JSON.stringify(imageContexts)}
-    `;
+  const prompt = promptTemplates.visualAssetPlanning({
+    visualStyle,
+    visualStyleGuide: VISUAL_STYLE_GUIDE,
+    maxImages,
+    languageInstruction,
+    articleContent,
+    imageContexts,
+  });
 
   try {
     const response = await aiService.runJson<any>(prompt, 'FLASH', {

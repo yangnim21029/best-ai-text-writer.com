@@ -17,7 +17,7 @@ import { filterSectionContext } from '../engine/contextFilterService';
 import { promptTemplates } from '../engine/promptTemplates';
 import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { aiService } from '../engine/aiService';
-import { normalizeMarkdown } from '../../utils/textUtils';
+import { normalizeMarkdown } from '../../utils/parsingUtils';
 
 import { Type } from '../engine/schemaTypes';
 

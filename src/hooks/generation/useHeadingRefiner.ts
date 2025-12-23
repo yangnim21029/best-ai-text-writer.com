@@ -2,7 +2,7 @@ import { refineHeadings } from '../../services/generation/headingRefinerService'
 import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
-import { cleanHeadingText } from '../../utils/textUtils';
+import { cleanHeadingText } from '../../utils/parsingUtils';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 

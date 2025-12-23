@@ -1,5 +1,6 @@
 import { AIResponse } from '../../types';
 import { AI_DEFAULTS } from '../../config/constants';
+import { serverEnv, clientEnv, getAiBaseUrl, getProxySecret } from '../../config/env';
 
 interface GenAIRequest {
   model: string;
@@ -22,15 +23,12 @@ const DEFAULT_RETRY: Required<RetryOptions> = {
 
 const DEFAULT_TIMEOUT = AI_DEFAULTS.TIMEOUT_MS;
 
-// Exported for reuse in other services
-export const env = process.env;
-
 const isBrowser = typeof window !== 'undefined';
 
 // In Next.js, we'll use the local API route (/api/ai) as a proxy
 // This avoids CORS issues and keeps the AI token secure on the server.
-const AI_BASE_URL = isBrowser ? '' : env.AI_BASE_URL || '';
-const AI_PATH = isBrowser ? '/api/ai' : env.AI_PATH || '/ai';
+const AI_BASE_URL = isBrowser ? '' : getAiBaseUrl();
+const AI_PATH = isBrowser ? '/api/ai' : process.env.AI_PATH || '/ai';
 
 export const buildAiUrl = (path: string) => {
   const prefix = AI_PATH ? (AI_PATH.startsWith('/') ? AI_PATH : `/${AI_PATH}`) : '';
@@ -38,18 +36,20 @@ export const buildAiUrl = (path: string) => {
 };
 
 export const getAiHeaders = () => {
-  const token = env.VITE_AI_TOKEN || env.AI_TOKEN;
-  const proxySecret = env.VITE_AI_PROXY_SECRET || env.AI_PROXY_SECRET;
+  const token = serverEnv.AI_TOKEN; // Only available on server
+  const proxySecret = getProxySecret(); // Only available on server
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   
-  if (token) {
+  // On the server, we might authenticate directly against the upstream AI service
+  if (!isBrowser && token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   
-  if (proxySecret) {
+  // On the server (e.g. scripts), we might identify ourselves with the proxy secret
+  if (!isBrowser && proxySecret) {
     headers['x-ai-proxy-secret'] = proxySecret;
   }
   
@@ -124,7 +124,7 @@ const extractTextFromUIMessage = (message: any): string => {
   return '';
 };
 
-import { JsonUtils } from '../../utils/jsonUtils';
+import { JsonUtils } from '../../utils/parsingUtils';
 
 const parseSseTextContent = (
   raw: string
@@ -352,8 +352,10 @@ export class GenAIClient {
       }, timeout);
 
       try {
-        // DEBUG: Log request summary
-        console.log(`[GenAIClient] Sending request: ${taskLabel} (${model})`);
+        // DEBUG: Log request summary (Server only)
+        if (!isBrowser) {
+          console.log(`[GenAIClient] Sending request: ${taskLabel} (${model})`);
+        }
 
         const headers = getAiHeaders();
 
@@ -363,14 +365,17 @@ export class GenAIClient {
             headers,
             body: JSON.stringify(payload),
             signal: combinedSignal,
+            // Ensure cookies (app_access_granted) are sent in the browser
+            credentials: isBrowser ? 'include' : undefined,
           });
 
-        let response = await doRequest('/generate');
+        const response = await doRequest('/generate');
 
         // Backward compatibility: try /stream if /generate is missing
-        if (response.status === 404) {
-          response = await doRequest('/stream');
-        }
+        // REMOVED: Streaming fallback causing 404 errors as per user request.
+        // if (response.status === 404) {
+        //   response = await doRequest('/stream');
+        // }
 
         const contentType = response.headers.get('content-type') || '';
         const isJson = contentType.includes('application/json');
@@ -378,10 +383,17 @@ export class GenAIClient {
 
         if (!response.ok) {
           const errorData = isJson ? await response.json() : await response.text();
-          const detail =
+          let detail =
             typeof errorData === 'string'
               ? errorData
               : errorData.error || JSON.stringify(errorData);
+          
+          // Clean up HTML error pages (standard for 504/502 from proxies)
+          if (detail.includes('<!DOCTYPE html>') || detail.includes('<html')) {
+            const statusText = response.statusText || 'Error';
+            detail = `Upstream Service ${statusText} (HTML Response)`;
+          }
+
           throw new Error(`Failed to generate content (HTTP ${response.status}): ${detail}`);
         }
 
@@ -403,8 +415,10 @@ export class GenAIClient {
         const message = (lastError as Error)?.message || '';
         const retryable =
           message.includes('503') ||
+          message.includes('504') ||
           message.includes('UNAVAILABLE') ||
           message.toLowerCase().includes('overloaded') ||
+          message.toLowerCase().includes('gateway') ||
           message.includes('TIMEOUT');
 
         if (attempt < attempts - 1 && retryable) {

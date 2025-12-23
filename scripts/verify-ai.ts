@@ -3,7 +3,7 @@ import 'dotenv/config';
 
 const trimSlash = (value = '') => value.replace(/\/+$/, '');
 
-const logSkip = (reason) => console.warn(`AI check skipped: ${reason}`);
+const logSkip = (reason: string) => console.warn(`AI check skipped: ${reason}`);
 
 const main = async () => {
   if (process.env.SKIP_AI_CHECK === '1') {
@@ -21,7 +21,7 @@ const main = async () => {
   }
 
   const generateUrl = `${base}${generatePath}`;
-  const headers = { 'Content-Type': 'application/json' };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }

@@ -10,7 +10,7 @@ import { analyzeAuthorityTerms } from '../../services/research/authorityService'
 import { analyzeVisualStyle } from '../../services/generation/imageService';
 import { appendAnalysisLog, summarizeList } from '../../services/generation/generationLogger';
 import { getLanguageInstruction } from '../../services/engine/promptService';
-import { analyzeRegionalTerms } from '../../services/research/regionalAnalysisService';
+import { analyzeRegionalTerms } from '../../services/research/regionalService';
 
 export interface AnalysisDependencies {
   generationStore: {
@@ -221,14 +221,19 @@ export const runAnalysisPipelineService = async (
     }
   };
 
-  // Execution with simple staggered delay to avoid rate limits
-  const productResult = await productTask();
+  // We start the most critical and heavy tasks first.
+  // Product context is usually fast, but Structure/Authority is the foundation.
+  // We execute Product and Structure tasks in parallel.
+  // Note: Parallel tasks may cause 'generationStep' to flicker in the UI.
+  // Ideally, manage a composite status or let the longest-running task drive the UI.
+  const [productResult, structureResult] = await Promise.all([
+    productTask(),
+    structureTask(),
+  ]);
+
   if (isStopped()) return;
 
-  await new Promise((r) => setTimeout(r, 800));
-  const structureResult = await structureTask();
-
-  await new Promise((r) => setTimeout(r, 800));
+  // Now we parallelize the remaining independent tasks to maximize throughput.
   const [visualResult, regionalResult, keywordResult] = await Promise.all([
     visualTask(),
     regionalTask(),

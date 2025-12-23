@@ -2,6 +2,7 @@
 
 import { cookies } from 'next/headers';
 import crypto from 'crypto';
+import { serverEnv } from '@/config/env';
 
 /**
  * Computes a SHA-256 hash of the input text
@@ -14,7 +15,7 @@ async function computeHash(text: string): Promise<string> {
  * Verifies the password against the environment secret and sets a session cookie.
  */
 export async function verifyPasswordAction(password: string) {
-  const passwordHash = process.env.APP_GUARD_HASH;
+  const passwordHash = serverEnv.APP_GUARD_HASH;
   
   if (!passwordHash) {
     console.error('[AuthAction] APP_GUARD_HASH is not configured on the server.');
@@ -29,7 +30,8 @@ export async function verifyPasswordAction(password: string) {
       maxAge: 7 * 24 * 60 * 60, // 7 days
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
+      sameSite: 'strict',
+      path: '/',
     });
     return { success: true };
   }
