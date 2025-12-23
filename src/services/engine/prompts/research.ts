@@ -179,11 +179,11 @@ export const researchPrompts = {
     }
   `,
 
-  keywordAnalysis: ({ 
+  keywordAnalysis: ({
     content,
     targetAudience,
     languageInstruction,
-  }: { 
+  }: {
     content: string;
     targetAudience: string;
     languageInstruction: string;
@@ -245,4 +245,41 @@ DEFINITION: Source text.
     
     ${languageInstruction}
     `,
+
+  distributeContext: ({
+    sourceContent,
+    sectionTitles,
+    languageInstruction,
+  }: any) => `
+    I have a large "Source Document" and a list of "Section Titles" for an article I am writing.
+    
+    <SourceDocument>
+    ${sourceContent}
+    </SourceDocument>
+    
+    <SectionTitles>
+    ${JSON.stringify(sectionTitles)}
+    </SectionTitles>
+    
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+
+    TASK:
+    For EACH Section Title, extract the *specific* text chunks from the Source Document that are relevant to writing that section.
+    
+    RULES:
+    1. **Be Specific**: Do not just copy the whole text. Extract only paragraphs/sentences that support that specific section.
+    2. **No Duplicates**: If a chunk is relevant to multiple sections, you can include it in both.
+    3. **Empty is OK**: If no source text is relevant for a section (e.g. "Introduction" might be generic), return an empty string/null.
+    4. **Context Window**: Keep snippets concise (max 500 words per section).
+    
+    OUTPUT JSON:
+    {
+      "mapping": [
+        { "title": "Section Title 1", "relevantContext": "extracted text..." },
+        { "title": "Section Title 2", "relevantContext": "extracted text..." }
+      ]
+    }
+  `,
 };

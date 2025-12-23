@@ -111,7 +111,7 @@ export const useAppStore = create<AppState>()(
       defaultDesignStyle:
         'Minimalist, flat design, clean lines, professional corporate color palette, high resolution infographic style',
       useRag: true,
-      autoImagePlan: true,
+      autoImagePlan: false,
 
       savedProfiles: [],
       activeProfile: null,
@@ -175,7 +175,7 @@ export const useAppStore = create<AppState>()(
           defaultDesignStyle:
             'Minimalist, flat design, clean lines, professional corporate color palette, high resolution infographic style',
           useRag: true,
-          autoImagePlan: true,
+          autoImagePlan: false,
         }),
 
       setSavedProfiles: (profiles) => set({ savedProfiles: profiles }),

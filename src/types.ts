@@ -208,6 +208,7 @@ export type GenerationStep =
   | 'refining_headings'
   | 'generating_images'
   | 'localizing_hk'
+  | 'optimizing_context'
   | 'finalizing';
 
 // --- Cost Tracking Types ---

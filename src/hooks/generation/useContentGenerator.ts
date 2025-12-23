@@ -9,6 +9,7 @@ import { cleanHeadingText, stripLeadingHeading, throttle } from '../../utils/par
 import { planImagesForArticle, generateImage } from '../../services/generation/imageService';
 import { appendAnalysisLog } from '../../services/generation/generationLogger';
 import { aiService } from '../../services/engine/aiService';
+import { distributeSectionContexts } from '../../services/engine/contextDistributionService';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 
@@ -167,6 +168,35 @@ export const runContentGeneration = async (
   const initialDisplay = `> 📑 **Active Blueprint:** ${outlineSourceLabel}\n\n`;
   generationStore.setContent(initialDisplay);
 
+  generationStore.setContent(initialDisplay);
+
+  // --- OPTIMIZATION: Context Distribution ---
+  // Pre-calculate relevant context for each section to avoid sending 50k+ tokens to every parallel request.
+  let contextMap: Record<string, string> = {};
+  if (config.referenceContent && config.referenceContent.length > 500) {
+    try {
+      generationStore.setGenerationStep('optimizing_context');
+      console.log('[Context Distribution] Starting...');
+      appendAnalysisLog('Optimizing source context...');
+      const distStart = Date.now();
+      const distRes = await distributeSectionContexts(
+        config.referenceContent,
+        sectionsToGenerate,
+        config.targetAudience
+      );
+      console.log(`[Context Distribution] Completed in ${Date.now() - distStart}ms`);
+
+      distRes.data.forEach((item) => {
+        contextMap[item.title] = item.relevantContext;
+      });
+      appendAnalysisLog(`Context optimized for ${distRes.data.length} sections.`);
+      appStore.addCost(distRes.cost.totalCost, distRes.usage.totalTokens);
+    } catch (e) {
+      console.error('[Context Distribution] Failed, falling back to full context.', e);
+    }
+  }
+
+
   const promises = sectionsToGenerate.map(async (section, i) => {
     if (isStopped()) return;
 
@@ -187,7 +217,12 @@ export const runContentGeneration = async (
       ])
     ).filter(Boolean);
 
-    const loopConfig = { ...generatorConfig, productMapping: productMappingData };
+    const loopConfig = {
+      ...generatorConfig,
+      productMapping: productMappingData,
+      // Inject the specific, smaller context if available
+      referenceContent: contextMap[section.title] || generatorConfig.referenceContent
+    };
     const dummyPreviousContent = i > 0 ? [`[Preceding Section: ${allTitles[i - 1]}]`] : [];
 
     try {
@@ -239,7 +274,7 @@ export const runContentGeneration = async (
   });
 
   await Promise.all(promises);
-  
+
   // Ensure the final state is rendered, as the last throttled call might have been dropped
   generationStore.setContent(renderTurboSections());
 
