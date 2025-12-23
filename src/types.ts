@@ -71,6 +71,22 @@ export interface AuthorityAnalysis {
   combinations: string[]; // 3 Strategic ways to combine these terms
 }
 
+export interface RegionIssue {
+  type: 'entity' | 'brand' | 'regulation' | 'currency' | 'location' | 'service';
+  original: string;
+  regionEquivalent: string;
+  confidence: number;
+  context: string;
+  sourceRegion: string;
+}
+
+export interface RegionGroundingResult {
+  isRegionRelevant: boolean;
+  relevanceScore: number;
+  issues: RegionIssue[];
+  suggestions: { original: string; rewritten: string }[];
+}
+
 export type TargetAudience = 'zh-TW' | 'zh-HK' | 'zh-MY';
 
 // NEW: Product / CTA Configuration

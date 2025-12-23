@@ -4,7 +4,7 @@ import { calculateCost } from './promptService';
 import { TokenUsage, CostBreakdown, AIRequestConfig, AIResponse } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 
-import { JsonUtils } from '../../utils/jsonUtils';
+import { JsonUtils } from '../../utils/parsingUtils';
 
 export type LlmModelKey = keyof typeof MODEL;
 
@@ -95,6 +95,31 @@ class AIService {
     } catch (error) {
       console.error(`[AIService] runJson failed for ${modelKey}`, error);
       throw error;
+    }
+  }
+
+  /**
+   * Convert plain text to Markdown using AI
+   */
+  async convertToMarkdown(
+    content: string,
+    onSuccess?: (markdown: string) => void
+  ): Promise<string> {
+    try {
+      const { promptTemplates } = await import('./promptTemplates');
+      const prompt = promptTemplates.convertToMarkdown({ content });
+
+      const response = await this.runText(prompt, 'FLASH');
+      const markdown = response.text;
+
+      if (onSuccess) {
+        onSuccess(markdown);
+      }
+
+      return markdown;
+    } catch (error) {
+      console.error('[AIService] convertToMarkdown failed', error);
+      throw error; // Re-throw to handle in UI
     }
   }
 }
