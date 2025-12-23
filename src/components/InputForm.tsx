@@ -35,6 +35,7 @@ import { useArticleForm } from '@/hooks/useArticleForm';
 import { useSemanticFilter } from '@/hooks/useSemanticFilter';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
+import { LoadingButton } from './LoadingButton';
 import { WebsiteLibraryModal } from './modals/WebsiteLibraryModal';
 import { ServiceLibraryModal } from './modals/ServiceLibraryModal';
 import { fetchUrlContent } from '@/services/research/webScraper';
@@ -214,8 +215,8 @@ export const InputForm: React.FC<InputFormProps> = ({
     });
   };
 
-  const handleFetchUrl = async () => {
-    await fetchAndPopulate(watchedValues.urlInput || '');
+  const handleFetchUrl = async (urlOverride?: string) => {
+    await fetchAndPopulate(urlOverride || watchedValues.urlInput || '');
   };
 
   const handleImportProductUrls = async () => {
@@ -334,6 +335,8 @@ export const InputForm: React.FC<InputFormProps> = ({
           {/* 1. Source Material (Top Priority) */}
           <SourceMaterialSection
             register={register}
+            setValue={setValue}
+            content={watchedValues.referenceContent}
             errors={errors}
             inputType={inputType}
             setInputType={setInputType}
@@ -480,39 +483,27 @@ export const InputForm: React.FC<InputFormProps> = ({
 
         <div className="p-4 border-t border-gray-100 bg-white/80 backdrop-blur-sm z-10">
           <div className="space-y-2">
-            <button
+            <LoadingButton
               type="submit"
               disabled={isGenerating || isWriting || !isReadyToGenerate}
-              className={`w-full py-3 rounded-xl text-sm font-bold shadow-lg shadow-blue-500/20 flex items-center justify-center gap-2 transition-all transform active:scale-[0.98] ${isGenerating || isWriting || !isReadyToGenerate
-                ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:shadow-blue-500/30 hover:brightness-110'
-                }`}
+              isLoading={isGenerating}
+              loadingText={`${currentStep.replace(/_/g, ' ').toUpperCase()}...`}
+              icon={<Sparkles className="w-4 h-4" />}
+              className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-blue-500/30 hover:brightness-110"
             >
-              {isGenerating ? (
-                <>
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                  <span>{currentStep.replace(/_/g, ' ').toUpperCase()}...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4" />
-                  <span>語氣與大綱分析</span>
-                </>
-              )}
-            </button>
+              語氣與大綱分析
+            </LoadingButton>
 
-            <button
+            <LoadingButton
               type="button"
               onClick={onShowPlan}
               disabled={!hasPlan}
-              className={`w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all border ${hasPlan
-                ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100'
-                : 'text-gray-400 bg-gray-50 border-gray-100 cursor-not-allowed'
-                }`}
+              variant="outline"
+              icon={<LayoutTemplate className="w-4 h-4" />}
+              className={`w-full ${hasPlan ? 'text-blue-700 bg-blue-50 border-blue-100 hover:bg-blue-100' : 'text-gray-400 bg-gray-50 border-gray-100'}`}
             >
-              <LayoutTemplate className="w-4 h-4" />
-              <span>檢視文章大綱</span>
-            </button>
+              檢視文章大綱
+            </LoadingButton>
 
             <p className="text-[11px] text-gray-500 text-center">
               先完成分析並檢視結果 (側欄) ，確認後再生成內文段落。

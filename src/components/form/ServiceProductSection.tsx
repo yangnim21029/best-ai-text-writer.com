@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
 import { UseFormRegister } from 'react-hook-form';
-import { ArticleFormValues } from '../../schemas/formSchema';
-import { SavedProfile } from '../../types';
 import {
-  ChevronDown,
-  Download,
-  Edit2,
-  Loader2,
-  Settings2,
   ShoppingBag,
+  Settings2,
+  ChevronDown,
+  Edit2,
+  Download,
   Sparkles,
 } from 'lucide-react';
+import { ArticleFormValues } from '../../schemas/formSchema';
+import { SavedProfile } from '../../types';
+import { LoadingButton } from '../LoadingButton';
 
 interface ServiceProductSectionProps {
   register: UseFormRegister<ArticleFormValues>;
@@ -144,19 +144,17 @@ export const ServiceProductSection: React.FC<ServiceProductSectionProps> = ({
                     One URL per line. AI will summarize key info.
                   </p>
                 </div>
-                <button
-                  type="button"
+                <LoadingButton
                   onClick={handleAnalyzeUrls}
                   disabled={isSummarizingProduct || !canAnalyzeFromUrls}
-                  className="w-full h-10 bg-white border border-blue-200 text-blue-600 rounded-xl text-xs font-black hover:bg-blue-50 transition-all shadow-sm flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98]"
+                  isLoading={isSummarizingProduct}
+                  loadingText="ANALYZING..."
+                  variant="outline"
+                  icon={<Sparkles className="w-3.5 h-3.5" />}
+                  className="w-full h-10 text-blue-600 rounded-xl text-xs font-black shadow-sm"
                 >
-                  {isSummarizingProduct ? (
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  ) : (
-                    <Sparkles className="w-3.5 h-3.5" />
-                  )}
-                  {isSummarizingProduct ? 'ANALYZING...' : 'ANALYZE & SUMMARIZE'}
-                </button>
+                  ANALYZE & SUMMARIZE
+                </LoadingButton>
               </div>
             )}
 

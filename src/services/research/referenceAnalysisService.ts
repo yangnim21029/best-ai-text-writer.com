@@ -6,20 +6,7 @@ import { Type } from '../engine/schemaTypes';
 
 export const extractWebsiteTypeAndTerm = async (content: string) => {
   // Lightweight helper for URL scraping flow to infer websiteType & authorityTerms.
-  const prompt = `
-    Analyze the provided content and extract the website type and authority terms.
-    
-    CRITICAL: You must return ONLY a JSON object. No conversational text, no introductions, no "Here is the JSON".
-    
-    JSON STRUCTURE:
-    {
-      "websiteType": "The broad category of the site (e.g. 'Medical Clinic', 'Ecommerce', 'Tech Blog', 'Review Site')",
-      "authorityTerms": "Up to 5 comma-separated terms that establish clinical or brand authority (e.g. medical degrees, awards, proprietary ingredients, certifications)"
-    }
-
-    CONTENT TO ANALYZE:
-    ${content.substring(0, 6000)}
-    `;
+  const prompt = promptTemplates.websiteTypeExtraction({ content });
 
   // Using runJson for structured output
   return await aiService.runJson<{ websiteType: string; authorityTerms: string }>(

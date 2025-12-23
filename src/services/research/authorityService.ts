@@ -12,10 +12,10 @@ export const analyzeAuthorityTerms = async (
 ): Promise<ServiceResponse<AuthorityAnalysis>> => {
   const startTs = Date.now();
 
-  // Truncate authorityTerms to roughly 3000 chars to prevent timeout/overload
+  // Truncate authorityTerms to roughly 2000 chars to prevent timeout/overload
   const truncatedTerms =
-    authorityTerms.length > 3000
-      ? authorityTerms.slice(0, 3000) + '...(truncated)'
+    authorityTerms.length > 2000
+      ? authorityTerms.slice(0, 2000) + '...(truncated)'
       : authorityTerms;
 
   // Use the registry to build the prompt
