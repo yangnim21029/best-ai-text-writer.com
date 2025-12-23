@@ -24,7 +24,7 @@ interface ServiceProductSectionProps {
   onAnalyzeFromUrls: () => Promise<void>;
 }
 
-export const ServiceProductSection: React.FC<ServiceProductSectionProps> = ({
+export const ServiceProductSection = React.memo<ServiceProductSectionProps>(({
   register,
   productMode,
   setProductMode,
@@ -167,4 +167,4 @@ export const ServiceProductSection: React.FC<ServiceProductSectionProps> = ({
       </div>
     </div>
   );
-};
+});
