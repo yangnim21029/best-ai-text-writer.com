@@ -1,5 +1,5 @@
 export const contentPrompts = {
-  sectionContent: ({ 
+  sectionContent: ({
     sectionTitle,
     languageInstruction,
     previousSections,
@@ -269,10 +269,11 @@ export const contentPrompts = {
     - **IMPORTANT**: Place exactly **two newlines** BEFORE any H3 header (e.g., "\\n\\n### Heading").
     - **IMPORTANT**: You must populate the "usedPoints" array with the exact strings of any Key Facts you included in the content.
     - **IMPORTANT**: You must populate "injectedCount" with the number of times you explicitly mentioned the Product Name or Brand Name.
+    - **IMPORTANT**: You must populate "comment" with a short string explaining your execution thought process (e.g. "I focused on pain points here because...").
 `;
   },
 
-  frequentWordsPlacementAnalysis: ({ 
+  frequentWordsPlacementAnalysis: ({
     languageInstruction,
     analysisPayloadString,
   }: any) => `
@@ -333,7 +334,7 @@ export const contentPrompts = {
     ACTION: Execute this prompt.
 `,
 
-  sectionHeading: ({ 
+  sectionHeading: ({
     sectionTitle,
     articleTitle,
     languageInstruction,
@@ -385,7 +386,7 @@ export const contentPrompts = {
     - Keep it under 10 words.
     `,
 
-  batchRefineHeadings: ({ 
+  batchRefineHeadings: ({
     articleTitle,
     headings,
     languageInstruction,
@@ -518,7 +519,34 @@ export const contentPrompts = {
     4. Return ONLY the new HTML string.
 `,
 
-  extractOutline: ({ 
+  smartFindAndRewriteBlock: ({ pointToInject, blocks, languageInstruction }: any) => `
+    I need to insert a Key Point into an article naturally.
+
+    <PointToInject>
+    "${pointToInject}"
+    </PointToInject>
+
+    <ArticleBlocks>
+    ${blocks.map((b: any) => `[ID: ${b.id}] ${b.text}`).join('\n')}
+    </ArticleBlocks>
+
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+
+    TASK:
+    1. Analyze the blocks to find the SINGLE best location (ID) to insert or merge this point.
+    2. Rewrite that specific block to include the point naturally.
+    3. Keep the original meaning and HTML tag structure (<p> or <li>) of the chosen block.
+
+    OUTPUT JSON:
+    {
+      "originalBlockId": <number>, 
+      "newHtml": "<string>"
+    }
+  `,
+
+  extractOutline: ({
     content,
     targetAudience,
     languageInstruction,
@@ -560,7 +588,7 @@ export const contentPrompts = {
 </Content>
   `,
 
-  analyzeNarrativeLogic: ({ 
+  analyzeNarrativeLogic: ({
     content,
     outlineJson,
     targetAudience,
@@ -653,7 +681,7 @@ export const contentPrompts = {
 </ReferenceContent>
   `,
 
-  sectionInjectionPlan: ({ 
+  sectionInjectionPlan: ({
     productBrief,
     competitorBrands,
     competitorProducts,
@@ -668,7 +696,7 @@ export const contentPrompts = {
     const allTargets = [
       ...new Set([...competitorBrands, ...competitorProducts, ...replacementRules]),
     ];
-    const finalMappings = 
+    const finalMappings =
       relevantMappings.length > 0
         ? relevantMappings
         : forceInjection || isSolutionSection
@@ -725,7 +753,7 @@ Integrate the following mapping naturally:
     return plan;
   },
 
-  mergeAnalyses: ({ 
+  mergeAnalyses: ({
     analysesJson,
     targetAudience,
     languageInstruction,
@@ -748,15 +776,15 @@ DEFINITION: A collection of analyzes from different top - ranking competitor art
 </LanguageInstruction>
 
     ${userInstruction
-        ? `
+      ? `
     <UserGuidance>
     ${userInstruction}
     </UserGuidance>
     DEFINITION: Specific direction from the user on how to mix/synthesize.
     CRITICAL INSTRUCTION: Analyze the inputs through this lens. If the user wants a "Specific Focus" (e.g. Price Comparison), prioritize structure/facts that support that focus.
     `
-        : ''
-      }
+      : ''
+    }
 
     ## Synthesis Strategy(CRITICAL)
 1. ** Structure(Synthesize Logic) **:
