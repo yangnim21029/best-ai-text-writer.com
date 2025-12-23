@@ -270,6 +270,7 @@ export interface SectionGenerationResult {
   refinedContent?: string; // Second-pass refined version
   usedPoints: string[];
   injectedCount: number; // Number of times product was mentioned
+  comment?: string; // AI thought process/execution plan
 }
 
 export interface HeadingOption {

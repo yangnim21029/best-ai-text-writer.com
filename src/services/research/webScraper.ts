@@ -13,11 +13,22 @@ interface FetchOptions {
   signal?: AbortSignal;
 }
 
+// In-memory cache for successful scrapes
+const SCRAPE_CACHE = new Map<string, { data: { title: string; content: string; images: ScrapedImage[] }; ts: number }>();
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+
 export const fetchUrlContent = async (
   url: string,
   options: FetchOptions = {}
 ): Promise<{ title: string; content: string; images: ScrapedImage[] }> => {
   if (!url) return { title: '', content: '', images: [] };
+
+  const cacheKey = `${url}|nav:${!!options.includeNav}`;
+  const cached = SCRAPE_CACHE.get(cacheKey);
+  if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
+    console.log(`[WebScraper] Serving cached content for: ${url}`);
+    return cached.data;
+  }
 
   try {
     new URL(url);
@@ -57,6 +68,12 @@ export const fetchUrlContent = async (
     }
 
     const cleaned = cleanJinaBySeparator(rawText);
+
+    // Cache only on success AND if content is substantial (>500 chars)
+    // This avoids caching "soft 404s" or captcha pages
+    if (cleaned.content.length > 500) {
+      SCRAPE_CACHE.set(cacheKey, { data: cleaned, ts: Date.now() });
+    }
 
     return { ...cleaned };
   } catch (error: any) {

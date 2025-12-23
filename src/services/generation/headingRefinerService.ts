@@ -302,13 +302,19 @@ export const refineHeadings = async (
   let totalUsage: TokenUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
   let totalCost: CostBreakdown = { inputCost: 0, outputCost: 0, totalCost: 0 };
 
+  const batches: string[][] = [];
   for (let i = 0; i < headings.length; i += BATCH_SIZE) {
-    const slice = headings.slice(i, i + BATCH_SIZE);
-    const batchRes = await refineBatch(slice);
+    batches.push(headings.slice(i, i + BATCH_SIZE));
+  }
+
+  // Parallelize batch processing
+  const batchResults = await Promise.all(batches.map(batch => refineBatch(batch)));
+
+  batchResults.forEach(batchRes => {
     aggregatedResults = aggregatedResults.concat(batchRes.data || []);
     totalUsage = mergeUsage(totalUsage, batchRes.usage);
     totalCost = mergeCost(totalCost, batchRes.cost);
-  }
+  });
 
   return {
     data: aggregatedResults,

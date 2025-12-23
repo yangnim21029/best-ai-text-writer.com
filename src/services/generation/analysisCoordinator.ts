@@ -221,24 +221,23 @@ export const runAnalysisPipelineService = async (
     }
   };
 
-  // We start the most critical and heavy tasks first.
-  // Product context is usually fast, but Structure/Authority is the foundation.
-  // We execute Product and Structure tasks in parallel.
-  // Note: Parallel tasks may cause 'generationStep' to flicker in the UI.
-  // Ideally, manage a composite status or let the longest-running task drive the UI.
-  const [productResult, structureResult] = await Promise.all([
+  // We start ALL tasks in parallel to maximize throughput.
+  // Independent tasks (visual, regional, keyword) should not wait for the heavy Structure task.
+  const [
+    productResult,
+    structureResult,
+    visualResult,
+    regionalResult,
+    keywordResult
+  ] = await Promise.all([
     productTask(),
     structureTask(),
-  ]);
-
-  if (isStopped()) return;
-
-  // Now we parallelize the remaining independent tasks to maximize throughput.
-  const [visualResult, regionalResult, keywordResult] = await Promise.all([
     visualTask(),
     regionalTask(),
     keywordTask(),
   ]);
+
+  if (isStopped()) return;
 
   // Merge regional result
   if (structureResult?.structRes?.data) {

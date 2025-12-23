@@ -130,70 +130,118 @@ export const analyzeReferenceStructure = async (
       });
     }
 
-    // --- STAGE 2: Deep Narrative Logic Analysis ---
+    // --- STAGE 2: Deep Narrative Logic Analysis (Parallel Batches) ---
     console.log(
       `[RefAnalysis] Stage 2: Deep Logic Analysis for ${sectionsToAnalyze.length} sections...`
     );
-    const logicPrompt = promptTemplates.analyzeNarrativeLogic({
-      content: referenceContent,
-      outlineJson: JSON.stringify(sectionsToAnalyze),
-      targetAudience,
-      languageInstruction,
-    });
+
+    const chunkArray = <T>(array: T[], size: number): T[][] => {
+      const chunked: T[][] = [];
+      for (let i = 0; i < array.length; i += size) {
+        chunked.push(array.slice(i, i + size));
+      }
+      return chunked;
+    };
+
+    // Split sections into chunks of 4 to avoid massive prompts and enable parallelism
+    const sectionChunks = chunkArray(sectionsToAnalyze, 4);
+
+    const logicAnalysisPromise = (async () => {
+      const chunkPromises = sectionChunks.map(async (chunk, idx) => {
+        const chunkPrompt = promptTemplates.analyzeNarrativeLogic({
+          content: referenceContent,
+          outlineJson: JSON.stringify(chunk),
+          targetAudience,
+          languageInstruction,
+        });
+
+        try {
+          return await aiService.runJson<any>(chunkPrompt, 'FLASH', {
+            schema: {
+              type: Type.OBJECT,
+              properties: {
+                structure: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      title: { type: Type.STRING },
+                      narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      logicalFlow: { type: Type.STRING },
+                      coreFocus: { type: Type.STRING },
+                      keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      coreQuestion: { type: Type.STRING },
+                      difficulty: { type: Type.STRING },
+                      writingMode: { type: Type.STRING },
+                      uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      augment: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      subsections: {
+                        type: Type.ARRAY,
+                        items: {
+                          type: Type.OBJECT,
+                          properties: {
+                            title: { type: Type.STRING },
+                            keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
+                          },
+                          required: ['title', 'keyFacts'],
+                        },
+                      },
+                      sourceCharCount: { type: Type.NUMBER },
+                      instruction: { type: Type.STRING },
+                    },
+                    required: [
+                      'title',
+                      'narrativePlan',
+                      'logicalFlow',
+                      'keyFacts',
+                      'coreQuestion',
+                      'coreFocus',
+                      'subsections',
+                      'instruction',
+                      'sourceCharCount',
+                    ],
+                  },
+                },
+              },
+              required: ['structure'],
+            },
+            promptId: `narrative_logic_analysis_chunk_${idx}`,
+          });
+        } catch (err) {
+          console.error(`[RefAnalysis] Logic analysis chunk ${idx} failed`, err);
+          return null; // Handle partial failure
+        }
+      });
+
+      const chunkResults = await Promise.all(chunkPromises);
+      
+      // Merge results
+      const combinedStructure: any[] = [];
+      let combinedUsage = { inputTokens: 0, outputTokens: 0, totalTokens: 0 };
+      let combinedCost = { inputCost: 0, outputCost: 0, totalCost: 0 };
+
+      chunkResults.forEach((res) => {
+        if (res && res.data?.structure) {
+          combinedStructure.push(...res.data.structure);
+          combinedUsage.inputTokens += res.usage?.inputTokens || 0;
+          combinedUsage.outputTokens += res.usage?.outputTokens || 0;
+          combinedUsage.totalTokens += res.usage?.totalTokens || 0;
+          combinedCost.inputCost += res.cost?.inputCost || 0;
+          combinedCost.outputCost += res.cost?.outputCost || 0;
+          combinedCost.totalCost += res.cost?.totalCost || 0;
+        }
+      });
+
+      return {
+        data: { structure: combinedStructure },
+        usage: combinedUsage,
+        cost: combinedCost
+      };
+    })();
 
     const [logicRes, voiceRes] = await Promise.all([
-      aiService.runJson<any>(logicPrompt, 'FLASH', {
-        schema: {
-          type: Type.OBJECT,
-          properties: {
-            structure: {
-              type: Type.ARRAY,
-              items: {
-                type: Type.OBJECT,
-                properties: {
-                  title: { type: Type.STRING },
-                  narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  logicalFlow: { type: Type.STRING },
-                  coreFocus: { type: Type.STRING },
-                  keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  coreQuestion: { type: Type.STRING },
-                  difficulty: { type: Type.STRING },
-                  writingMode: { type: Type.STRING },
-                  uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  augment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                  subsections: {
-                    type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        title: { type: Type.STRING },
-                        keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      },
-                      required: ['title', 'keyFacts'],
-                    },
-                  },
-                  sourceCharCount: { type: Type.NUMBER },
-                  instruction: { type: Type.STRING },
-                },
-                required: [
-                  'title',
-                  'narrativePlan',
-                  'logicalFlow',
-                  'keyFacts',
-                  'coreQuestion',
-                  'coreFocus',
-                  'subsections',
-                  'instruction',
-                  'sourceCharCount',
-                ],
-              },
-            },
-          },
-          required: ['structure'],
-        },
-        promptId: 'narrative_logic_analysis',
-      }),
+      logicAnalysisPromise,
       voiceResPromise,
     ]);
 

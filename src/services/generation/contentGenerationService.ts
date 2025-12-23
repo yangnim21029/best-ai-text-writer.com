@@ -184,6 +184,10 @@ export const generateSectionContent = async (
           type: Type.INTEGER,
           description: 'How many times did you mention the Product Name?',
         },
+        comment: {
+          type: Type.STRING,
+          description: 'A short explanation of your writing strategy for this section.',
+        },
       },
     },
     promptId: `section_gen_${sectionTitle.slice(0, 20)}`,
@@ -205,11 +209,12 @@ export const generateSectionContent = async (
     [];
   const usedPoints = Array.isArray(usedPointsSource)
     ? usedPointsSource
-        .map((p) => (typeof p === 'string' ? p : String(p || '')).trim())
-        .filter(Boolean)
+      .map((p) => (typeof p === 'string' ? p : String(p || '')).trim())
+      .filter(Boolean)
     : [];
   const injectedRaw = payload.injectedCount ?? (payload as any).injected_count ?? 0;
   const injectedCount = typeof injectedRaw === 'number' ? injectedRaw : Number(injectedRaw) || 0;
+  const comment = payload.comment || (payload as any).thought || '';
 
   let finalContent = rawContent;
   let finalUsage = response.usage;
@@ -221,7 +226,9 @@ export const generateSectionContent = async (
     rawContent: rawContent,
     usedPoints,
     injectedCount,
+    comment,
   };
+
 
   const totalCost = {
     inputCost: response.cost.inputCost + contextFilter.cost.inputCost,
@@ -288,8 +295,18 @@ export const smartInjectPoint = async (
   const languageInstruction = getLanguageInstruction(targetAudience);
 
   // 1. PARSE & INDEX (Paragraph Compact Indexing)
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(fullHtmlContent, 'text/html');
+  let doc: Document;
+
+  if (typeof window === 'undefined') {
+    // Server-side: Dynamically import JSDOM to avoid client-side bundling errors
+    const { JSDOM } = await import('jsdom');
+    const dom = new JSDOM(fullHtmlContent);
+    doc = dom.window.document;
+  } else {
+    // Client-side: Use native DOMParser
+    const parser = new DOMParser();
+    doc = parser.parseFromString(fullHtmlContent, 'text/html');
+  }
 
   const blocks: { id: number; text: string; html: string }[] = [];
   const nodes = doc.querySelectorAll('p, li');
@@ -314,48 +331,43 @@ export const smartInjectPoint = async (
     };
   }
 
-  // 2. FIND BEST BLOCK (Prompt 1)
-  const findPrompt = promptTemplates.smartFindBlock({ pointToInject, blocks });
-
-  const findRes = await aiService.runText(findPrompt, 'FLASH');
-
-  const bestIdStr = findRes.text?.trim().match(/\d+/)?.[0];
-  const bestId = bestIdStr ? parseInt(bestIdStr) : -1;
-
-  const targetBlock = blocks.find((b) => b.id === bestId);
-
-  if (!targetBlock) {
-    return {
-      data: { originalSnippet: '', newSnippet: '' },
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-      duration: Date.now() - startTs,
-    };
-  }
-
-  // 3. REWRITE BLOCK (Prompt 2)
-  const rewritePrompt = promptTemplates.smartRewriteBlock({
+  // 2. OPTIMIZED: FIND & REWRITE IN ONE STEP
+  const combinedPrompt = promptTemplates.smartFindAndRewriteBlock({
     pointToInject,
-    targetHtml: targetBlock.html,
-    languageInstruction,
+    blocks,
+    languageInstruction
   });
 
-  const rewriteRes = await aiService.runText(rewritePrompt, 'FLASH');
+  const response = await aiService.runJson<{ originalBlockId: number; newHtml: string }>(
+    combinedPrompt,
+    'FLASH',
+    {
+      schema: {
+        type: Type.OBJECT,
+        properties: {
+          originalBlockId: { type: Type.INTEGER, description: 'The ID of the block you chose to rewrite' },
+          newHtml: { type: Type.STRING, description: 'The rewritten HTML string including the point' }
+        }
+      },
+      promptId: 'smart_inject_combined'
+    }
+  );
 
-  const totalUsage = {
-    inputTokens: (findRes.usage?.inputTokens || 0) + (rewriteRes.usage?.inputTokens || 0),
-    outputTokens: (findRes.usage?.outputTokens || 0) + (rewriteRes.usage?.outputTokens || 0),
-    totalTokens: (findRes.usage?.totalTokens || 0) + (rewriteRes.usage?.totalTokens || 0),
-  };
-  const totalCost = calculateCost(totalUsage, 'FLASH');
+  const { originalBlockId, newHtml } = response.data;
+
+  // Find the original block to return as "before" state
+  const targetBlock = blocks.find((b) => b.id === originalBlockId);
+
+  // If AI hallucinates an ID, fallback to the first block or handle gracefully
+  const fallbackBlock = targetBlock || blocks[0];
 
   return {
     data: {
-      originalSnippet: targetBlock.html,
-      newSnippet: rewriteRes.text?.trim() || targetBlock.html,
+      originalSnippet: fallbackBlock?.html || '',
+      newSnippet: newHtml || fallbackBlock?.html || '',
     },
-    usage: totalUsage,
-    cost: totalCost.cost,
+    usage: response.usage,
+    cost: response.cost,
     duration: Date.now() - startTs,
   };
 };

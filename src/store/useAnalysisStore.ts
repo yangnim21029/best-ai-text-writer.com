@@ -229,7 +229,15 @@ export const useAnalysisStore = create<AnalysisState>()(
       },
       loadDocumentsFromDb: async () => {
         const allDocs = await db.documents.orderBy('timestamp').reverse().toArray();
-        set({ analysisDocuments: allDocs });
+        // OPTIMIZATION: Lazy load by stripping heavy content for the list view
+        const metaDocs = allDocs.map((doc) => ({
+          ...doc,
+          sourceContent: '', // Clear heavy text
+          refAnalysis: null, // Clear heavy object
+          authAnalysis: null, // Clear heavy object
+          productMapping: [], // Clear heavy array
+        }));
+        set({ analysisDocuments: metaDocs });
       },
       reset: () =>
         set({
