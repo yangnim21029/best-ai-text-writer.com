@@ -12,7 +12,7 @@ import {
 import { useGenerationStore } from '../store/useGenerationStore';
 import { useAnalysisStore } from '../store/useAnalysisStore';
 import { refineHeadings } from '../services/generation/headingRefinerService';
-import { cleanHeadingText } from '../utils/textUtils';
+import { cleanHeadingText } from '../utils/parsingUtils';
 import { HeadingResult } from '../types';
 
 interface HeadingOptimizerModalProps {

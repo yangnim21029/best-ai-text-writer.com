@@ -225,12 +225,12 @@ export const SectionItem: React.FC<SectionItemProps> = ({ section, index }) => (
         </div>
       )}
 
-      {(section.suppress?.length > 0 || section.augment?.length > 0) && (
+      {((section.suppress?.length ?? 0) > 0 || (section.augment?.length ?? 0) > 0) && (
         <div className="grid grid-cols-2 gap-2 mt-2 pt-2 border-t border-slate-50">
-          {section.suppress?.length > 0 && (
+          {(section.suppress?.length ?? 0) > 0 && (
             <div className="space-y-1">
               <p className="text-[8px] font-black text-rose-400 uppercase">Suppress</p>
-              {section.suppress.map((s, i) => (
+              {section.suppress?.map((s, i) => (
                 <div key={i} className="text-[9px] text-rose-600 leading-tight flex gap-1 items-start">
                   <span className="shrink-0 text-[10px] mt-[-1px]">×</span>
                   <span>{s}</span>
@@ -238,10 +238,10 @@ export const SectionItem: React.FC<SectionItemProps> = ({ section, index }) => (
               ))}
             </div>
           )}
-          {section.augment?.length > 0 && (
+          {(section.augment?.length ?? 0) > 0 && (
             <div className="space-y-1">
               <p className="text-[8px] font-black text-blue-400 uppercase">Augment</p>
-              {section.augment.map((a, i) => (
+              {section.augment?.map((a, i) => (
                 <div key={i} className="text-[9px] text-blue-600 leading-tight flex gap-1 items-start">
                   <span className="shrink-0 text-[10px] mt-[-1px]">+</span>
                   <span>{a}</span>

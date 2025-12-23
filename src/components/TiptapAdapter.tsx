@@ -82,7 +82,7 @@ interface TiptapAdapterProps {
     range: { from: number; to: number } | null;
   }) => void;
   onAskAiClick?: (taskId: string) => void;
-  containerRef?: React.RefObject<HTMLDivElement>;
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 // Headless Tiptap adapter: mounts a ProseMirror view on a plain div and exposes a minimal command API.
@@ -389,12 +389,12 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
           const { from, to } = editor.state.selection;
           return { from, to };
         },
-        replaceRange: (range, html: string) =>
+        replaceRange: (range: { from: number; to: number }, html: string) =>
           editor.chain().focus().insertContentAt(range, html).run(),
-        markAskAiRange: (range, taskId) => {
+        markAskAiRange: (range: { from: number; to: number }, taskId: string) => {
           editor.chain().setTextSelection(range).setAskAiMark({ taskId }).run();
         },
-        clearAskAiMarks: (taskId) => {
+        clearAskAiMarks: (taskId?: string) => {
           const ed = editorRef.current;
           if (!ed) return;
           const { state } = ed;
@@ -413,7 +413,7 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
             ed.view.dispatch(tr);
           }
         },
-        findAskAiRange: (taskId) => {
+        findAskAiRange: (taskId: string) => {
           const ed = editorRef.current;
           if (!ed) return null;
           const { state } = ed;
@@ -452,7 +452,13 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
         unsetLink: () => editor.chain().focus().unsetLink().run(),
         undo: () => editor.chain().focus().undo().run(),
         redo: () => editor.chain().focus().redo().run(),
-        clearBold: (options) => {
+        clearBold: (options?: {
+          removeBold?: boolean;
+          removeBlockquotes?: boolean;
+          removeQuotes?: boolean;
+          target?: 'selection' | 'document';
+          scope?: { from: number; to: number };
+        }) => {
           const ed = editorRef.current;
           if (!ed) return false;
           const { state } = ed;

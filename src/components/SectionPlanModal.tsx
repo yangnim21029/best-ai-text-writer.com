@@ -17,6 +17,7 @@ import {
   BrainCircuit,
 } from 'lucide-react';
 import { SectionAnalysis } from '../types';
+import { LoadingButton } from './LoadingButton';
 import {
   ReplacementEditorModal,
   EditedReplacementItem,
@@ -279,26 +280,22 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
             >
               儲存計劃
             </button>
-            <button
+            <LoadingButton
               onClick={handleLocalizeAll}
+              disabled={isLocalizing || isSearchingAlternatives}
+              isLoading={isLocalizing || isSearchingAlternatives}
+              loadingText={isSearchingAlternatives ? '掃描中...' : isLocalizing ? '本地化中...' : undefined}
+              icon={<Languages className="w-4 h-4" />}
               className={`px-3 py-2 text-sm font-bold rounded-lg border flex items-center gap-1.5 transition shadow-sm ${
                 regionalReplacements.length === 0
                   ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600'
                   : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600'
-              } disabled:opacity-50`}
-              disabled={isLocalizing || isSearchingAlternatives}
+              }`}
             >
-              <Languages
-                className={`w-4 h-4 ${isLocalizing || isSearchingAlternatives ? 'animate-spin' : ''}`}
-              />
-              {isSearchingAlternatives
-                ? '掃描中...'
-                : isLocalizing
-                  ? '本地化中...'
-                  : regionalReplacements.length === 0
-                    ? '第一步：掃描需替換詞彙'
-                    : '第二步：全部段落本地化'}
-            </button>
+              {regionalReplacements.length === 0
+                ? '第一步：掃描需替換詞彙'
+                : '第二步：全部段落本地化'}
+            </LoadingButton>
             <button
               onClick={() => handleSave(true)}
               className="px-3 py-2 text-sm font-semibold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-sm hover:brightness-110 transition disabled:opacity-50"

@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
 import { Loader2 } from 'lucide-react';
+import { LoadingButton } from '../LoadingButton';
 
 interface SemanticFilterModalProps {
   isOpen: boolean;
@@ -187,15 +188,14 @@ export const SemanticFilterModal: React.FC<SemanticFilterModalProps> = ({
             >
               取消
             </button>
-            <button
-              type="button"
+            <LoadingButton
               onClick={onApply}
               disabled={isFilteringChunks || isScoringChunks}
-              className="px-3 py-2 text-[12px] font-bold text-white bg-gradient-to-r from-blue-600 to-indigo-600 rounded-lg shadow-md hover:brightness-110 transition-all disabled:opacity-60 flex items-center gap-2"
+              isLoading={isFilteringChunks}
+              className="flex-1 py-2 text-[12px] font-bold"
             >
-              {isFilteringChunks ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
               同意並過濾
-            </button>
+            </LoadingButton>
           </div>
         </div>
       </div>

@@ -42,6 +42,7 @@ import {
 import { mergeMultipleAnalyses } from '@/services/research/referenceAnalysisService';
 import { SectionItem } from './seo/SectionItem';
 import { KeywordItem } from './seo/KeywordItem';
+import { LoadingButton } from './LoadingButton';
 
 interface SeoSidebarProps {
   keywordPlans: FrequentWordsPlacementAnalysis[];
@@ -214,14 +215,15 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                   placeholder="Optional direction..."
                   className="w-full text-[11px] p-2 rounded-lg border border-blue-200 focus:border-blue-400 focus:ring-1 focus:ring-blue-400 bg-white placeholder:text-gray-400 resize-none h-16 leading-relaxed"
                 />
-                <button
+                <LoadingButton
                   onClick={handleSynthesize}
                   disabled={isSynthesizing}
-                  className="w-full text-[10px] font-extrabold text-white bg-gradient-to-r from-violet-600 to-blue-600 px-3 py-2.5 rounded-lg hover:shadow-lg transition-all border border-blue-500/50 flex items-center justify-center gap-1.5 disabled:opacity-70"
+                  isLoading={isSynthesizing}
+                  icon={<Zap className="w-3 h-3 fill-current" />}
+                  className="w-full text-[10px] font-extrabold bg-gradient-to-r from-violet-600 to-blue-600 py-2.5 rounded-lg border border-blue-500/50"
                 >
-                  {isSynthesizing ? <Loader2 className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3 fill-current" />}
                   SYNTHESIZE {selectedDocs.length} SOURCES
-                </button>
+                </LoadingButton>
               </div>
             )}
 
@@ -244,7 +246,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
       </div>
 
       <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-6 pb-20">
-        {!currentRefAnalysis && !currentKeywords.length && status !== 'analyzing' && !isDisplayingDocument ? (
+        {!currentRefAnalysis && !(currentKeywords?.length ?? 0) && status !== 'analyzing' && !isDisplayingDocument ? (
           <EmptyState />
         ) : (
           <>
@@ -372,14 +374,14 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
               </div>
             )}
 
-            {currentKeywords.length > 0 && (
+            {(currentKeywords?.length ?? 0) > 0 && (
               <div className="space-y-4">
                 <div className="flex items-center justify-between px-1">
                   <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2"><Hash className="w-3.5 h-3.5 text-blue-500" /> Semantic Blueprint</h3>
-                  <span className="text-[9px] font-black text-gray-300 uppercase">{currentKeywords.length} Clusters</span>
+                  <span className="text-[9px] font-black text-gray-300 uppercase">{currentKeywords?.length ?? 0} Clusters</span>
                 </div>
                 <div className="grid grid-cols-1 gap-3">
-                  {currentKeywords.slice(0, 15).map((kw, i) => <KeywordItem key={i} kw={kw} />)}
+                  {currentKeywords?.slice(0, 15).map((kw, i) => <KeywordItem key={i} kw={kw} />)}
                 </div>
               </div>
             )}
@@ -417,10 +419,16 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                         {detectedBrands.map((b, i) => <span key={`b-${i}`} className="bg-white px-2.5 py-1 rounded-xl border border-rose-200 text-rose-600 text-[10px] font-black shadow-sm shrink-0">-{b}</span>)}
                         {detectedProducts.map((p, i) => <span key={`p-${i}`} className="bg-white px-2.5 py-1 rounded-xl border border-orange-200 text-orange-600 text-[10px] font-black shadow-sm shrink-0">-{p}</span>)}
                       </div>
-                      <button onClick={onSearchLocalAlternatives} disabled={isSearchingAlternatives} className="w-full py-3 bg-white text-blue-600 text-[10px] font-black rounded-xl border border-blue-100 hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2">
-                        {isSearchingAlternatives ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Search className="w-3.5 h-3.5" />}
+                      <LoadingButton
+                        onClick={onSearchLocalAlternatives}
+                        disabled={isSearchingAlternatives}
+                        isLoading={isSearchingAlternatives}
+                        icon={<Search className="w-3.5 h-3.5" />}
+                        variant="outline"
+                        className="w-full py-3 text-blue-600 text-[10px] font-black"
+                      >
                         SCAN FOR REGIONAL ALTERNATIVES
-                      </button>
+                      </LoadingButton>
                     </div>
                   )}
                   {currentRefAnalysis.regionalReplacements && currentRefAnalysis.regionalReplacements.length > 0 && (
