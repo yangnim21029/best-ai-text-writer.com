@@ -113,7 +113,10 @@ export class AIProxyService {
 
     const text = await response.text();
     if (!response.ok) {
-      console.warn(`AI Warning: Received error response from AI service:`, text.substring(0, 200));
+      console.warn(
+        `AI Warning: Received error response from AI service [${response.status}]:`,
+        text.substring(0, 500)
+      );
     }
 
     return new NextResponse(text, {

@@ -254,10 +254,33 @@ export const generateImage = async (prompt: string): Promise<ServiceResponse<str
     const isJson = contentType.includes('application/json');
 
     if (!response.ok) {
-      const detail = isJson ? await response.json() : await response.text();
-      const message = typeof detail === 'string' ? detail : detail?.error || JSON.stringify(detail);
-      console.error(`[imageService] Generation failed (URL: ${buildAiUrl('/image')}):`, detail);
-      throw new Error(`Image generation failed (${response.status}): ${message}`);
+      let detail: any = '{}';
+      let rawText = '';
+      try {
+        rawText = await response.text();
+        try {
+          detail = JSON.parse(rawText);
+        } catch {
+          detail = rawText; // Fallback to raw text if not JSON
+        }
+      } catch (e) {
+        console.error('[imageService] Failed to read error response text', e);
+      }
+
+      const message =
+        typeof detail === 'string'
+          ? detail
+          : detail?.message || detail?.error || JSON.stringify(detail);
+
+      console.error(
+        `[imageService] Generation failed (URL: ${buildAiUrl('/image')}) [${response.status} ${response.statusText
+        }]:`,
+        { detail, rawText }
+      );
+
+      throw new Error(
+        `Image generation failed (${response.status} ${response.statusText}): ${message}`
+      );
     }
 
     const payload = isJson ? await response.json() : { image: await response.text() };
