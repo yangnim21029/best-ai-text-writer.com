@@ -31,5 +31,13 @@ export function useAppAccess() {
     setIsUnlocked(true);
   };
 
-  return { isUnlocked, unlock };
+  const lock = () => {
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(ACCESS_KEY);
+      localStorage.removeItem(ACCESS_TS_KEY);
+    }
+    setIsUnlocked(false);
+  };
+
+  return { isUnlocked, unlock, lock };
 }

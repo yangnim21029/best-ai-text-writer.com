@@ -40,7 +40,7 @@ export default function AppPage() {
 
   const generationStore = useGenerationStore();
   const analysisStore = useAnalysisStore();
-  const { isUnlocked, unlock } = useAppAccess();
+  const { isUnlocked, unlock, lock } = useAppAccess();
   const { structurePoints } = useContentScore();
   const { generate, startWriting, stop } = useGeneration();
   useAppHydration();
@@ -56,9 +56,11 @@ export default function AppPage() {
     isAuthorizedAction().then((isAuth) => {
       if (isAuth && !isUnlocked) {
         unlock();
+      } else if (!isAuth && isUnlocked) {
+        lock();
       }
     });
-  }, [isUnlocked, unlock]);
+  }, [isUnlocked, unlock, lock]);
 
   if (!isUnlocked) {
     return <PasswordGate onUnlock={unlock} />;
