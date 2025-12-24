@@ -17,6 +17,12 @@ interface GenerationState {
   analysisResults: { productResult: any; structureResult: any } | null;
   lastConfig: ArticleConfig | null;
   sectionResults: (SectionGenerationResult & { id: string })[];
+  streamingQueue: { id: string; index: number; body: any }[];
+  completedSections: string[];
+  setStreamingQueue: (queue: { id: string; index: number; body: any }[]) => void;
+  addToStreamingQueue: (item: { id: string; index: number; body: any }) => void;
+  removeFromStreamingQueue: (id: string) => void;
+  markSectionCompleted: (id: string) => void;
   setContent: (content: string | ((prev: string) => string)) => void;
   setStatus: (status: GenerationStatus) => void;
   setGenerationStep: (step: GenerationStep) => void;
@@ -47,10 +53,23 @@ export const useGenerationStore = create<GenerationState>()(
       analysisResults: null,
       lastConfig: null,
       sectionResults: [],
+      streamingQueue: [],
+      completedSections: [],
       imageAssetPlans: [],
       setContent: (content) =>
         set((state) => ({
           content: typeof content === 'function' ? content(state.content) : content,
+        })),
+      setStreamingQueue: (queue) => set({ streamingQueue: queue }),
+      addToStreamingQueue: (item) =>
+        set((state) => ({ streamingQueue: [...state.streamingQueue, item] })),
+      removeFromStreamingQueue: (id) =>
+        set((state) => ({
+          streamingQueue: state.streamingQueue.filter((item) => item.id !== id),
+        })),
+      markSectionCompleted: (id) =>
+        set((state) => ({
+          completedSections: [...state.completedSections, id],
         })),
       setStatus: (status) => set({ status }),
       setGenerationStep: (step) => set({ generationStep: step }),
@@ -68,6 +87,8 @@ export const useGenerationStore = create<GenerationState>()(
           analysisResults: null,
           lastConfig: null,
           sectionResults: [],
+          streamingQueue: [],
+          completedSections: [],
           imageAssetPlans: [],
         }),
       setImageAssetPlans: (plans) =>

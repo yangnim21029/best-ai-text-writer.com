@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { generateSnippetAction } from '@/app/actions/generation';
 import { TargetAudience, CostBreakdown, TokenUsage, ProductBrief } from '../types';
-import { promptTemplates } from '../services/engine/promptTemplates';
-import { Type } from '../services/engine/schemaTypes';
+import { promptTemplates } from '../services/adapters/promptTemplates';
+import { Type } from '../services/adapters/schemaTypes';
 
 interface MetaContext {
   keyPoints: string[];

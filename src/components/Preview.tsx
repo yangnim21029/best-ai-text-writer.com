@@ -25,7 +25,6 @@ import {
 } from '@/types';
 import { RichTextEditor } from './RichTextEditor';
 import { EditorProvider } from './editor/EditorContext';
-import { StreamingModal } from './StreamingModal';
 import { RegionGroundingModal } from './RegionGroundingModal';
 import { HeadingOptimizerModal } from './HeadingOptimizerModal';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
@@ -114,11 +113,10 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
 
       <button
         onClick={onCopyMarkdown}
-        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors ${
-          isDark
-            ? 'bg-amber-900/30 text-amber-200 border border-amber-800 hover:bg-amber-900/50'
-            : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
-        }`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors ${isDark
+          ? 'bg-amber-900/30 text-amber-200 border border-amber-800 hover:bg-amber-900/50'
+          : 'bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100'
+          }`}
         title="Copy Markdown"
       >
         <span>Copy MD</span>
@@ -126,11 +124,10 @@ const ToolbarActions: React.FC<ToolbarActionsProps> = ({
 
       <button
         onClick={onOptimizeHeadings}
-        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors border ${
-          isDark
-            ? 'bg-indigo-900/20 text-indigo-300 border-indigo-800 hover:bg-indigo-900/40'
-            : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
-        }`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 font-medium rounded-md transition-colors border ${isDark
+          ? 'bg-indigo-900/20 text-indigo-300 border-indigo-800 hover:bg-indigo-900/40'
+          : 'bg-indigo-50 text-indigo-700 border-indigo-200 hover:bg-indigo-100'
+          }`}
         title="Refine H2/H3 Headings with AI"
       >
         <Sparkles className="w-4 h-4" />
@@ -228,11 +225,15 @@ export const Preview: React.FC<PreviewProps> = ({
   }, [status]);
 
   useEffect(() => {
+    // Only push streaming content to editor once it's completed
+    // to avoid infinite loops and performance issues with Tiptap
     if (status === 'completed' && content) {
       const parsed = marked.parse(content, { async: false }) as string;
-      setEditorHtml(parsed);
+      if (parsed !== editorHtml) {
+        setEditorHtml(parsed);
+      }
     }
-  }, [status, content]);
+  }, [status, content, editorHtml]);
 
   const handleCopy = () => {
     const textToCopy = editorHtml;
@@ -413,11 +414,6 @@ export const Preview: React.FC<PreviewProps> = ({
             setEditorHtml(newContent);
             generationStore.setContent(newContent);
           }}
-        />
-        <StreamingModal
-          isOpen={status === 'streaming'}
-          content={content}
-          step={generationStep || 'writing_content'}
         />
       </div>
     </div>

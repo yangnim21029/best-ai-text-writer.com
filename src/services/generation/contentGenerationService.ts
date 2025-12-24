@@ -1,4 +1,3 @@
-import 'server-only';
 import { z } from 'zod';
 import {
   ArticleConfig,
@@ -13,14 +12,16 @@ import {
   TargetAudience,
   ReferenceAnalysis,
   SectionAnalysis,
+  SectionContext,
 } from '../../types';
-import { calculateCost, getLanguageInstruction } from '../engine/promptService';
-import { filterSectionContext } from '../engine/contextFilterService';
-import { promptTemplates } from '../engine/promptTemplates';
+import { calculateCost, getLanguageInstruction } from '../adapters/promptService';
+import { filterSectionContext } from '../adapters/contextFilterService';
+import { promptTemplates } from '../adapters/promptTemplates';
 import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
-import { aiService } from '../engine/aiService';
+import { aiService } from '../adapters/aiService';
 import { normalizeMarkdown } from '../../utils/parsingUtils';
 import { marked } from 'marked';
+import { sectionSchema } from '../../schemas/sectionSchema';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -69,22 +70,24 @@ const normalizeSectionContent = (content: string): string => {
   return normalizeMarkdown(normalized);
 };
 
-// 3. Generate Single Section
-export const generateSectionContent = async (
-  config: ArticleConfig,
-  sectionTitle: string,
-  specificPlan: string[] | undefined,
-  generalPlan: string[] | undefined,
-  keywordPlans: FrequentWordsPlacementAnalysis[],
-  previousSections: string[] = [],
-  futureSections: string[] = [],
-  authorityAnalysis: AuthorityAnalysis | null = null,
-  keyInfoPoints: string[] = [],
-  currentCoveredPointsHistory: string[] = [],
-  currentInjectedCount: number = 0,
-  sectionMeta: Partial<SectionAnalysis> = {}
-): Promise<ServiceResponse<SectionGenerationResult>> => {
-  const startTs = Date.now();
+/**
+ * Prepares the prompt and context for generating a section.
+ * Extracted from generateSectionContent to support streaming.
+ */
+export const prepareSectionPrompt = async (ctx: SectionContext) => {
+  const {
+    config,
+    sectionTitle,
+    specificPlan,
+    generalPlan,
+    keywordPlans,
+    previousSections,
+    futureSections,
+    authorityAnalysis,
+    keyInfoPoints,
+    sectionMeta
+  } = ctx;
+
   const isLastSections = futureSections.length <= 1;
   const keywordPlansForPrompt = keywordPlans.slice(0, SEMANTIC_KEYWORD_LIMIT);
 
@@ -121,7 +124,7 @@ export const generateSectionContent = async (
     config.referenceAnalysis,
     config.productMapping,
     config.productBrief,
-    currentInjectedCount,
+    0, // Default to 0 for initial plan
     isLastSections
   );
 
@@ -129,8 +132,7 @@ export const generateSectionContent = async (
   const suppressHints = Array.isArray((sectionMeta as any).suppress)
     ? (sectionMeta as any).suppress
     : [];
-  // shiftPlan logic removed
-  const shiftPlanHints: string[] = [];
+
   const renderMode = (sectionMeta as any).isChecklist ? 'checklist' : undefined;
   const augmentHints = Array.isArray((sectionMeta as any).augment)
     ? (sectionMeta as any).augment
@@ -157,10 +159,9 @@ export const generateSectionContent = async (
     writingMode,
     solutionAngles,
     renderMode,
-    // shiftPlan removed
     suppressHints,
     augmentHints,
-    subheadings, // Pass extracted subheadings
+    subheadings,
     avoidContent: [
       ...futureSections,
       ...previousSections,
@@ -168,22 +169,38 @@ export const generateSectionContent = async (
       ...suppressHints,
     ],
     regionReplacements: config.referenceAnalysis?.regionalReplacements,
-    humanWritingVoice: config.referenceAnalysis?.humanWritingVoice, // NEW: Pass human voice
-    regionVoiceDetect: config.referenceAnalysis?.regionVoiceDetect, // NEW: Pass region voice %
-    replacementRules: config.referenceAnalysis?.replacementRules, // NEW: Pass blocked terms
-    logicalFlow: (sectionMeta as any).logicalFlow, // NEW: Pass logical flow
-    coreFocus: (sectionMeta as any).coreFocus, // NEW: Pass core focus
+    humanWritingVoice: config.referenceAnalysis?.humanWritingVoice,
+    regionVoiceDetect: config.referenceAnalysis?.regionVoiceDetect,
+    replacementRules: config.referenceAnalysis?.replacementRules,
+    logicalFlow: (sectionMeta as any).logicalFlow,
+    coreFocus: (sectionMeta as any).coreFocus,
   });
 
+  return {
+    prompt,
+    contextFilter,
+    pointsAvailableForThisSection,
+    relevantKeyPoints,
+    isLastSections,
+  };
+};
+
+// 3. Generate Single Section
+export const generateSectionContent = async (
+  ctx: SectionContext
+): Promise<ServiceResponse<SectionGenerationResult>> => {
+  const startTs = Date.now();
+
+  const {
+    prompt,
+    contextFilter,
+  } = await prepareSectionPrompt(ctx);
+
   const response = await aiService.runJson<any>(prompt, 'FLASH', {
-    schema: z.object({
-      content: z.string(),
-      usedPoints: z.array(z.string()),
-      injectedCount: z.number(),
-      comment: z.string().optional(),
-    }),
-    promptId: `section_gen_${sectionTitle.slice(0, 20)}`,
+    schema: sectionSchema,
+    promptId: `section_gen_${ctx.sectionTitle.slice(0, 20)}`,
   });
+
 
   const payload = response.data || {};
   const rawContent =
@@ -213,7 +230,7 @@ export const generateSectionContent = async (
   let finalCost = response.cost;
 
   const data: SectionGenerationResult = {
-    title: sectionTitle,
+    title: ctx.sectionTitle,
     content: rawContent,
     rawContent: rawContent,
     usedPoints,
@@ -222,13 +239,19 @@ export const generateSectionContent = async (
   };
 
 
+
   const totalCost = {
     inputCost: response.cost.inputCost + contextFilter.cost.inputCost,
     outputCost: response.cost.outputCost + contextFilter.cost.outputCost,
     totalCost: response.cost.totalCost + contextFilter.cost.totalCost,
   };
 
-  const normalizedContent = normalizeSectionContent(data.content || '');
+  // FIX: Logic Divergence (DRY Violation)
+  // We stream raw content to the client in the API route.
+  // To match that behavior here, we disable server-side normalization.
+  // The Client (SectionStreamer / SectionRenderer) should handle H1->H3 etc.
+  // const normalizedContent = normalizeSectionContent(data.content || '');
+  const normalizedContent = data.content || ''; // Return RAW
 
   const totalUsage = {
     inputTokens: response.usage.inputTokens + contextFilter.usage.inputTokens,
@@ -275,80 +298,4 @@ export const rebrandContent = async (
   });
   const res = await aiService.runText(prompt, 'FLASH');
   return { data: res.text, usage: res.usage, cost: res.cost, duration: res.duration };
-};
-
-// 🆕 SMART INJECT POINT (Refine with Paragraph Compact Indexing)
-export const smartInjectPoint = async (
-  fullHtmlContent: string,
-  pointToInject: string,
-  targetAudience: TargetAudience
-): Promise<ServiceResponse<{ originalSnippet: string; newSnippet: string }>> => {
-  const startTs = Date.now();
-  const languageInstruction = getLanguageInstruction(targetAudience);
-
-  // 1. PARSE & INDEX (Paragraph Compact Indexing)
-  // Server-side: Dynamically import JSDOM to avoid client-side bundling errors
-  const { JSDOM } = await import('jsdom');
-  const dom = new JSDOM(fullHtmlContent);
-  const doc = dom.window.document;
-
-  const blocks: { id: number; text: string; html: string }[] = [];
-  const nodes = doc.querySelectorAll('p, li');
-
-  nodes.forEach((node, index) => {
-    const text = node.textContent?.trim() || '';
-    if (text.length > 20) {
-      blocks.push({
-        id: index,
-        text: text.substring(0, 80) + '...',
-        html: node.outerHTML,
-      });
-    }
-  });
-
-  if (blocks.length === 0) {
-    return {
-      data: { originalSnippet: '', newSnippet: '' },
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-      duration: Date.now() - startTs,
-    };
-  }
-
-  // 2. OPTIMIZED: FIND & REWRITE IN ONE STEP
-  const combinedPrompt = promptTemplates.smartFindAndRewriteBlock({
-    pointToInject,
-    blocks,
-    languageInstruction
-  });
-
-  const response = await aiService.runJson<{ originalBlockId: number; newHtml: string }>(
-    combinedPrompt,
-    'FLASH',
-    {
-      schema: z.object({
-        originalBlockId: z.number(),
-        newHtml: z.string(),
-      }),
-      promptId: 'smart_inject_combined'
-    }
-  );
-
-  const { originalBlockId, newHtml } = response.data;
-
-  // Find the original block to return as "before" state
-  const targetBlock = blocks.find((b) => b.id === originalBlockId);
-
-  // If AI hallucinates an ID, fallback to the first block or handle gracefully
-  const fallbackBlock = targetBlock || blocks[0];
-
-  return {
-    data: {
-      originalSnippet: fallbackBlock?.html || '',
-      newSnippet: newHtml || fallbackBlock?.html || '',
-    },
-    usage: response.usage,
-    cost: response.cost,
-    duration: Date.now() - startTs,
-  };
 };

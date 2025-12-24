@@ -27,6 +27,7 @@ interface PageLibraryModalProps {
   onDelete: (id: string) => void;
   onUpdate: (id: string, updates: Partial<PageProfile>) => void;
   onCreate: (name: string) => void;
+  onSyncToActive?: () => void;
 }
 
 const getRegionInfo = (code: TargetAudience) => {
@@ -51,10 +52,14 @@ const PageCreationForm = ({ onCreate, onCancel }: { onCreate: (name: string) => 
 
 const PageProfileDetail = ({
   page,
-  onUpdate
+  onUpdate,
+  isActive,
+  onSyncToActive,
 }: {
   page?: PageProfile;
-  onUpdate: (id: string, updates: Partial<PageProfile>) => void
+  onUpdate: (id: string, updates: Partial<PageProfile>) => void;
+  isActive: boolean;
+  onSyncToActive?: () => void;
 }) => {
   if (!page) return null;
 
@@ -62,15 +67,27 @@ const PageProfileDetail = ({
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header Section */}
       <div className="space-y-4 border-b border-slate-100 pb-8">
-        <div className="space-y-2">
-          <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Profile Name</label>
-          <input
-            type="text"
-            value={page.name}
-            onChange={(e) => onUpdate(page.id, { name: e.target.value })}
-            className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent hover:border-slate-200 focus:border-indigo-500 focus:bg-white rounded-2xl text-lg font-bold text-slate-900 outline-none transition-all"
-            placeholder="Name your profile..."
-          />
+        <div className="flex justify-between items-start gap-4">
+          <div className="space-y-2 flex-1">
+            <label className="text-[11px] font-black text-slate-400 uppercase tracking-wider">Profile Name</label>
+            <input
+              type="text"
+              value={page.name}
+              onChange={(e) => onUpdate(page.id, { name: e.target.value })}
+              className="w-full px-4 py-3 bg-slate-50 border-2 border-transparent hover:border-slate-200 focus:border-indigo-500 focus:bg-white rounded-2xl text-lg font-bold text-slate-900 outline-none transition-all"
+              placeholder="Name your profile..."
+            />
+          </div>
+          {isActive && onSyncToActive && (
+            <button
+              onClick={onSyncToActive}
+              className="flex-shrink-0 px-4 py-3 bg-indigo-100 text-indigo-700 rounded-xl text-xs font-bold hover:bg-indigo-200 transition-all flex items-center gap-2"
+              title="Update this profile with current editor content"
+            >
+              <Save className="w-4 h-4" />
+              Update from Editor
+            </button>
+          )}
         </div>
 
         <div className="flex gap-4">
@@ -139,7 +156,7 @@ const PageProfileDetail = ({
 };
 
 export const PageLibraryModal: React.FC<PageLibraryModalProps> = ({
-  isOpen, onClose, pages, activePageId, onSelect, onDelete, onUpdate, onCreate,
+  isOpen, onClose, pages, activePageId, onSelect, onDelete, onUpdate, onCreate, onSyncToActive,
 }) => {
   return (
     <GenericLibraryModal
@@ -180,7 +197,12 @@ export const PageLibraryModal: React.FC<PageLibraryModalProps> = ({
         );
       }}
       renderDetail={(page) => (
-        <PageProfileDetail page={page} onUpdate={onUpdate} />
+        <PageProfileDetail
+          page={page}
+          onUpdate={onUpdate}
+          isActive={page?.id === activePageId}
+          onSyncToActive={onSyncToActive}
+        />
       )}
     />
   );

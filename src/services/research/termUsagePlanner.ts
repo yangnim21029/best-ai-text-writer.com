@@ -7,9 +7,9 @@ import {
   TargetAudience,
 } from '../../types';
 import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
-import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from '../engine/promptService';
-import { promptTemplates } from '../engine/promptTemplates';
-import { aiService } from '../engine/aiService';
+import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from '../adapters/promptService';
+import { promptTemplates } from '../adapters/promptTemplates';
+import { aiService } from '../adapters/aiService';
 
 // Helper to chunk array
 const chunkArray = <T>(array: T[], size: number): T[][] => {

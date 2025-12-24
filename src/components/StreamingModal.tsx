@@ -47,165 +47,155 @@ export const StreamingModal: React.FC<StreamingModalProps> = ({ isOpen, content,
     }
   };
 
-  // Pre-process content to style "Writing Section:" and "Active Blueprint:"
+  // Pre-process content to style "Writing Section:" and "Active Blueprint:" in a more natural way
   const processedContent = (content || '')
     .replace(
       /Writing Section:\s*(.*)/g,
       `
-            <div class="section-divider">
-                <div class="section-icon-box">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="section-icon"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/></svg>
-                </div>
-                <div class="flex-1">
-                    <span class="section-badge">Writing Section</span>
-                    <span class="section-title">$1</span>
-                </div>
+            <div class="elegant-section-header">
+                <span class="elegant-section-dot"></span>
+                <span class="elegant-section-title">$1</span>
             </div>
         `
     )
     .replace(
       /Active Blueprint:\s*(.*)/g,
-      `
-            <div class="blueprint-info">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" class="blueprint-icon"><path d="m12 14 4-4 4 4-1.33 3.33a2 2 0 0 1-3.34 0L12 14Z"/><path d="m2 22 3-3"/><path d="m5 17 3 3"/><path d="m8.5 13.5 3 3"/></svg>
-                <span>Active Blueprint: <strong>$1</strong></span>
-            </div>
-        `
+      '' // Hide blueprint info from user for a cleaner look
     );
 
   const isRefining = step === 'refining_headings';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-md p-4 sm:p-6">
       <style
         dangerouslySetInnerHTML={{
           __html: `
-                .section-divider {
-                    margin-top: 2.5rem;
-                    margin-bottom: 1.5rem;
-                    padding: 0.75rem 1rem;
-                    background: #f8fafc;
-                    border-left: 4px solid #3b82f6;
-                    border-radius: 0 0.75rem 0.75rem 0;
-                    display: flex;
-                    align-items: center;
-                    gap: 1rem;
-                    box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
-                }
-                .section-icon-box {
-                    width: 1.75rem;
-                    height: 1.75rem;
-                    background: #eff6ff;
-                    border-radius: 0.5rem;
-                    display: flex;
-                    align-items: center;
-                    justify-content: center;
-                    color: #2563eb;
-                    border: 1px solid #dbeafe;
-                    flex-shrink: 0;
-                }
-                .section-badge {
-                    font-size: 10px;
-                    font-weight: 900;
-                    text-transform: uppercase;
-                    letter-spacing: 0.1em;
-                    color: #64748b;
-                    background: #f1f5f9;
-                    padding: 2px 8px;
-                    border-radius: 4px;
-                    border: 1px solid #e2e8f0;
-                    display: inline-block;
-                    margin-bottom: 2px;
-                }
-                .section-title {
-                    font-size: 14px;
-                    font-weight: 800;
-                    color: #1e293b;
-                    display: block;
-                }
-                .blueprint-info {
-                    font-size: 11px;
-                    color: #64748b;
-                    background: #f0f9ff;
-                    padding: 8px 12px;
-                    border-radius: 8px;
-                    border: 1px solid #bae6fd;
+                .elegant-section-header {
+                    margin-top: 3.5rem;
                     margin-bottom: 2rem;
                     display: flex;
                     align-items: center;
-                    gap: 0.5rem;
+                    gap: 0.75rem;
+                    opacity: 0.9;
+                    animation: elegantFadeIn 0.8s ease-out forwards;
                 }
-                .blueprint-icon {
-                    color: #0ea5e9;
-                    flex-shrink: 0;
+                @keyframes elegantFadeIn {
+                    from { opacity: 0; transform: translateY(10px); }
+                    to { opacity: 0.9; transform: translateY(0); }
+                }
+                .elegant-section-dot {
+                    width: 6px;
+                    height: 6px;
+                    background: #3b82f6;
+                    border-radius: 50%;
+                    box-shadow: 0 0 10px rgba(59, 130, 246, 0.5);
+                }
+                .elegant-section-title {
+                    font-size: 13px;
+                    font-weight: 600;
+                    letter-spacing: 0.05em;
+                    color: #64748b;
+                    text-transform: uppercase;
+                }
+                .streaming-content {
+                    animation: contentFlow 0.5s ease-out forwards;
+                }
+                @keyframes contentFlow {
+                    from { opacity: 0.8; filter: blur(2px); }
+                    to { opacity: 1; filter: blur(0); }
+                }
+                .custom-scrollbar::-webkit-scrollbar {
+                    width: 4px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-track {
+                    background: transparent;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb {
+                    background: #e2e8f0;
+                    border-radius: 10px;
+                }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+                    background: #cbd5e1;
                 }
             `,
         }}
       />
-      <div className="bg-white w-full max-w-4xl h-[80vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden border border-gray-200 animate-in fade-in zoom-in-95 duration-300">
-        {/* Header */}
-        <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/80 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center ${isRefining ? 'bg-purple-100' : 'bg-blue-100'}`}
-            >
-              {isRefining ? (
-                <Sparkles className="w-5 h-5 text-purple-600 animate-pulse" />
-              ) : (
-                <Loader2 className="w-5 h-5 text-blue-600 animate-spin" />
-              )}
+      <div className="bg-white/95 w-full max-w-5xl h-[85vh] rounded-[2rem] shadow-[0_32px_64px_-16px_rgba(0,0,0,0.1)] flex flex-col overflow-hidden border border-white/20 animate-in fade-in zoom-in-98 duration-500">
+        {/* Header - Minimalist */}
+        <div className="px-10 py-8 flex items-center justify-between bg-gradient-to-b from-white to-transparent">
+          <div className="flex items-center gap-5">
+            <div className="relative">
+              <div className="absolute inset-0 bg-blue-400 blur-xl opacity-20 animate-pulse"></div>
+              <div className={`w-12 h-12 rounded-2xl flex items-center justify-center relative z-10 transition-colors duration-500 ${isRefining ? 'bg-indigo-50' : 'bg-blue-50'}`}>
+                {isRefining ? (
+                  <Sparkles className="w-6 h-6 text-indigo-500" />
+                ) : (
+                  <Loader2 className="w-6 h-6 text-blue-500 animate-spin-slow" />
+                )}
+              </div>
             </div>
             <div>
-              <h3 className="text-lg font-bold text-gray-800 flex items-center gap-2">
+              <h3 className="text-xl font-bold text-slate-800 tracking-tight leading-none mb-1">
                 {getStepLabel(step)}
               </h3>
-              <p className="text-xs text-gray-500">請稍候，文章生成中...</p>
+              <div className="flex items-center gap-2">
+                <span className="flex h-1.5 w-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                <p className="text-xs font-medium text-slate-400 uppercase tracking-widest">Generating Masterpiece</p>
+              </div>
             </div>
           </div>
 
-          {/* Progress Steps (Visual only) */}
-          <div className="flex items-center gap-2 text-xs font-medium text-gray-400">
-            <span
-              className={`flex items-center gap-1 ${step === 'writing_content' ? 'text-blue-600' : 'text-gray-600'}`}
-            >
-              <FileText className="w-3 h-3" /> 撰寫
-            </span>
-            <span className="w-4 h-px bg-gray-300" />
-            <span
-              className={`flex items-center gap-1 ${step === 'refining_headings' ? 'text-purple-600' : step === 'finalizing' ? 'text-green-600' : ''}`}
-            >
-              <Sparkles className="w-3 h-3" /> 優化
-            </span>
-            <span className="w-4 h-px bg-gray-300" />
-            <span
-              className={`flex items-center gap-1 ${step === 'finalizing' ? 'text-green-600' : ''}`}
-            >
-              <CheckCircle2 className="w-3 h-3" /> 完成
-            </span>
+          <div className="hidden md:flex items-center gap-3">
+             <div className="flex flex-col items-end mr-4">
+                <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">Current Progress</span>
+                <div className="h-1 w-24 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                    <div 
+                        className="h-full bg-blue-500 transition-all duration-1000 ease-out" 
+                        style={{ width: step === 'writing_content' ? '40%' : step === 'refining_headings' ? '75%' : '100%' }}
+                    ></div>
+                </div>
+             </div>
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-hidden relative bg-white">
+        {/* Content Area - Immersive */}
+        <div className="flex-1 overflow-hidden relative">
           <div
             ref={scrollRef}
             onScroll={handleScroll}
-            className="absolute inset-0 overflow-y-auto p-10 custom-scrollbar scroll-smooth"
+            className="absolute inset-0 overflow-y-auto px-10 sm:px-20 pb-20 custom-scrollbar scroll-smooth"
           >
-            <div className="prose prose-slate prose-lg max-w-none prose-headings:font-black prose-headings:tracking-tight prose-h1:text-3xl prose-h2:text-2xl prose-p:text-slate-600 prose-p:leading-relaxed">
-              <div dangerouslySetInnerHTML={{ __html: marked.parse(processedContent) as string }} />
+            <div className="max-w-3xl mx-auto">
+                <div className="prose prose-slate prose-xl max-w-none 
+                    prose-headings:text-slate-900 prose-headings:font-bold prose-headings:tracking-tight
+                    prose-p:text-slate-600 prose-p:leading-[1.8] prose-p:mb-8
+                    prose-li:text-slate-600 prose-strong:text-slate-900
+                    streaming-content">
+                <div dangerouslySetInnerHTML={{ __html: marked.parse(processedContent) as string }} />
 
-              {/* Cursor Effect */}
-              {step !== 'finalizing' && (
-                <span className="inline-block w-2 h-5 bg-blue-500 ml-1 animate-pulse align-middle" />
-              )}
+                {/* Intelligent Cursor */}
+                {step !== 'finalizing' && (
+                    <div className="mt-4 flex items-center gap-2 text-blue-500 font-medium italic animate-pulse">
+                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                        <span className="text-sm tracking-wide">AI 正在斟酌遣詞用句...</span>
+                    </div>
+                )}
+                </div>
             </div>
           </div>
+          
+          {/* Bottom Gradient overlay for smoother read */}
+          <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>
         </div>
 
-        {/* Footer */}
-        <div className="px-6 py-3 border-t border-gray-100 bg-gray-50 text-center text-xs text-gray-400">
-          AI 生成內容僅供參考，請務必人工審閱。
+        {/* Footer - Minimalist */}
+        <div className="px-10 py-6 flex items-center justify-between bg-white border-t border-slate-50">
+          <span className="text-[10px] font-bold text-slate-300 uppercase tracking-widest flex items-center gap-2">
+            <Sparkles className="w-3 h-3" /> Powered by Gemini 3 Flash
+          </span>
+          <p className="text-[10px] font-medium text-slate-300">
+            Professional Content Generation Pipeline
+          </p>
         </div>
       </div>
     </div>

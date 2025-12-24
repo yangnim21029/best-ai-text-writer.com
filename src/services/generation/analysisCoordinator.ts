@@ -3,13 +3,13 @@ import {
   parseProductContext,
   generateProblemProductMapping,
 } from '@/services/research/productFeatureToPainPointMapper';
-import { analyzeText } from '@/services/engine/nlpService';
+import { analyzeText } from '@/services/adapters/nlpService';
 import { extractSemanticKeywordsAnalysis } from '@/services/research/termUsagePlanner';
 import { analyzeReferenceStructure } from '@/services/research/referenceAnalysisService';
 import { analyzeAuthorityTerms } from '../../services/research/authorityService';
 import { analyzeVisualStyle } from '../../services/generation/imageService';
 import { appendAnalysisLog, summarizeList } from '../../services/generation/generationLogger';
-import { getLanguageInstruction } from '../../services/engine/promptService';
+import { getLanguageInstruction } from '../../services/adapters/promptService';
 import { analyzeRegionalTerms } from '../../services/research/regionalService';
 
 export interface AnalysisDependencies {

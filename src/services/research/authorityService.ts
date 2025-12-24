@@ -1,9 +1,9 @@
 import 'server-only';
 import { z } from 'zod';
 import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../../types';
-import { aiService } from '../engine/aiService';
-import { promptTemplates } from '../engine/promptTemplates';
-import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
+import { aiService } from '../adapters/aiService';
+import { promptTemplates } from '../adapters/promptTemplates';
+import { getLanguageInstruction, toTokenUsage } from '../adapters/promptService';
 
 export const analyzeAuthorityTerms = async (
   authorityTerms: string,

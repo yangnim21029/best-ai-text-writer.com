@@ -1,6 +1,6 @@
 import 'server-only';
 import { createVertex } from '@ai-sdk/google-vertex';
-import { generateText, generateObject, LanguageModel } from 'ai';
+import { generateText, streamText, Output, LanguageModel } from 'ai';
 import { MODEL } from '../../config/constants';
 import { calculateCost } from './promptService';
 import { TokenUsage, CostBreakdown, AIRequestConfig } from '../../types';
@@ -42,6 +42,11 @@ const getVertexProvider = () => {
 
 export const vertex = getVertexProvider();
 
+export const getVertex = () => {
+  if (!vertex) throw new Error('[AIService] Vertex provider not initialized (server-only)');
+  return vertex;
+};
+
 class AIService {
   private getModelId(key: LlmModelKey): string {
     const settings = useAppStore.getState();
@@ -76,13 +81,7 @@ class AIService {
         },
       });
 
-      const normalizedUsage = {
-        inputTokens: usage.inputTokens ?? 0,
-        outputTokens: usage.outputTokens ?? 0,
-        totalTokens: usage.totalTokens ?? 0,
-      };
-
-      const { cost } = calculateCost(normalizedUsage, modelKey);
+      const { usage: normalizedUsage, cost } = calculateCost(usage, modelKey);
 
       return {
         text,
@@ -97,8 +96,7 @@ class AIService {
   }
 
   /**
-   * Run a JSON generation request using Vercel AI SDK 6
-   * IMPORTANT: 'options.schema' must be a Zod schema.
+   * Run a JSON generation request using Vercel AI SDK 6 (Modern way)
    */
   async runJson<T>(
     prompt: string,
@@ -109,26 +107,22 @@ class AIService {
     const model = this.getModel(modelKey);
 
     if (!options.schema) {
-      throw new Error('[AIService] runJson requires a schema (ZodType).');
+      throw new Error('[AIService] runJson requires a schema (zod).');
     }
 
     try {
-      const { object, usage } = await generateObject({
+      const { output, usage } = await generateText({
         model,
         prompt,
-        schema: options.schema,
+        output: Output.object({
+          schema: options.schema,
+        }),
       });
 
-      const normalizedUsage = {
-        inputTokens: usage.inputTokens ?? 0,
-        outputTokens: usage.outputTokens ?? 0,
-        totalTokens: usage.totalTokens ?? 0,
-      };
-
-      const { cost } = calculateCost(normalizedUsage, modelKey);
+      const { usage: normalizedUsage, cost } = calculateCost(usage, modelKey);
 
       return {
-        data: object as T,
+        data: output as T,
         usage: normalizedUsage,
         cost,
         duration: Date.now() - start,
@@ -138,6 +132,44 @@ class AIService {
       throw error;
     }
   }
+
+  /**
+   * Stream a JSON generation request using Vercel AI SDK 6 (Modern way)
+   */
+  async streamJson<T>(
+    prompt: string,
+    modelKey: LlmModelKey = 'FLASH',
+    options: { schema?: z.ZodType<T>; promptId?: string } = {}
+  ) {
+    const model = this.getModel(modelKey);
+
+    if (!options.schema) {
+      throw new Error('[AIService] streamJson requires a schema (zod).');
+    }
+
+    const safePromptId = (options.promptId || 'unnamed_stream_task')
+      .replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
+
+    return streamText({
+      model,
+      prompt,
+      output: Output.object({
+        schema: options.schema,
+      }),
+      headers: {
+        'x-prompt-id': safePromptId,
+      },
+      onFinish({ usage, finishReason }) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log(`[AIService] Stream finished. Reason: ${finishReason}, Usage:`, usage);
+        }
+      },
+      onError({ error }) {
+        console.error(`[AIService] Stream error for ${modelKey}:`, error);
+      }
+    });
+  }
+
 
   /**
    * Convert plain text to Markdown using AI

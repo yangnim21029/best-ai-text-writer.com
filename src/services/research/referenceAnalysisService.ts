@@ -1,9 +1,9 @@
 import 'server-only';
 import { z } from 'zod';
 import { ServiceResponse, ReferenceAnalysis, TargetAudience } from '../../types';
-import { aiService } from '../engine/aiService';
-import { promptTemplates } from '../engine/promptTemplates';
-import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
+import { aiService } from '../adapters/aiService';
+import { promptTemplates } from '../adapters/promptTemplates';
+import { getLanguageInstruction, toTokenUsage } from '../adapters/promptService';
 
 export const extractWebsiteTypeAndTerm = async (content: string) => {
   // Lightweight helper for URL scraping flow to infer websiteType & authorityTerms.

@@ -163,6 +163,8 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
     [placeholder]
   );
 
+  const isInternalUpdateRef = useRef(false);
+
   // Create/destroy the headless editor
   useEffect(() => {
     if (!editorElementRef.current) return;
@@ -195,11 +197,13 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
         },
       },
       onUpdate: ({ editor }) => {
+        if (isInternalUpdateRef.current) return;
         const html = editor.getHTML();
         const text = editor.state.doc.textBetween(0, editor.state.doc.content.size, ' ');
         onChangeRef.current?.(html, text);
       },
       onSelectionUpdate: ({ editor }) => {
+        if (isInternalUpdateRef.current) return;
         const { from, to } = editor.state.selection;
         const isCollapsed = from === to;
 
@@ -559,7 +563,12 @@ export const TiptapAdapter: React.FC<TiptapAdapterProps> = ({
     const editor = editorRef.current;
     if (!editor) return;
     if (initialHtml !== editor.getHTML()) {
-      editor.commands.setContent(initialHtml);
+      isInternalUpdateRef.current = true;
+      try {
+        editor.commands.setContent(initialHtml);
+      } finally {
+        isInternalUpdateRef.current = false;
+      }
     }
   }, [initialHtml]);
 

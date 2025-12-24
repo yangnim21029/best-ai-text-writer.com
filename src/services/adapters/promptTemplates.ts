@@ -1,7 +1,9 @@
 import { contentPrompts } from './prompts/content';
 import { researchPrompts } from './prompts/research';
-import { visualPrompts } from './prompts/visual';
+import { visualPrompts, VISUAL_STYLE_GUIDE } from './prompts/visual';
 import { regionalPrompts } from './prompts/regional';
+
+export { VISUAL_STYLE_GUIDE };
 
 export type PromptBuilderPayload = Record<string, any>;
 export type PromptBuilder<T extends PromptBuilderPayload = PromptBuilderPayload> = (

@@ -1,9 +1,9 @@
 import 'server-only';
 import { z } from 'zod';
 import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } from '../../types';
-import { getLanguageInstruction } from '../engine/promptService';
-import { aiService } from '../engine/aiService';
-import { promptTemplates } from '../engine/promptTemplates';
+import { getLanguageInstruction } from '../adapters/promptService';
+import { aiService } from '../adapters/aiService';
+import { promptTemplates } from '../adapters/promptTemplates';
 
 export const generateProductBrief = async (
   productName: string,

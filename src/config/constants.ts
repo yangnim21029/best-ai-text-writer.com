@@ -7,7 +7,7 @@ const env =
 
 export const MODEL = {
   FLASH: 'gemini-3-flash-preview',
-  IMAGE_PREVIEW: 'gemini-2.5-image-flash',
+  IMAGE_PREVIEW: 'gemini-3-flash-preview',
 };
 
 export const EMBED_MODEL_ID = serverEnv.AI_EMBED_MODEL_ID;

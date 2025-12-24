@@ -1,3 +1,18 @@
+export const VISUAL_STYLE_GUIDE = `
+    **STRICT VISUAL CATEGORIES (Select ONE):**
+    1. **INFOGRAPHIC:** Clean, modern layout using icons, flowcharts, or "lazy pack" style summaries to explain concepts. (Use for: steps, summaries, data).
+    2. **BRANDED_LIFESTYLE:** High-end photography. Real people using the product/service in a specific, authentic environment. (Use for: Brand image, emotional connection).
+    3. **PRODUCT_INFOGRAPHIC:** Close-up of the product with subtle graphical highlights (lines/arrows) emphasizing a specific feature/spec.
+    4. **ECOMMERCE_WHITE_BG:** Pure white background, studio lighting, product isolated. (Use for: Commercial display only).
+
+    **COMPOSITION RULE (Split Screen):**
+    - If the context compares two things (Before/After, Good vs Bad, Option A vs B), or needs a macro detail alongside a wide shot, request a "Split Screen (Left/Right)" composition.
+    
+    **NEGATIVE CONSTRAINTS (ABSOLUTELY FORBIDDEN):**
+    - **NO ABSTRACT ART:** No glowing brains, floating digital nodes, surreal metaphors, or "conceptual" 3D renders.
+    - **NO TEXT:** Do not try to render specific sentences inside the image (AI cannot spell).
+`;
+
 export const visualPrompts = {
   visualStyle: ({ languageInstruction, analyzedSamples, websiteType }: any) => `
     I need to define a consistent "Visual Identity" (Master Style Prompt) for an article.

@@ -11,9 +11,9 @@ import { ServiceResponse, RegionalReplacement, TargetAudience, TokenUsage, CostB
 
 import { REGION_CONFIG } from '../../config/regionConfig';
 
-import { aiService } from '../engine/aiService';
+import { aiService } from '../adapters/aiService';
 
-import { promptTemplates } from '../engine/promptTemplates';
+import { promptTemplates } from '../adapters/promptTemplates';
 
 
 

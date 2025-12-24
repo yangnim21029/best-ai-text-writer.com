@@ -107,8 +107,13 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const askAiRef = useRef<AskAiSelectionHandle>(null);
 
   useEffect(() => {
-    setHtml(initialHtml);
-  }, [initialHtml]);
+    // Avoid updating html state from props if AI is currently running or streaming
+    if (isAiRunning || ctx?.status === 'streaming') return;
+
+    if (initialHtml !== html) {
+      setHtml(initialHtml);
+    }
+  }, [initialHtml, html, isAiRunning, ctx?.status]);
 
   const { recordHtml, recordMeta, consumeDraft } = useEditorAutosave({
     storageKey: 'ai_writer_editor_autosave_v1',
@@ -448,7 +453,29 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
                   updateCounts(api.getPlainText());
                   recordHtml(api.getHtml());
                 }}
-                onSelectionChange={(data) => setSelectionData(data)}
+                onSelectionChange={(data) => {
+                  setSelectionData((prev) => {
+                    const isSameRange =
+                      prev.range?.from === data.range?.from && prev.range?.to === data.range?.to;
+                    const isSameText = prev.text === data.text;
+                    const isSameHtml = prev.html === data.html;
+
+                    // Deep compare rect (avoiding reference mismatch of new DOMRect)
+                    const isSameRect =
+                      (!prev.rect && !data.rect) ||
+                      (prev.rect &&
+                        data.rect &&
+                        prev.rect.top === data.rect.top &&
+                        prev.rect.left === data.rect.left &&
+                        prev.rect.width === data.rect.width &&
+                        prev.rect.height === data.rect.height);
+
+                    if (isSameRange && isSameText && isSameHtml && isSameRect) {
+                      return prev;
+                    }
+                    return data;
+                  });
+                }}
                 onAskAiClick={(taskId) => askAiRef.current?.openTask(taskId)}
                 containerRef={editorContainerRef}
                 className="min-h-[420px]"

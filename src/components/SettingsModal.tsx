@@ -95,7 +95,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ open, onClose }) =
                   value={modelImage}
                   onChange={(e) => setModelImage(e.target.value)}
                   className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-xs font-mono focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                  placeholder="e.g. google/gemini-2.5-flash-image"
+                  placeholder="e.g. gemini-3-flash-preview"
                 />
               </div>
             </div>

@@ -255,49 +255,11 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                 )}
               </div>
 
-              {/* Footer Actions */}
               <div className="flex items-center justify-between pt-1 gap-2">
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] text-slate-400 font-bold tracking-tight bg-slate-100/50 px-2 py-1.5 rounded-md">
                     {refWordCount} words
                   </span>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  {activePageId && (
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        window.dispatchEvent(new CustomEvent('updateActivePage'));
-                      }}
-                      className="h-7 px-3 bg-white text-blue-600 rounded-lg text-[10px] font-black hover:bg-blue-50 transition-all border border-blue-200 shadow-sm active:scale-95 flex items-center justify-center gap-1.5"
-                    >
-                      <RotateCw className="w-3 h-3" />
-                      Update
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      const name = prompt(
-                        'Save as new profile:',
-                        (activePageTitle || '') + ' (Copy)'
-                      );
-                      if (name) {
-                        onCreatePage(name);
-                        setIsSourceInputOpen(false);
-                      }
-                    }}
-                    className={`h-7 px-3 rounded-lg text-[10px] font-black transition-all border shadow-sm active:scale-95 flex items-center justify-center gap-1.5 ${activePageId
-                      ? 'bg-white text-slate-500 hover:bg-slate-50 border-slate-200'
-                      : 'bg-white text-blue-600 hover:bg-blue-50 border-blue-200'
-                      }`}
-                  >
-                    <Plus className="w-3 h-3" />
-                    {activePageId ? '+ Add Page' : 'Save Page'}
-                  </button>
                 </div>
               </div>
             </div>

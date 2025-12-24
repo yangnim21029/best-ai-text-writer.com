@@ -8,10 +8,10 @@ import {
   TokenUsage,
   CostBreakdown,
 } from '../../types';
-import { aiService } from '../engine/aiService';
-import { embedTexts, cosineSimilarity } from '../engine/embeddingService';
-import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
-import { promptTemplates } from '../engine/promptTemplates';
+import { aiService } from '../adapters/aiService';
+import { embedTexts, cosineSimilarity } from '../adapters/embeddingService';
+import { getLanguageInstruction, toTokenUsage } from '../adapters/promptService';
+import { promptTemplates } from '../adapters/promptTemplates';
 import { logger } from '../../utils/logger';
 
 const cleanHeading = (s: string | undefined): string =>

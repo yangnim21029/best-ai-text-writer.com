@@ -1,7 +1,6 @@
-import 'server-only';
 import { embedMany } from 'ai';
 import { EMBED_MODEL_ID } from '../../config/constants';
-import { vertex } from './aiService';
+import { getVertex } from './aiService';
 
 interface EmbedOptions {
   taskType?: string;
@@ -20,7 +19,7 @@ export const embedTexts = async (
 
   try {
     const { embeddings } = await embedMany({
-      model: vertex.embeddingModel(EMBED_MODEL_ID),
+      model: getVertex().embeddingModel(EMBED_MODEL_ID),
       values: texts,
       abortSignal: options.signal,
     });

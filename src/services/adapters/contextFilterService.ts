@@ -1,4 +1,3 @@
-import 'server-only';
 import { z } from 'zod';
 import { ServiceResponse, TargetAudience } from '../../types';
 import { getLanguageInstruction } from './promptService';

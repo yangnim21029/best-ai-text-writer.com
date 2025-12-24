@@ -18,6 +18,7 @@ import { useMetricsStore } from '@/store/useMetricsStore';
 
 import { SectionPlanModal } from '@/components/SectionPlanModal';
 import { SettingsModal } from '@/components/SettingsModal';
+import { StreamingModal } from '@/components/StreamingModal';
 import { useAppAccess } from '@/hooks/useAppAccess';
 import { useContentScore } from '@/hooks/useContentScore';
 import { useAppHydration } from '@/hooks/useAppHydration';
@@ -26,6 +27,7 @@ import { useAlternativeSearch } from '@/hooks/useAlternativeSearch';
 import { usePlanLocalization } from '@/hooks/usePlanLocalization';
 import { useProfileManagement } from '@/hooks/useProfileManagement';
 import { useAutoShowUI } from '@/hooks/useAutoShowUI';
+import { GenerationOrchestrator } from '@/components/GenerationOrchestrator';
 
 export default function AppPage() {
   // Modular Stores (Aggregated for backward compatibility in this component)
@@ -33,7 +35,7 @@ export default function AppPage() {
   const settings = useSettingsStore();
   const profiles = useProfileStore();
   const metrics = useMetricsStore();
-  
+
   const app = useMemo(() => ({ ...ui, ...settings, ...profiles, ...metrics }), [ui, settings, profiles, metrics]);
 
   const generationStore = useGenerationStore();
@@ -207,6 +209,14 @@ export default function AppPage() {
         isSynthesis={analysisStore.refAnalysis?.isSynthesis}
         sourceCount={analysisStore.refAnalysis?.sourceCount}
       />
+
+      <StreamingModal
+        isOpen={generationStore.status === 'streaming'}
+        content={generationStore.content}
+        step={generationStore.generationStep || 'writing_content'}
+      />
+
+      <GenerationOrchestrator />
     </div>
   );
 }

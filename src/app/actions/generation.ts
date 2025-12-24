@@ -1,16 +1,17 @@
 'use server';
 
-import { distributeSectionContexts } from '@/services/engine/contextDistributionService';
-import { 
-  planImagesForArticle, 
-  generateImage, 
-  generateImagePromptFromContext 
+import { distributeSectionContexts } from '@/services/adapters/contextDistributionService';
+import {
+  planImagesForArticle,
+  generateImage,
+  generateImagePromptFromContext,
+  generateSectionImage
 } from '@/services/generation/imageService';
 import {
   generateSectionContent,
   generateSnippet,
-  smartInjectPoint
 } from '@/services/generation/contentGenerationService';
+import { smartInjectPoint } from '@/services/generation/contentInjectionService';
 import { refineHeadings } from '@/services/generation/headingRefinerService';
 import {
   TargetAudience,
@@ -123,6 +124,33 @@ export async function generateImagePromptFromContextAction(
 }
 
 /**
+ * Server Action to generate an image specifically for a section.
+ */
+export async function generateSectionImageAction(
+  sectionTitle: string,
+  sectionContent: string,
+  visualStyle: string,
+  targetAudience: TargetAudience
+) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+
+  try {
+    return await generateSectionImage(
+      sectionTitle,
+      sectionContent,
+      visualStyle,
+      targetAudience
+    );
+  } catch (error) {
+    console.error('[generateSectionImageAction] Failed:', error);
+    throw error;
+  }
+}
+
+/**
  * Server Action to generate content for a single section.
  */
 export async function generateSectionContentAction(
@@ -135,8 +163,6 @@ export async function generateSectionContentAction(
   futureSections: string[] = [],
   authorityAnalysis: AuthorityAnalysis | null = null,
   keyInfoPoints: string[] = [],
-  currentCoveredPointsHistory: string[] = [],
-  currentInjectedCount: number = 0,
   sectionMeta: Partial<SectionAnalysis> = {}
 ) {
   const authorized = await isAuthorizedAction();
@@ -145,7 +171,7 @@ export async function generateSectionContentAction(
   }
 
   try {
-    return await generateSectionContent(
+    return await generateSectionContent({
       config,
       sectionTitle,
       specificPlan,
@@ -155,10 +181,8 @@ export async function generateSectionContentAction(
       futureSections,
       authorityAnalysis,
       keyInfoPoints,
-      currentCoveredPointsHistory,
-      currentInjectedCount,
       sectionMeta
-    );
+    });
   } catch (error) {
     console.error('[generateSectionContentAction] Failed:', error);
     throw error;

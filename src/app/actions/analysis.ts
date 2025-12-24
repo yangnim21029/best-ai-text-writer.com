@@ -12,8 +12,8 @@ import {
   findRegionEquivalents 
 } from '@/services/research/regionalService';
 import { analyzeAuthorityTerms } from '@/services/research/authorityService';
-import { analyzeText } from '@/services/engine/nlpService';
-import { embedTexts, cosineSimilarity } from '@/services/engine/embeddingService';
+import { analyzeText } from '@/services/adapters/nlpService';
+import { embedTexts, cosineSimilarity } from '@/services/adapters/embeddingService';
 import { extractSemanticKeywordsAnalysis } from '@/services/research/termUsagePlanner';
 
 import { 
@@ -29,7 +29,7 @@ import {
   ReferenceAnalysis,
   KeywordData
 } from '@/types';
-import { aiService } from '@/services/engine/aiService';
+import { aiService } from '@/services/adapters/aiService';
 import { isAuthorizedAction } from './auth';
 
 /**

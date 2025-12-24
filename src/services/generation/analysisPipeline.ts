@@ -3,7 +3,7 @@ import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
 import { runFullAnalysisAction } from '@/app/actions/analysis';
-import { getLanguageInstruction } from '@/services/engine/promptService';
+import { getLanguageInstruction } from '@/services/adapters/promptService';
 import { appendAnalysisLog } from '@/services/generation/generationLogger';
 
 /**

@@ -13,7 +13,7 @@ const main = async () => {
   const project = process.env.GOOGLE_VERTEX_PROJECT;
   const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1';
   const credentials = process.env.GOOGLE_VERTEX_CREDENTIALS;
-  const modelId = process.env.AI_CHECK_MODEL || 'gemini-1.5-flash';
+  const modelId = process.env.AI_CHECK_MODEL || 'gemini-3-flash-preview';
   const prompt = process.env.AI_CHECK_PROMPT || 'healthcheck';
 
   if (!project) {

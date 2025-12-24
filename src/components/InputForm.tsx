@@ -558,6 +558,27 @@ export const InputForm: React.FC<InputFormProps> = ({
         onUpdate={updatePage}
         onCreate={(name) => {
           createPage({ name, ...watchedValues, scrapedImages });
+          // Note: PageLibraryModal handles closing if needed, or we might want to keep it open?
+          // The previous implementation of onCreatePage in SourceMaterialSection didn't close modal?
+          // Actually InputForm's createPage wrapper here doesn't close modal.
+          // But PageLibraryModal's GenericLibraryModal calls handleCreate which calls onCreate then setIsCreating(false).
+          // It does not close the modal.
+        }}
+        onSyncToActive={() => {
+          if (activePageId) {
+            const refreshedImages = usableImages;
+            const updated = updatePage(activePageId, {
+              title: watchedValues.title,
+              referenceContent: watchedValues.referenceContent,
+              scrapedImages: refreshedImages,
+              websiteType: watchedValues.websiteType,
+              authorityTerms: watchedValues.authorityTerms,
+              targetAudience: watchedValues.targetAudience,
+            });
+            if (updated) alert('Page Profile synced with current form changes!');
+          } else {
+            alert('No active page profile to sync.');
+          }
         }}
       />
 

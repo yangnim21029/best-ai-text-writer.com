@@ -1,27 +1,9 @@
-import 'server-only';
 import { z } from 'zod';
+import { experimental_generateImage as generateImageSDK } from 'ai';
 import { ServiceResponse, ScrapedImage, TargetAudience, ImageAssetPlan } from '../../types';
-import { calculateCost, getLanguageInstruction } from '../engine/promptService';
-import { aiService } from '../engine/aiService';
-import { promptTemplates } from '../engine/promptTemplates';
-import { MODEL } from '../../config/constants';
-import { serverEnv } from '../../config/env';
-import { GoogleAuth } from 'google-auth-library';
-
-const VISUAL_STYLE_GUIDE = `
-    **STRICT VISUAL CATEGORIES (Select ONE):**
-    1. **INFOGRAPHIC:** Clean, modern layout using icons, flowcharts, or "lazy pack" style summaries to explain concepts. (Use for: steps, summaries, data).
-    2. **BRANDED_LIFESTYLE:** High-end photography. Real people using the product/service in a specific, authentic environment. (Use for: Brand image, emotional connection).
-    3. **PRODUCT_INFOGRAPHIC:** Close-up of the product with subtle graphical highlights (lines/arrows) emphasizing a specific feature/spec.
-    4. **ECOMMERCE_WHITE_BG:** Pure white background, studio lighting, product isolated. (Use for: Commercial display only).
-
-    **COMPOSITION RULE (Split Screen):**
-    - If the context compares two things (Before/After, Good vs Bad, Option A vs B), or needs a macro detail alongside a wide shot, request a "Split Screen (Left/Right)" composition.
-    
-    **NEGATIVE CONSTRAINTS (ABSOLUTELY FORBIDDEN):**
-    - **NO ABSTRACT ART:** No glowing brains, floating digital nodes, surreal metaphors, or "conceptual" 3D renders.
-    - **NO TEXT:** Do not try to render specific sentences inside the image (AI cannot spell).
-`;
+import { calculateCost, getLanguageInstruction } from '../adapters/promptService';
+import { aiService, getVertex } from '../adapters/aiService';
+import { promptTemplates, VISUAL_STYLE_GUIDE } from '../adapters/promptTemplates';
 
 const ensureDataUrl = (value: string, mimeType = 'image/png'): string | null => {
   if (!value) return null;
@@ -30,61 +12,23 @@ const ensureDataUrl = (value: string, mimeType = 'image/png'): string | null => 
 };
 
 /**
- * Generates an image using Vertex AI Imagen model directly
+ * Generates an image using Vercel AI SDK
  */
+import { MODEL } from '../../config/constants';
+// ...
 export const generateImage = async (
   prompt: string
 ): Promise<ServiceResponse<string | null>> => {
   const startTs = Date.now();
 
   try {
-    const project = serverEnv.GOOGLE_VERTEX_PROJECT;
-    const location = serverEnv.GOOGLE_VERTEX_LOCATION || 'global';
-    
-    // 1. Get Authentication Token
-    const auth = new GoogleAuth({
-      credentials: serverEnv.GOOGLE_VERTEX_CREDENTIALS ? JSON.parse(serverEnv.GOOGLE_VERTEX_CREDENTIALS.trim().replace(/^'|'$/g, '')) : undefined,
-      scopes: 'https://www.googleapis.com/auth/cloud-platform',
-    });
-    const client = await auth.getClient();
-    const tokenResponse = await client.getAccessToken();
-    const accessToken = tokenResponse.token;
-
-    if (!accessToken) {
-      throw new Error('Failed to obtain Google Cloud access token');
-    }
-
-    // 2. Call Imagen API
-    // Note: This uses the direct REST API for Imagen 3 or 2
-    const url = `https://${location}-aiplatform.googleapis.com/v1/projects/${project}/locations/${location}/publishers/google/models/imagen-3.0-generate-001:predict`;
-
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        instances: [{ prompt }],
-        parameters: {
-          sampleCount: 1,
-          aspectRatio: "16:9",
-        },
-      }),
+    const { image } = await generateImageSDK({
+      model: getVertex().imageModel(MODEL.IMAGE_PREVIEW),
+      prompt: prompt,
+      aspectRatio: '16:9',
     });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Vertex AI Image generation failed (${response.status}): ${errorText}`);
-    }
-
-    const payload = await response.json();
-    
-    // Extract base64 from predictions
-    const base64Image = payload.predictions?.[0]?.bytesBase64;
-    const imageData = base64Image ? ensureDataUrl(base64Image) : null;
-
-    // Cost tracking for images is often fixed per request or based on model
+    const imageData = image.base64 ? `data:image/png;base64,${image.base64}` : null;
     const metrics = calculateCost({}, 'IMAGE_GEN');
 
     return {
@@ -93,38 +37,84 @@ export const generateImage = async (
       duration: Date.now() - startTs,
     };
   } catch (e) {
-    console.error('[ImageService] Generation failed:', e);
+    console.error('[ImageService] SDK Generation failed:', e);
     throw e;
   }
 };
 
 /**
- * Analyzes an image using Vertex AI (Vision)
+ * 段落計劃時的圖片生成邏輯 (0~1 張圖片)
+ * 這是獨立於整體規劃的邏輯
  */
-export const analyzeImageWithAI = async (
-  imageUrl: string,
-  prompt: string = 'Describe this image in detail.',
-  model: string = 'gemini-1.5-flash'
-): Promise<ServiceResponse<string>> => {
+export const generateSectionImage = async (
+  sectionTitle: string,
+  sectionContent: string,
+  visualStyle: string,
+  targetAudience: TargetAudience
+): Promise<ServiceResponse<string | null>> => {
   const startTs = Date.now();
-  // TODO: Implement Vision analysis using Vercel AI SDK 6 experimental_generateText
-  return {
-    data: 'Image analysis feature is currently being migrated to AI SDK 6.',
-    usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-    cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
-    duration: Date.now() - startTs
-  };
+  
+  // 1. 判斷此段落是否需要圖片
+  const decisionPrompt = `You are a visual editor. Analyze the section and decide if it needs an illustration. 
+  Section: ${sectionTitle}
+  Content: ${sectionContent.substring(0, 500)}...
+  
+  Return JSON: { "needsImage": boolean, "prompt": "English prompt if true, else empty" }`;
+
+  try {
+    const decision = await aiService.runJson<{ needsImage: boolean; prompt: string }>(decisionPrompt, 'FLASH', {
+      schema: z.object({
+        needsImage: z.boolean(),
+        prompt: z.string()
+      })
+    });
+
+    if (!decision.data.needsImage || !decision.data.prompt) {
+      return {
+        data: null,
+        usage: decision.usage,
+        cost: decision.cost,
+        duration: Date.now() - startTs
+      };
+    }
+
+    // 2. 生成圖片
+    const fullPrompt = `${decision.data.prompt}. Style: ${visualStyle}. ${VISUAL_STYLE_GUIDE}`;
+    const imgRes = await generateImage(fullPrompt);
+
+    return {
+      data: imgRes.data,
+      usage: {
+        inputTokens: decision.usage.inputTokens + imgRes.usage.inputTokens,
+        outputTokens: decision.usage.outputTokens + imgRes.usage.outputTokens,
+        totalTokens: decision.usage.totalTokens + imgRes.usage.totalTokens,
+      },
+      cost: {
+        inputCost: decision.cost.inputCost + imgRes.cost.inputCost,
+        outputCost: decision.cost.outputCost + imgRes.cost.outputCost,
+        totalCost: decision.cost.totalCost + imgRes.cost.totalCost,
+      },
+      duration: Date.now() - startTs
+    };
+  } catch (e) {
+    console.warn('[ImageService] Section image generation skipped', e);
+    return {
+      data: null,
+      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+      cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+      duration: Date.now() - startTs
+    };
+  }
 };
 
 /**
- * Analyzes and defines global visual identity
+ * 分析圖片與視覺風格
  */
 export const analyzeVisualStyle = async (
   scrapedImages: ScrapedImage[],
   websiteType: string
 ): Promise<ServiceResponse<string>> => {
   const startTs = Date.now();
-
   const analyzedSamples = scrapedImages
     .filter((img) => img.aiDescription)
     .slice(0, 5)
@@ -139,7 +129,6 @@ export const analyzeVisualStyle = async (
 
   try {
     const response = await aiService.runText(prompt, 'FLASH');
-
     return {
       data: response.text,
       usage: response.usage,
@@ -147,7 +136,6 @@ export const analyzeVisualStyle = async (
       duration: response.duration,
     };
   } catch (e) {
-    console.error('[ImageService] Visual Style Analysis failed:', e);
     return {
       data: 'Clean, modern professional photography with natural lighting.',
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
@@ -158,7 +146,66 @@ export const analyzeVisualStyle = async (
 };
 
 /**
- * Generates image prompts from context
+ * 預先規劃全文章圖片 (整體規劃邏輯)
+ */
+export const planImagesForArticle = async (
+  articleContent: string,
+  scrapedImages: ScrapedImage[],
+  targetAudience: TargetAudience,
+  visualStyle: string = ''
+): Promise<ServiceResponse<ImageAssetPlan[]>> => {
+  const startTs = Date.now();
+  const languageInstruction = getLanguageInstruction(targetAudience);
+  const paragraphCount = articleContent.split(/\n\s*\n/).filter((p) => p.trim().length > 50).length;
+  const maxImages = Math.max(2, paragraphCount);
+
+  const imageContexts = scrapedImages.slice(0, 30).map((img) => ({
+    alt: img.altText,
+    aiAnalysis: img.aiDescription || 'N/A',
+  }));
+
+  const prompt = promptTemplates.visualAssetPlanning({
+    visualStyle,
+    visualStyleGuide: VISUAL_STYLE_GUIDE,
+    maxImages,
+    languageInstruction,
+    articleContent,
+    imageContexts,
+  });
+
+  try {
+    const response = await aiService.runJson<{ plans: any[] }>(prompt, 'FLASH', {
+      schema: z.object({
+        plans: z.array(z.object({
+          generatedPrompt: z.string(),
+          category: z.enum(['BRANDED_LIFESTYLE', 'PRODUCT_DETAIL', 'INFOGRAPHIC', 'PRODUCT_INFOGRAPHIC', 'ECOMMERCE_WHITE_BG']),
+          insertAfter: z.string(),
+          rationale: z.string().optional()
+        }))
+      })
+    });
+
+    const finalPlans: ImageAssetPlan[] = (response.data.plans || []).map((p: any, index: number) => ({
+      id: `plan-${Date.now()}-${index}`,
+      category: p.category,
+      generatedPrompt: p.generatedPrompt,
+      insertAfter: p.insertAfter,
+      status: 'idle',
+    }));
+
+    return {
+      data: finalPlans,
+      usage: response.usage,
+      cost: response.cost,
+      duration: response.duration,
+    };
+  } catch (e) {
+    return { data: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: Date.now() - startTs };
+  }
+};
+
+/**
+ * Generates image prompt options based on specific textual context.
  */
 export const generateImagePromptFromContext = async (
   contextText: string,
@@ -195,84 +242,6 @@ export const generateImagePromptFromContext = async (
       data: [fallbackRes.text],
       usage: fallbackRes.usage,
       cost: fallbackRes.cost,
-      duration: Date.now() - startTs,
-    };
-  }
-};
-
-/**
- * Plans images for the entire article
- */
-export const planImagesForArticle = async (
-  articleContent: string,
-  scrapedImages: ScrapedImage[],
-  targetAudience: TargetAudience,
-  visualStyle: string = ''
-): Promise<ServiceResponse<ImageAssetPlan[]>> => {
-  const startTs = Date.now();
-  const languageInstruction = getLanguageInstruction(targetAudience);
-
-  const paragraphCount = articleContent.split(/\n\s*\n/).filter((p) => p.trim().length > 50).length;
-  const densityBasedMax = Math.max(2, paragraphCount * 2);
-  const maxImages = Math.max(densityBasedMax, scrapedImages.length + 2);
-
-  const imageContexts = scrapedImages.slice(0, 30).map((img) => ({
-    alt: img.altText,
-    aiAnalysis: img.aiDescription || 'N/A',
-  }));
-
-  const prompt = promptTemplates.visualAssetPlanning({
-    visualStyle,
-    visualStyleGuide: VISUAL_STYLE_GUIDE,
-    maxImages,
-    languageInstruction,
-    articleContent,
-    imageContexts,
-  });
-
-  try {
-    const response = await aiService.runJson<{ plans: any[] }>(prompt, 'FLASH', {
-      schema: z.object({
-        plans: z.array(
-          z.object({
-            generatedPrompt: z.string(),
-            category: z.enum([
-              'BRANDED_LIFESTYLE',
-              'PRODUCT_DETAIL',
-              'INFOGRAPHIC',
-              'PRODUCT_INFOGRAPHIC',
-              'ECOMMERCE_WHITE_BG',
-            ]),
-            insertAfter: z.string(),
-            rationale: z.string().optional(),
-          })
-        ),
-      }),
-      promptId: 'visual_asset_planning',
-    });
-
-    const plans: any[] = response.data.plans || [];
-
-    const finalPlans: ImageAssetPlan[] = plans.map((p: any, index: number) => ({
-      id: `plan-${Date.now()}-${index}`,
-      category: p.category,
-      generatedPrompt: p.generatedPrompt,
-      insertAfter: p.insertAfter,
-      status: 'idle',
-    }));
-
-    return {
-      data: finalPlans,
-      usage: response.usage,
-      cost: response.cost,
-      duration: response.duration,
-    };
-  } catch (e) {
-    console.error('[ImageService] Image Planning failed:', e);
-    return {
-      data: [],
-      usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
-      cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
       duration: Date.now() - startTs,
     };
   }

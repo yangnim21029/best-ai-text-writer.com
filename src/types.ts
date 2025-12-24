@@ -277,6 +277,20 @@ export interface SectionGenerationResult {
   usedPoints: string[];
   injectedCount: number; // Number of times product was mentioned
   comment?: string; // AI thought process/execution plan
+  imageUrl?: string | null; // NEW: Specific image for this section
+}
+
+export interface SectionContext {
+  config: ArticleConfig;
+  sectionTitle: string;
+  specificPlan?: string[];
+  generalPlan?: string[];
+  keywordPlans: FrequentWordsPlacementAnalysis[];
+  previousSections: string[];
+  futureSections: string[];
+  authorityAnalysis: AuthorityAnalysis | null;
+  keyInfoPoints: string[];
+  sectionMeta: Partial<SectionAnalysis>;
 }
 
 export interface HeadingOption {
