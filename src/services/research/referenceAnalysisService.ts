@@ -1,26 +1,23 @@
 import 'server-only';
+import { z } from 'zod';
 import { ServiceResponse, ReferenceAnalysis, TargetAudience } from '../../types';
 import { aiService } from '../engine/aiService';
 import { promptTemplates } from '../engine/promptTemplates';
 import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
-import { Type } from '../engine/schemaTypes';
 
 export const extractWebsiteTypeAndTerm = async (content: string) => {
   // Lightweight helper for URL scraping flow to infer websiteType & authorityTerms.
   const prompt = promptTemplates.websiteTypeExtraction({ content });
 
-  // Using runJson for structured output
+  // Using runJson for structured output with Zod schema
   return await aiService.runJson<{ websiteType: string; authorityTerms: string }>(
     prompt,
     'FLASH',
     {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          websiteType: { type: Type.STRING },
-          authorityTerms: { type: Type.STRING },
-        },
-      },
+      schema: z.object({
+        websiteType: z.string(),
+        authorityTerms: z.string(),
+      }),
       promptId: 'website_type_extraction',
     }
   );
@@ -43,27 +40,17 @@ export const analyzeReferenceStructure = async (
   try {
     // --- STAGE 0: Voice & Strategy Analysis (Can run in parallel with Stage 1) ---
     const voiceResPromise = aiService.runJson<any>(voicePrompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-          conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-          brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          competitorBrands: { type: Type.ARRAY, items: { type: Type.STRING } },
-          competitorProducts: { type: Type.ARRAY, items: { type: Type.STRING } },
-          regionVoiceDetect: { type: Type.STRING },
-          humanWritingVoice: { type: Type.STRING },
-          toneSensation: { type: Type.STRING },
-          entryPoint: { type: Type.STRING },
-        },
-        required: [
-          'generalPlan',
-          'conversionPlan',
-          'brandExclusivePoints',
-          'regionVoiceDetect',
-          'humanWritingVoice',
-        ],
-      },
+      schema: z.object({
+        generalPlan: z.array(z.string()),
+        conversionPlan: z.array(z.string()),
+        brandExclusivePoints: z.array(z.string()),
+        competitorBrands: z.array(z.string()),
+        competitorProducts: z.array(z.string()),
+        regionVoiceDetect: z.string(),
+        humanWritingVoice: z.string(),
+        toneSensation: z.string().optional(),
+        entryPoint: z.string().optional(),
+      }),
       promptId: 'voice_strategy_analysis',
     });
 
@@ -75,28 +62,19 @@ export const analyzeReferenceStructure = async (
       languageInstruction,
     });
     const outlineRes = await aiService.runJson<any>(outlinePrompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          h1Title: { type: Type.STRING },
-          introText: { type: Type.STRING },
-          keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          structure: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
-                exclude: { type: Type.BOOLEAN },
-                excludeReason: { type: Type.STRING },
-              },
-              required: ['title'],
-            },
-          },
-        },
-        required: ['h1Title', 'introText', 'structure', 'keyInformationPoints'],
-      },
+      schema: z.object({
+        h1Title: z.string(),
+        introText: z.string(),
+        keyInformationPoints: z.array(z.string()),
+        structure: z.array(
+          z.object({
+            title: z.string(),
+            subheadings: z.array(z.string()).optional(),
+            exclude: z.boolean().optional(),
+            excludeReason: z.string().optional(),
+          })
+        ),
+      }),
       promptId: 'skeleton_extraction',
     });
 
@@ -158,55 +136,31 @@ export const analyzeReferenceStructure = async (
 
         try {
           return await aiService.runJson<any>(chunkPrompt, 'FLASH', {
-            schema: {
-              type: Type.OBJECT,
-              properties: {
-                structure: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      title: { type: Type.STRING },
-                      narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      logicalFlow: { type: Type.STRING },
-                      coreFocus: { type: Type.STRING },
-                      keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      coreQuestion: { type: Type.STRING },
-                      difficulty: { type: Type.STRING },
-                      writingMode: { type: Type.STRING },
-                      uspNotes: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      suppress: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      augment: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      subsections: {
-                        type: Type.ARRAY,
-                        items: {
-                          type: Type.OBJECT,
-                          properties: {
-                            title: { type: Type.STRING },
-                            keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                          },
-                          required: ['title', 'keyFacts'],
-                        },
-                      },
-                      sourceCharCount: { type: Type.NUMBER },
-                      instruction: { type: Type.STRING },
-                    },
-                    required: [
-                      'title',
-                      'narrativePlan',
-                      'logicalFlow',
-                      'keyFacts',
-                      'coreQuestion',
-                      'coreFocus',
-                      'subsections',
-                      'instruction',
-                      'sourceCharCount',
-                    ],
-                  },
-                },
-              },
-              required: ['structure'],
-            },
+            schema: z.object({
+              structure: z.array(
+                z.object({
+                  title: z.string(),
+                  narrativePlan: z.array(z.string()),
+                  logicalFlow: z.string(),
+                  coreFocus: z.string(),
+                  keyFacts: z.array(z.string()),
+                  coreQuestion: z.string(),
+                  difficulty: z.enum(['easy', 'medium', 'unclear']),
+                  writingMode: z.enum(['direct', 'multi_solutions']),
+                  uspNotes: z.array(z.string()).optional(),
+                  suppress: z.array(z.string()).optional(),
+                  augment: z.array(z.string()).optional(),
+                  subsections: z.array(
+                    z.object({
+                      title: z.string(),
+                      keyFacts: z.array(z.string()),
+                    })
+                  ),
+                  sourceCharCount: z.number(),
+                  instruction: z.string(),
+                })
+              ),
+            }),
             promptId: `narrative_logic_analysis_chunk_${idx}`,
           });
         } catch (err) {
@@ -402,34 +356,25 @@ export const mergeMultipleAnalyses = async (
 
   try {
     const mergeRes = await aiService.runJson<ReferenceAnalysis>(mergePrompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          structure: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                title: { type: Type.STRING },
-                subheadings: { type: Type.ARRAY, items: { type: Type.STRING } },
-                narrativePlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                logicalFlow: { type: Type.STRING },
-                keyFacts: { type: Type.ARRAY, items: { type: Type.STRING } },
-                coreFocus: { type: Type.STRING },
-                writingMode: { type: Type.STRING },
-              },
-              required: ['title', 'subheadings', 'narrativePlan'],
-            },
-          },
-          generalPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-          keyInformationPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          brandExclusivePoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          conversionPlan: { type: Type.ARRAY, items: { type: Type.STRING } },
-          humanWritingVoice: { type: Type.STRING },
-          regionVoiceDetect: { type: Type.STRING },
-        },
-        required: ['structure', 'generalPlan', 'humanWritingVoice'],
-      },
+      schema: z.object({
+        structure: z.array(
+          z.object({
+            title: z.string(),
+            subheadings: z.array(z.string()).optional(),
+            narrativePlan: z.array(z.string()),
+            logicalFlow: z.string().optional(),
+            keyFacts: z.array(z.string()).optional(),
+            coreFocus: z.string().optional(),
+            writingMode: z.enum(['direct', 'multi_solutions']).optional(),
+          })
+        ),
+        generalPlan: z.array(z.string()),
+        keyInformationPoints: z.array(z.string()),
+        brandExclusivePoints: z.array(z.string()),
+        conversionPlan: z.array(z.string()),
+        humanWritingVoice: z.string(),
+        regionVoiceDetect: z.string().optional(),
+      }),
       promptId: 'analysis_synthesis_merge',
     });
 

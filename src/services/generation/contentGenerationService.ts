@@ -1,4 +1,5 @@
 import 'server-only';
+import { z } from 'zod';
 import {
   ArticleConfig,
   FrequentWordsPlacementAnalysis,
@@ -19,8 +20,7 @@ import { promptTemplates } from '../engine/promptTemplates';
 import { MODEL, SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { aiService } from '../engine/aiService';
 import { normalizeMarkdown } from '../../utils/parsingUtils';
-
-import { Type } from '../engine/schemaTypes';
+import { marked } from 'marked';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -176,21 +176,12 @@ export const generateSectionContent = async (
   });
 
   const response = await aiService.runJson<any>(prompt, 'FLASH', {
-    schema: {
-      type: Type.OBJECT,
-      properties: {
-        content: { type: Type.STRING },
-        usedPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-        injectedCount: {
-          type: Type.INTEGER,
-          description: 'How many times did you mention the Product Name?',
-        },
-        comment: {
-          type: Type.STRING,
-          description: 'A short explanation of your writing strategy for this section.',
-        },
-      },
-    },
+    schema: z.object({
+      content: z.string(),
+      usedPoints: z.array(z.string()),
+      injectedCount: z.number(),
+      comment: z.string().optional(),
+    }),
     promptId: `section_gen_${sectionTitle.slice(0, 20)}`,
   });
 
@@ -335,13 +326,10 @@ export const smartInjectPoint = async (
     combinedPrompt,
     'FLASH',
     {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          originalBlockId: { type: Type.INTEGER, description: 'The ID of the block you chose to rewrite' },
-          newHtml: { type: Type.STRING, description: 'The rewritten HTML string including the point' }
-        }
-      },
+      schema: z.object({
+        originalBlockId: z.number(),
+        newHtml: z.string(),
+      }),
       promptId: 'smart_inject_combined'
     }
   );

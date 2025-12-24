@@ -1,7 +1,7 @@
 import 'server-only';
+import { z } from 'zod';
 import { ServiceResponse, TargetAudience } from '../../types';
-import { calculateCost, getLanguageInstruction } from './promptService';
-import { Type } from './schemaTypes';
+import { getLanguageInstruction } from './promptService';
 import { aiService } from './aiService';
 
 import { TokenUtils } from '../../utils/tokenUtils';
@@ -62,14 +62,11 @@ export const filterSectionContext = async (
       filteredAuthTerms: string[];
       knowledgeInsights: string[];
     }>(prompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          filteredPoints: { type: Type.ARRAY, items: { type: Type.STRING } },
-          filteredAuthTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
-          knowledgeInsights: { type: Type.ARRAY, items: { type: Type.STRING } },
-        },
-      },
+      schema: z.object({
+        filteredPoints: z.array(z.string()),
+        filteredAuthTerms: z.array(z.string()),
+        knowledgeInsights: z.array(z.string()),
+      }),
       promptId: 'context_filter',
     });
 

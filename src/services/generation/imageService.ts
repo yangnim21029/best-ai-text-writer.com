@@ -1,8 +1,8 @@
 import 'server-only';
+import { z } from 'zod';
 import { ServiceResponse, ScrapedImage, TargetAudience, ImageAssetPlan } from '../../types';
 import { calculateCost, getLanguageInstruction } from '../engine/promptService';
 import { aiService } from '../engine/aiService';
-import { Type } from '../engine/schemaTypes';
 import { promptTemplates } from '../engine/promptTemplates';
 import { MODEL } from '../../config/constants';
 import { serverEnv } from '../../config/env';
@@ -39,11 +39,11 @@ export const generateImage = async (
 
   try {
     const project = serverEnv.GOOGLE_VERTEX_PROJECT;
-    const location = serverEnv.GOOGLE_VERTEX_LOCATION || 'us-central1';
+    const location = serverEnv.GOOGLE_VERTEX_LOCATION || 'global';
     
     // 1. Get Authentication Token
     const auth = new GoogleAuth({
-      credentials: serverEnv.GOOGLE_VERTEX_CREDENTIALS ? JSON.parse(serverEnv.GOOGLE_VERTEX_CREDENTIALS) : undefined,
+      credentials: serverEnv.GOOGLE_VERTEX_CREDENTIALS ? JSON.parse(serverEnv.GOOGLE_VERTEX_CREDENTIALS.trim().replace(/^'|'$/g, '')) : undefined,
       scopes: 'https://www.googleapis.com/auth/cloud-platform',
     });
     const client = await auth.getClient();
@@ -106,16 +106,8 @@ export const analyzeImageWithAI = async (
   prompt: string = 'Describe this image in detail.',
   model: string = 'gemini-1.5-flash'
 ): Promise<ServiceResponse<string>> => {
-  // Use the refactored aiService which uses Vercel AI SDK 6
-  // But for Vision, we might need a specific prompt structure.
-  // The current aiService.runText doesn't support images yet.
-  
-  // For simplicity during migration, we'll keep the logic but use the SDK if possible.
-  // Actually, Vercel AI SDK generateText supports experimental multi-modal inputs.
-  
   const startTs = Date.now();
   // TODO: Implement Vision analysis using Vercel AI SDK 6 experimental_generateText
-  // For now, return a placeholder or implement basic fetch if needed.
   return {
     data: 'Image analysis feature is currently being migrated to AI SDK 6.',
     usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
@@ -187,10 +179,7 @@ export const generateImagePromptFromContext = async (
 
   try {
     const response = await aiService.runJson<string[]>(prompt, 'FLASH', {
-      schema: {
-        type: Type.ARRAY,
-        items: { type: Type.STRING },
-      },
+      schema: z.array(z.string()),
       promptId: 'image_prompt_gen',
     });
     return {
@@ -242,38 +231,23 @@ export const planImagesForArticle = async (
   });
 
   try {
-    const response = await aiService.runJson<any>(prompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          plans: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                generatedPrompt: {
-                  type: Type.STRING,
-                  description: 'Detailed prompt including subject + visual style + mood.',
-                },
-                category: {
-                  type: Type.STRING,
-                  enum: [
-                    'BRANDED_LIFESTYLE',
-                    'PRODUCT_DETAIL',
-                    'INFOGRAPHIC',
-                    'PRODUCT_INFOGRAPHIC',
-                    'ECOMMERCE_WHITE_BG',
-                  ],
-                },
-                insertAfter: { type: Type.STRING },
-                rationale: { type: Type.STRING },
-              },
-              required: ['generatedPrompt', 'category', 'insertAfter'],
-            },
-          },
-        },
-        required: ['plans'],
-      },
+    const response = await aiService.runJson<{ plans: any[] }>(prompt, 'FLASH', {
+      schema: z.object({
+        plans: z.array(
+          z.object({
+            generatedPrompt: z.string(),
+            category: z.enum([
+              'BRANDED_LIFESTYLE',
+              'PRODUCT_DETAIL',
+              'INFOGRAPHIC',
+              'PRODUCT_INFOGRAPHIC',
+              'ECOMMERCE_WHITE_BG',
+            ]),
+            insertAfter: z.string(),
+            rationale: z.string().optional(),
+          })
+        ),
+      }),
       promptId: 'visual_asset_planning',
     });
 

@@ -6,19 +6,41 @@ import { calculateCost } from './promptService';
 import { TokenUsage, CostBreakdown, AIRequestConfig } from '../../types';
 import { useAppStore } from '../../store/useAppStore';
 import { serverEnv } from '../../config/env';
+import { z } from 'zod';
 
 export type LlmModelKey = keyof typeof MODEL;
 
 // 1. Initialize Vertex AI Provider
-export const vertex = createVertex({
-  project: serverEnv.GOOGLE_VERTEX_PROJECT,
-  location: serverEnv.GOOGLE_VERTEX_LOCATION,
-  googleAuthOptions: {
-    credentials: serverEnv.GOOGLE_VERTEX_CREDENTIALS
-      ? JSON.parse(serverEnv.GOOGLE_VERTEX_CREDENTIALS)
-      : undefined,
-  },
-});
+const getVertexProvider = () => {
+  const project = serverEnv.GOOGLE_VERTEX_PROJECT;
+  const location = serverEnv.GOOGLE_VERTEX_LOCATION || 'global';
+  
+  let credentials;
+  const rawCreds = serverEnv.GOOGLE_VERTEX_CREDENTIALS;
+  
+  if (rawCreds) {
+    try {
+      const cleaned = rawCreds.trim().replace(/^'|'$/g, '');
+      credentials = JSON.parse(cleaned);
+    } catch (e) {
+      console.error('[AIService] Failed to parse GOOGLE_VERTEX_CREDENTIALS JSON');
+    }
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log(`[AIService] Vertex Provider: Project=${project || 'NOT_FOUND'}, Location=${location}`);
+  }
+
+  return createVertex({
+    project,
+    location,
+    googleAuthOptions: {
+      credentials,
+    },
+  });
+};
+
+export const vertex = getVertexProvider();
 
 class AIService {
   private getModelId(key: LlmModelKey): string {
@@ -34,7 +56,7 @@ class AIService {
   }
 
   /**
-   * Run a text generation request using Vercel AI SDK 6
+   * Run a text generation request
    */
   async runText(
     prompt: string,
@@ -75,26 +97,26 @@ class AIService {
   }
 
   /**
-   * Run a JSON generation request using Vercel AI SDK 6 (generateObject)
+   * Run a JSON generation request using Vercel AI SDK 6
+   * IMPORTANT: 'options.schema' must be a Zod schema.
    */
   async runJson<T>(
     prompt: string,
     modelKey: LlmModelKey = 'FLASH',
-    options: { schema?: any; useSearch?: boolean; promptId?: string } = {}
+    options: { schema?: z.ZodType<T>; useSearch?: boolean; promptId?: string } = {}
   ): Promise<{ data: T; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
     const start = Date.now();
     const model = this.getModel(modelKey);
 
+    if (!options.schema) {
+      throw new Error('[AIService] runJson requires a schema (ZodType).');
+    }
+
     try {
-      // Vertex search grounding is currently best handled via provider-specific features 
-      // or through generateText with tools if needed. 
-      // For standard schema-based JSON, generateObject is preferred.
       const { object, usage } = await generateObject({
         model,
         prompt,
         schema: options.schema,
-        // search grounding is not directly in core generateObject for all providers yet
-        // but we can pass it if the provider supports it in its specific options.
       });
 
       const normalizedUsage = {
@@ -144,18 +166,6 @@ class AIService {
 }
 
 export const aiService = new AIService();
-
-// --- Shared Utils ---
-
-export const parseSchemaResponse = <T>(
-  response: { data: T; usage: TokenUsage; cost: CostBreakdown; duration: number },
-  fallback?: T
-): { data: T; usage: TokenUsage; cost: CostBreakdown; duration: number } => {
-  if (!response.data && fallback) {
-    return { ...response, data: fallback };
-  }
-  return response;
-};
 
 export const trackCost = (
   metricsStore: { addCost: (cost: number, tokens: number) => void },

@@ -1,10 +1,9 @@
 import 'server-only';
+import { z } from 'zod';
 import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } from '../../types';
-import { calculateCost, getLanguageInstruction } from '../engine/promptService';
+import { getLanguageInstruction } from '../engine/promptService';
 import { aiService } from '../engine/aiService';
-import { Type } from '../engine/schemaTypes';
 import { promptTemplates } from '../engine/promptTemplates';
-import { MODEL } from '../../config/constants';
 
 export const generateProductBrief = async (
   productName: string,
@@ -14,28 +13,18 @@ export const generateProductBrief = async (
   const startTs = Date.now();
   const languageInstruction = getLanguageInstruction(targetAudience);
 
-  // 1. Fetch Product Page Content (Mock/Proxy)
-  // In a real app, we'd use a server-side proxy to fetch the HTML.
-  // For now, we'll ask the AI to "Infer" based on the name/URL if it knows it,
-  // or we can pass a "Context" string if the user provided one.
-  // Assuming we rely on the AI's internal knowledge or the URL structure for now.
-
   const prompt = promptTemplates.productBrief({ productName, productUrl, languageInstruction });
 
   try {
     const response = await aiService.runJson<ProductBrief>(prompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          brandName: { type: Type.STRING },
-          productName: { type: Type.STRING },
-          productDescription: { type: Type.STRING },
-          usp: { type: Type.STRING },
-          primaryPainPoint: { type: Type.STRING },
-          ctaLink: { type: Type.STRING },
-        },
-        required: ['brandName', 'productName', 'usp', 'ctaLink'],
-      },
+      schema: z.object({
+        brandName: z.string(),
+        productName: z.string(),
+        productDescription: z.string().optional(),
+        usp: z.string(),
+        primaryPainPoint: z.string().optional(),
+        ctaLink: z.string(),
+      }),
     });
 
     // Fill in defaults if missing
@@ -81,18 +70,13 @@ export const mapProblemsToProduct = async (
 
   try {
     const response = await aiService.runJson<ProblemProductMapping[]>(prompt, 'FLASH', {
-      schema: {
-        type: Type.ARRAY,
-        items: {
-          type: Type.OBJECT,
-          properties: {
-            painPoint: { type: Type.STRING },
-            productFeature: { type: Type.STRING },
-            relevanceKeywords: { type: Type.ARRAY, items: { type: Type.STRING } },
-          },
-          required: ['painPoint', 'productFeature', 'relevanceKeywords'],
-        },
-      },
+      schema: z.array(
+        z.object({
+          painPoint: z.string(),
+          productFeature: z.string(),
+          relevanceKeywords: z.array(z.string()),
+        })
+      ),
     });
 
     return {
@@ -122,17 +106,13 @@ export const parseProductContext = async (
 
   try {
     const response = await aiService.runJson<ProductBrief>(prompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          brandName: { type: Type.STRING },
-          productName: { type: Type.STRING },
-          usp: { type: Type.STRING },
-          primaryPainPoint: { type: Type.STRING },
-          ctaLink: { type: Type.STRING },
-        },
-        required: ['brandName', 'productName', 'usp', 'ctaLink'],
-      },
+      schema: z.object({
+        brandName: z.string(),
+        productName: z.string(),
+        usp: z.string(),
+        primaryPainPoint: z.string().optional(),
+        ctaLink: z.string(),
+      }),
     });
 
     const data = response.data;

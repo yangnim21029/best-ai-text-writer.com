@@ -1,4 +1,5 @@
 import 'server-only';
+import { z } from 'zod';
 import {
   HeadingOption,
   HeadingResult,
@@ -11,7 +12,6 @@ import { aiService } from '../engine/aiService';
 import { embedTexts, cosineSimilarity } from '../engine/embeddingService';
 import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
 import { promptTemplates } from '../engine/promptTemplates';
-import { Type } from '../engine/schemaTypes';
 import { logger } from '../../utils/logger';
 
 const cleanHeading = (s: string | undefined): string =>
@@ -145,47 +145,28 @@ export const refineHeadings = async (
     });
 
     const response = await aiService.runJson<{ headings: any[] }>(prompt, 'FLASH', {
-      schema: {
-        type: Type.OBJECT,
-        properties: {
-          headings: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                h2_before: { type: Type.STRING },
-                h2_after: { type: Type.STRING },
-                h2_reason: { type: Type.STRING },
-                h2_options: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      text: { type: Type.STRING },
-                      reason: { type: Type.STRING },
-                    },
-                    required: ['text'],
-                  },
-                },
-                h3: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      h3_before: { type: Type.STRING },
-                      h3_after: { type: Type.STRING },
-                      h3_reason: { type: Type.STRING },
-                    },
-                    required: ['h3_after'],
-                  },
-                },
-              },
-              required: ['h2_before', 'h2_after', 'h2_options', 'h3'],
-            },
-          },
-        },
-        required: ['headings'],
-      },
+      schema: z.object({
+        headings: z.array(
+          z.object({
+            h2_before: z.string(),
+            h2_after: z.string(),
+            h2_reason: z.string().optional(),
+            h2_options: z.array(
+              z.object({
+                text: z.string(),
+                reason: z.string().optional(),
+              })
+            ),
+            h3: z.array(
+              z.object({
+                h3_before: z.string().optional(),
+                h3_after: z.string(),
+                h3_reason: z.string().optional(),
+              })
+            ),
+          })
+        ),
+      }),
       promptId: 'heading_refinement',
     });
 

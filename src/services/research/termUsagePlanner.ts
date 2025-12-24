@@ -1,4 +1,5 @@
 import 'server-only';
+import { z } from 'zod';
 import {
   ServiceResponse,
   FrequentWordsPlacementAnalysis,
@@ -9,7 +10,6 @@ import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from '../engine/promptService';
 import { promptTemplates } from '../engine/promptTemplates';
 import { aiService } from '../engine/aiService';
-import { Type } from '../engine/schemaTypes';
 
 // Helper to chunk array
 const chunkArray = <T>(array: T[], size: number): T[][] => {
@@ -21,8 +21,6 @@ const chunkArray = <T>(array: T[], size: number): T[][] => {
 };
 
 import pLimit from 'p-limit'; // v6+ is pure ESM
-
-// ... imports
 
 // Analyze Context & Generate Action Plan for keywords
 export const extractSemanticKeywordsAnalysis = async (
@@ -91,22 +89,17 @@ export const extractSemanticKeywordsAnalysis = async (
       try {
         console.log(`[SemanticKeywords] Starting batch ${batchIdx + 1}/${batches.length}...`);
         const planRes = await aiService.runJson<any[]>(planPrompt, 'FLASH', {
-          schema: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                word: { type: Type.STRING },
-                plan: { type: Type.ARRAY, items: { type: Type.STRING } },
-                exampleSentence: { type: Type.STRING },
-                isSentenceStart: { type: Type.BOOLEAN },
-                isSentenceEnd: { type: Type.BOOLEAN },
-                isPrefix: { type: Type.BOOLEAN },
-                isSuffix: { type: Type.BOOLEAN },
-              },
-              required: ['word', 'plan', 'exampleSentence'],
-            },
-          },
+          schema: z.array(
+            z.object({
+              word: z.string(),
+              plan: z.array(z.string()),
+              exampleSentence: z.string(),
+              isSentenceStart: z.boolean().optional(),
+              isSentenceEnd: z.boolean().optional(),
+              isPrefix: z.boolean().optional(),
+              isSuffix: z.boolean().optional(),
+            })
+          ),
         });
 
         console.log(`[SemanticKeywords] Batch ${batchIdx + 1} Result:`, {

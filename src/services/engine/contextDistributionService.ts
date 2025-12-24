@@ -1,9 +1,9 @@
 import 'server-only';
+import { z } from 'zod';
 import { ServiceResponse, TargetAudience } from '../../types';
 import { getLanguageInstruction } from './promptService';
 import { aiService } from './aiService';
 import { promptTemplates } from './promptTemplates';
-import { Type } from './schemaTypes';
 import { TokenUtils } from '../../utils/tokenUtils';
 
 export interface ContextMapping {
@@ -47,21 +47,14 @@ export const distributeSectionContexts = async (
             prompt,
             'FLASH',
             {
-                schema: {
-                    type: Type.OBJECT,
-                    properties: {
-                        mapping: {
-                            type: Type.ARRAY,
-                            items: {
-                                type: Type.OBJECT,
-                                properties: {
-                                    title: { type: Type.STRING },
-                                    relevantContext: { type: Type.STRING }
-                                }
-                            }
-                        }
-                    }
-                },
+                schema: z.object({
+                    mapping: z.array(
+                        z.object({
+                            title: z.string(),
+                            relevantContext: z.string(),
+                        })
+                    ),
+                }),
                 promptId: 'context_distribute'
             }
         );

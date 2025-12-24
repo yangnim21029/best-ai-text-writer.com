@@ -1,8 +1,8 @@
 import 'server-only';
+import { z } from 'zod';
 import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../../types';
 import { aiService } from '../engine/aiService';
 import { promptTemplates } from '../engine/promptTemplates';
-import { Type } from '../engine/schemaTypes';
 import { getLanguageInstruction, toTokenUsage } from '../engine/promptService';
 
 export const analyzeAuthorityTerms = async (
@@ -29,16 +29,13 @@ export const analyzeAuthorityTerms = async (
   });
 
   try {
-  const response = await aiService.runJson<AuthorityAnalysis>(prompt, 'FLASH', {
-    schema: {
-      type: Type.OBJECT,
-      properties: {
-        relevantTerms: { type: Type.ARRAY, items: { type: Type.STRING } },
-        combinations: { type: Type.ARRAY, items: { type: Type.STRING } },
-      },
-    },
-    promptId: 'authority_analysis',
-  });
+    const response = await aiService.runJson<AuthorityAnalysis>(prompt, 'FLASH', {
+      schema: z.object({
+        relevantTerms: z.array(z.string()),
+        combinations: z.array(z.string()),
+      }),
+      promptId: 'authority_analysis',
+    });
 
     return {
       data: {
