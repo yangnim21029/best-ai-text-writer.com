@@ -2,51 +2,55 @@ import { z } from 'zod';
 
 const envSchema = z.object({
   // AI Configuration
-  AI_BASE_URL: z.string().default('https://ai.seo-kim.com/ai'),
-  AI_TOKEN: z.string().optional(),
+  GOOGLE_VERTEX_PROJECT: z.string().optional(),
+  GOOGLE_VERTEX_LOCATION: z.string().optional(),
+  GOOGLE_VERTEX_CREDENTIALS: z.string().optional(),
   AI_EMBED_MODEL_ID: z.string().default('gemini-embedding-001'),
   
   // Security
   APP_GUARD_HASH: z.string().optional(),
-  AI_PROXY_SECRET: z.string().optional(),
-  SECRET: z.string().optional(), // Fallback for proxy secret
 
-  // Client-side exposed (validated as string, though technically enforced by Next.js build)
+  // Client-side exposed
   NEXT_PUBLIC_AI_BASE_URL: z.string().optional(),
   NEXT_PUBLIC_APP_GUARD_HASH: z.string().optional(),
 });
 
-// Safe parsing to allow build to proceed even if envs are missing (fail at runtime if critical)
-const processEnv = {
-  ...process.env,
-  // Ensure defaults are applied if undefined
+// Use a direct mapping to ensure variables are picked up even if spread is not supported
+const rawEnv = {
+  GOOGLE_VERTEX_PROJECT: process.env.GOOGLE_VERTEX_PROJECT,
+  GOOGLE_VERTEX_LOCATION: process.env.GOOGLE_VERTEX_LOCATION,
+  GOOGLE_VERTEX_CREDENTIALS: process.env.GOOGLE_VERTEX_CREDENTIALS,
+  AI_EMBED_MODEL_ID: process.env.AI_EMBED_MODEL_ID,
+  APP_GUARD_HASH: process.env.APP_GUARD_HASH,
+  NEXT_PUBLIC_AI_BASE_URL: process.env.NEXT_PUBLIC_AI_BASE_URL,
+  NEXT_PUBLIC_APP_GUARD_HASH: process.env.NEXT_PUBLIC_APP_GUARD_HASH,
 };
 
-const parsed = envSchema.safeParse(processEnv);
+const parsed = envSchema.safeParse(rawEnv);
 
 if (!parsed.success) {
   console.error('❌ Invalid environment variables:', parsed.error.flatten().fieldErrors);
-  // We don't throw here to prevent build crashes, but services might fail later
 }
 
-export const serverEnv = parsed.success ? parsed.data : (processEnv as any);
+export const serverEnv = {
+  ...parsed.success ? parsed.data : (rawEnv as any),
+  // Direct access fallbacks for critical values
+  GOOGLE_VERTEX_PROJECT: process.env.GOOGLE_VERTEX_PROJECT,
+  GOOGLE_VERTEX_LOCATION: process.env.GOOGLE_VERTEX_LOCATION,
+  GOOGLE_VERTEX_CREDENTIALS: process.env.GOOGLE_VERTEX_CREDENTIALS,
+};
 
 export const clientEnv = {
-  // Only explicitly expose what is safe and prefixed with NEXT_PUBLIC_
   NEXT_PUBLIC_AI_BASE_URL: process.env.NEXT_PUBLIC_AI_BASE_URL,
   NEXT_PUBLIC_APP_GUARD_HASH: process.env.NEXT_PUBLIC_APP_GUARD_HASH,
 };
 
 // Helper to get the effective AI Base URL (Server preference, fallback to client)
 export const getAiBaseUrl = () => {
-  if (typeof window === 'undefined') {
-    return serverEnv.AI_BASE_URL || clientEnv.NEXT_PUBLIC_AI_BASE_URL || '';
-  }
   return clientEnv.NEXT_PUBLIC_AI_BASE_URL || '';
 };
 
 // Helper to get the effective Proxy Secret (Server side only)
 export const getProxySecret = () => {
-  if (typeof window !== 'undefined') return undefined; // Never return secret to client
-  return serverEnv.AI_PROXY_SECRET || serverEnv.SECRET;
+  return undefined; 
 };

@@ -1,82 +1,42 @@
 import 'dotenv/config';
+import { createVertex } from '@ai-sdk/google-vertex';
+import { generateObject } from 'ai';
+import { z } from 'zod';
 
-const trimTrailingSlash = (value = '') => value.replace(/\/+$/, '');
-const normalizePath = (value = 'ai') => `/${value.replace(/^\/+/, '').replace(/\/+$/, '')}`;
-
-const baseUrl = trimTrailingSlash(process.env.AI_BASE_URL || process.env.VITE_AI_BASE_URL || '');
-const aiPath = normalizePath(process.env.AI_PATH || process.env.VITE_AI_PATH || 'ai');
-const modelId = process.env.AI_MODEL_ID || process.env.VITE_AI_MODEL_ID || 'gemini-2.5-flash';
-const token = process.env.AI_TOKEN || '';
-
-const endpoint = `${baseUrl}${aiPath}/generate`;
-
-const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-if (token) headers.Authorization = `Bearer ${token}`;
-
-const schema = {
-  type: 'object',
-  properties: {
-    ok: { type: 'boolean' },
-    summary: { type: 'string' },
-  },
-  required: ['ok', 'summary'],
-  additionalProperties: false,
-} as const;
-
-const payload = {
-  model: modelId,
-  prompt: 'Return a tiny JSON summary with ok=true and a 1-line status message.',
-  schema,
-};
-
-const expectSuccessShape = (body: any) => {
-  if (body?.success === false) {
-    const message = body?.message || body?.error || 'Unknown error';
-    throw new Error(`AI backend returned success=false: ${message}`);
-  }
-  if (!body || typeof body !== 'object') {
-    throw new Error('AI backend returned non-JSON body');
-  }
-};
-
-const assertObject = (data: any) => {
-  const object = data?.object;
-  if (!object || typeof object !== 'object') {
-    throw new Error('Missing schema object in response');
-  }
-  if (object.ok !== true) {
-    throw new Error(`Unexpected ok flag: ${object.ok}`);
-  }
-  if (typeof object.summary !== 'string' || object.summary.length === 0) {
-    throw new Error('Missing summary string in schema object');
-  }
-  return object;
-};
+const project = process.env.GOOGLE_VERTEX_PROJECT;
+const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1';
+const credentials = process.env.GOOGLE_VERTEX_CREDENTIALS;
+const modelId = process.env.AI_WRITER_MODEL || 'gemini-1.5-pro';
 
 const run = async () => {
-  if (!baseUrl) {
-    throw new Error('Please set AI_BASE_URL (or VITE_AI_BASE_URL)');
+  if (!project) {
+    throw new Error('Please set GOOGLE_VERTEX_PROJECT');
   }
 
-  console.log(`→ POST ${endpoint} (model=${modelId})`);
-  const res = await fetch(endpoint, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
+  console.log(`→ Verifying Vertex AI [${project}/${location}] (model=${modelId})`);
+
+  const vertex = createVertex({
+    project,
+    location,
+    googleAuthOptions: {
+      credentials: credentials ? JSON.parse(credentials) : undefined,
+    },
   });
 
-  if (!res.ok) {
-    const detail = await res.text();
-    throw new Error(`Request failed (${res.status}): ${detail}`);
+  const { object, usage } = await generateObject({
+    model: vertex(modelId),
+    prompt: 'Return a tiny JSON summary with ok=true and a 1-line status message.',
+    schema: z.object({
+      ok: z.boolean(),
+      summary: z.string(),
+    }),
+  });
+
+  if (!object || object.ok !== true) {
+    throw new Error(`Unexpected result: ${JSON.stringify(object)}`);
   }
 
-  const json = await res.json();
-  expectSuccessShape(json);
-  const data = json.data || {};
-  const object = assertObject(data);
-
-  const usage = data.usage || {};
-  console.log('✓ AI reachable');
+  console.log('✓ AI reachable (Vertex AI)');
   console.log('  summary:', object.summary);
   console.log('  usage:', JSON.stringify(usage));
 };

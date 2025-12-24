@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import 'dotenv/config';
-
-const trimSlash = (value = '') => value.replace(/\/+$/, '');
+import { createVertex } from '@ai-sdk/google-vertex';
+import { generateText } from 'ai';
 
 const logSkip = (reason: string) => console.warn(`AI check skipped: ${reason}`);
 
@@ -10,42 +10,34 @@ const main = async () => {
     return logSkip('SKIP_AI_CHECK=1');
   }
 
-  const base = trimSlash(process.env.AI_BASE_URL || process.env.VITE_AI_BASE_URL || '');
-  const generatePath = process.env.AI_GENERATE_PATH || '/generate';
-  const token = process.env.AI_TOKEN || process.env.VITE_AI_TOKEN;
-  const model = process.env.AI_CHECK_MODEL || 'gemini-2.0-flash-exp';
+  const project = process.env.GOOGLE_VERTEX_PROJECT;
+  const location = process.env.GOOGLE_VERTEX_LOCATION || 'us-central1';
+  const credentials = process.env.GOOGLE_VERTEX_CREDENTIALS;
+  const modelId = process.env.AI_CHECK_MODEL || 'gemini-1.5-flash';
   const prompt = process.env.AI_CHECK_PROMPT || 'healthcheck';
 
-  if (!base) {
-    return logSkip('AI_BASE_URL not provided');
+  if (!project) {
+    return logSkip('GOOGLE_VERTEX_PROJECT not provided');
   }
 
-  const generateUrl = `${base}${generatePath}`;
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-  if (token) {
-    headers['Authorization'] = `Bearer ${token}`;
-  }
+  console.log(`Verifying Vertex AI [${project}/${location}] with model: ${modelId}...`);
 
-  const res = await fetch(generateUrl, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({ prompt, model }),
+  const vertex = createVertex({
+    project,
+    location,
+    googleAuthOptions: {
+      credentials: credentials ? JSON.parse(credentials) : undefined,
+    },
   });
 
-  const contentType = res.headers.get('content-type') || '';
-  const isJson = contentType.includes('application/json');
+  const { text } = await generateText({
+    model: vertex(modelId),
+    prompt,
+  });
 
-  if (!res.ok) {
-    const detail = isJson ? await res.json() : await res.text();
-    const message = typeof detail === 'string' ? detail : detail?.error || JSON.stringify(detail);
-    throw new Error(`AI generate check failed (${res.status}): ${message}`);
-  }
-
-  const data = isJson ? await res.json() : { text: await res.text() };
-  const text = data?.text || (typeof data === 'string' ? data : '');
-  assert(text !== undefined, 'AI backend responded without text');
+  assert(text !== undefined, 'Vertex AI responded without text');
   console.log(
-    `AI generate OK (${generateUrl}): "${String(text).slice(0, 60)}${String(text).length > 60 ? '...' : ''}"`
+    `Vertex AI OK: "${String(text).slice(0, 60)}${String(text).length > 60 ? '...' : ''}"`
   );
 };
 
