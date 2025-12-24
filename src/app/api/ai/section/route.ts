@@ -3,7 +3,7 @@ import { aiService } from '@/services/adapters/aiService';
 import { prepareSectionPrompt } from '@/services/generation/contentGenerationService';
 import { sectionSchema } from '@/schemas/sectionSchema';
 import { isAuthorizedAction } from '@/app/actions/auth';
-import { createDataStreamResponse } from 'ai';
+
 
 export async function POST(req: NextRequest) {
   // 1. Auth Check
@@ -32,7 +32,7 @@ export async function POST(req: NextRequest) {
     });
 
     console.log(`[API/AI/Section] Stream initialized, returning toTextStreamResponse`);
-    
+
     return result.toTextStreamResponse();
   } catch (error: any) {
     console.error('[API/AI/Section] Stream failed:', error);
