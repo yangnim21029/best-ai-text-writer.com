@@ -1,5 +1,6 @@
 import { EMBED_MODEL_ID } from '../../config/constants';
-import { buildAiUrl } from './genAIClient';
+import 'server-only';
+import { buildAiUrl, getAiHeaders } from './genAIClient';
 
 const env =
   typeof import.meta !== 'undefined' && (import.meta as any).env

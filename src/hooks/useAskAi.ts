@@ -1,6 +1,6 @@
 import { useCallback, useRef } from 'react';
 import { marked } from 'marked';
-import { generateSnippet } from '../services/generation/contentGenerationService';
+import { generateSnippetAction } from '@/app/actions/generation';
 import { getLanguageInstruction } from '../services/engine/promptService';
 import type { AskAiRunActionInput } from '../components/AskAiSelection';
 import { TargetAudience, CostBreakdown, TokenUsage } from '../types';
@@ -154,7 +154,7 @@ export const useAskAi = ({
       pendingCountRef.current += 1;
       setIsAiLoading(true);
       try {
-        const res = await generateSnippet(promptToSend, targetAudience as TargetAudience);
+        const res = await generateSnippetAction(promptToSend, targetAudience as TargetAudience);
 
         // If the AI returns markdown, parse it to HTML
         let htmlResult = res.data || '';

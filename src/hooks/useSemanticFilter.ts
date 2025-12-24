@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { embedTexts, cosineSimilarity } from '../services/engine/embeddingService';
+import { scoreSemanticChunksAction } from '@/app/actions/analysis';
 
 const DEFAULT_SEMANTIC_THRESHOLD = 0.79;
 
@@ -55,21 +55,7 @@ export const useSemanticFilter = () => {
     setFilterError(null);
 
     try {
-      const [titleEmbeddings, chunkEmbeddings] = await Promise.all([
-        embedTexts([title]),
-        embedTexts(chunks),
-      ]);
-
-      const titleEmbedding = titleEmbeddings[0];
-      if (!titleEmbedding?.length) {
-        throw new Error('無法取得標題向量，請稍後再試。');
-      }
-
-      const similarities = chunks.map((chunk, idx) => {
-        const chunkEmbedding = chunkEmbeddings[idx];
-        if (!chunkEmbedding?.length) return 1;
-        return cosineSimilarity(titleEmbedding, chunkEmbedding);
-      });
+      const similarities = await scoreSemanticChunksAction(chunks, title);
 
       setChunkScores(similarities);
       return similarities;

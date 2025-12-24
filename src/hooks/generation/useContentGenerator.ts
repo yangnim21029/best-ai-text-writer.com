@@ -2,14 +2,16 @@ import { ArticleConfig, SectionAnalysis } from '../../types';
 import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
-import { generateSectionContent } from '../../services/generation/contentGenerationService';
 import { mergeTurboSections } from '../../services/generation/contentDisplayService';
 
 import { cleanHeadingText, stripLeadingHeading, throttle } from '../../utils/parsingUtils';
-import { planImagesForArticle, generateImage } from '../../services/generation/imageService';
 import { appendAnalysisLog } from '../../services/generation/generationLogger';
-import { aiService } from '../../services/engine/aiService';
-import { distributeSectionContexts } from '../../services/engine/contextDistributionService';
+import { 
+  distributeContextAction, 
+  planImagesAction, 
+  generateImageAction, 
+  generateSectionContentAction 
+} from '@/app/actions/generation';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 
@@ -179,9 +181,9 @@ export const runContentGeneration = async (
       console.log('[Context Distribution] Starting...');
       appendAnalysisLog('Optimizing source context...');
       const distStart = Date.now();
-      const distRes = await distributeSectionContexts(
+      const distRes = await distributeContextAction(
         config.referenceContent,
-        sectionsToGenerate,
+        sectionsToGenerate as { title: string }[],
         config.targetAudience
       );
       console.log(`[Context Distribution] Completed in ${Date.now() - distStart}ms`);
@@ -226,7 +228,7 @@ export const runContentGeneration = async (
     const dummyPreviousContent = i > 0 ? [`[Preceding Section: ${allTitles[i - 1]}]`] : [];
 
     try {
-      const res = await generateSectionContent(
+      const res = await generateSectionContentAction(
         loopConfig,
         section.title,
         specificPlan,
@@ -291,7 +293,7 @@ export const runContentGeneration = async (
 
       try {
         appendAnalysisLog('Planning visual assets...');
-        const imagePlans = await planImagesForArticle(
+        const imagePlans = await planImagesAction(
           fullContent,
           analysisStore.scrapedImages,
           config.targetAudience,
@@ -308,7 +310,7 @@ export const runContentGeneration = async (
           try {
             const label = plan.category || plan.insertAfter || plan.id;
             appendAnalysisLog(`Generating image: ${label}...`);
-            const imgRes = await generateImage(plan.generatedPrompt);
+            const imgRes = await generateImageAction(plan.generatedPrompt);
 
             if (imgRes.data) {
               // In a real app, you'd save this to a store or insert it into the content.

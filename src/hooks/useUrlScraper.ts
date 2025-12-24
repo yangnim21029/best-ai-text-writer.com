@@ -1,8 +1,8 @@
 import { useCallback, useState } from 'react';
 import { UseFormSetValue } from 'react-hook-form';
 import { useMutation } from '@tanstack/react-query';
-import { fetchUrlContent } from '../services/research/webScraper';
-import { extractWebsiteTypeAndTerm } from '../services/research/referenceAnalysisService';
+import { scrapeUrlAction } from '@/app/actions/scrape';
+import { extractWebsiteTypeAction } from '@/app/actions/analysis';
 import { ArticleFormValues } from '../schemas/formSchema';
 import { CostBreakdown, ScrapedImage, TokenUsage, PageProfile } from '../types';
 import { dedupeScrapedImages } from '../utils/imageUtils';
@@ -30,19 +30,8 @@ export const useUrlScraper = ({
     mutationFn: async (url: string) => {
       if (!url) throw new Error('URL is required');
 
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url }),
-      });
-
-      if (!response.ok) {
-        const err = await response.json();
-        throw new Error(err.details || 'Failed to fetch content');
-      }
-
-      const { title, content, images } = await response.json();
-      return { title, content, images };
+      const result = await scrapeUrlAction(url);
+      return result;
     },
     onSuccess: async ({ title, content, images }, url) => {
       // 1. Immediately switch to manual mode to show content
@@ -67,7 +56,7 @@ export const useUrlScraper = ({
       let authorityTerms = '';
 
       try {
-        const brandRes = await extractWebsiteTypeAndTerm(content);
+        const brandRes = await extractWebsiteTypeAction(content);
         websiteType = brandRes.data.websiteType;
         authorityTerms = brandRes.data.authorityTerms;
 

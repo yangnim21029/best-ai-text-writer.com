@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
-import { localizePlanWithAI } from '@/services/research/regionalService';
+import { localizePlanAction } from '@/app/actions/analysis';
 
 export const usePlanLocalization = () => {
   const [isLocalizingPlan, setIsLocalizingPlan] = useState(false);
@@ -14,27 +14,13 @@ export const usePlanLocalization = () => {
 
     setIsLocalizingPlan(true);
     try {
-      const result = await localizePlanWithAI(
-        {
-          generalPlan: current.generalPlan || [],
-          conversionPlan: current.conversionPlan || [],
-          sections: current.structure,
-          humanWritingVoice: current.humanWritingVoice,
-        },
-        current.regionalReplacements || [],
-        analysisStore.targetAudience
-      );
+      const result = await localizePlanAction(current, analysisStore.targetAudience);
 
       app.addCost(result.cost.totalCost, result.usage.totalTokens);
 
-      const localizedStructure = current.structure.map((original, idx) => ({
-        ...original,
-        ...result.localizedSections[idx],
-      }));
-
       analysisStore.setLocalizedRefAnalysis({
         ...current,
-        structure: localizedStructure,
+        structure: result.localizedSections,
         generalPlan: result.localizedGeneralPlan,
         conversionPlan: result.localizedConversionPlan,
         humanWritingVoice: result.localizedHumanWritingVoice,

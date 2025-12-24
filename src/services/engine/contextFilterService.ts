@@ -1,3 +1,4 @@
+import 'server-only';
 import { ServiceResponse, TargetAudience } from '../../types';
 import { calculateCost, getLanguageInstruction } from './promptService';
 import { Type } from './schemaTypes';

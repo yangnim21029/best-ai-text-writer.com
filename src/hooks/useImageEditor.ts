@@ -1,10 +1,10 @@
 import { useCallback, useState, useEffect, useRef } from 'react';
 import { TargetAudience, CostBreakdown, TokenUsage, ScrapedImage, ImageAssetPlan } from '../types';
 import {
-  generateImagePromptFromContext,
-  generateImage,
-  planImagesForArticle,
-} from '../services/generation/imageService';
+  generateImagePromptFromContextAction,
+  generateImageAction,
+  planImagesAction,
+} from '@/app/actions/generation';
 import { useAppStore } from '../store/useAppStore';
 import { useGenerationStore } from '../store/useGenerationStore';
 import { compressImage } from '../utils/imageUtils';
@@ -153,7 +153,7 @@ export const useImageEditor = ({
     }
 
     try {
-      const res = await generateImagePromptFromContext(
+      const res = await generateImagePromptFromContextAction(
         contextText,
         targetAudience,
         visualStyle || '',
@@ -187,7 +187,7 @@ export const useImageEditor = ({
       setIsImageLoading(false); // Modal loading is done, but image generation is background
 
       try {
-        const res = await generateImage(prompt);
+        const res = await generateImageAction(prompt);
         if (res.data) {
           const imgHtml = `<img src="${res.data}" alt="${prompt}" style="max-width: 100%; height: auto; border-radius: 8px; margin: 20px 0;" /><br/>`;
 
@@ -352,7 +352,7 @@ export const useImageEditor = ({
           finalPrompt += `, style: ${localDesignStyle}`;
         }
 
-        const imgRes = await generateImage(finalPrompt);
+        const imgRes = await generateImageAction(finalPrompt);
         if (imgRes.data) {
           // COMPRESSION & CACHING
           const compressed = await compressImage(imgRes.data);
@@ -390,7 +390,7 @@ export const useImageEditor = ({
     setStatus('planning_visuals');
     try {
       const content = getContent();
-      const res = await planImagesForArticle(
+      const res = await planImagesAction(
         content,
         scrapedImages,
         targetAudience,

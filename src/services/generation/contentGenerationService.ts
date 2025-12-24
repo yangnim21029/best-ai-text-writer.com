@@ -1,3 +1,4 @@
+import 'server-only';
 import {
   ArticleConfig,
   FrequentWordsPlacementAnalysis,
@@ -295,18 +296,10 @@ export const smartInjectPoint = async (
   const languageInstruction = getLanguageInstruction(targetAudience);
 
   // 1. PARSE & INDEX (Paragraph Compact Indexing)
-  let doc: Document;
-
-  if (typeof window === 'undefined') {
-    // Server-side: Dynamically import JSDOM to avoid client-side bundling errors
-    const { JSDOM } = await import('jsdom');
-    const dom = new JSDOM(fullHtmlContent);
-    doc = dom.window.document;
-  } else {
-    // Client-side: Use native DOMParser
-    const parser = new DOMParser();
-    doc = parser.parseFromString(fullHtmlContent, 'text/html');
-  }
+  // Server-side: Dynamically import JSDOM to avoid client-side bundling errors
+  const { JSDOM } = await import('jsdom');
+  const dom = new JSDOM(fullHtmlContent);
+  const doc = dom.window.document;
 
   const blocks: { id: number; text: string; html: string }[] = [];
   const nodes = doc.querySelectorAll('p, li');

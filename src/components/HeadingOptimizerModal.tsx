@@ -11,7 +11,7 @@ import {
 } from 'lucide-react';
 import { useGenerationStore } from '../store/useGenerationStore';
 import { useAnalysisStore } from '../store/useAnalysisStore';
-import { refineHeadings } from '../services/generation/headingRefinerService';
+import { refineHeadingsAction } from '@/app/actions/generation';
 import { cleanHeadingText } from '../utils/parsingUtils';
 import { HeadingResult } from '../types';
 
@@ -62,7 +62,7 @@ export const HeadingOptimizerModal: React.FC<HeadingOptimizerModalProps> = ({
     }
 
     try {
-      const res = await refineHeadings(articleTitle || 'Article', currentHeadings, targetAudience);
+      const res = await refineHeadingsAction(articleTitle || 'Article', currentHeadings, targetAudience);
 
       if (res.data) {
         // Map the result to our store format

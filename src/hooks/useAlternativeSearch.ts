@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
-import { findRegionEquivalents } from '@/services/research/regionalService';
+import { findRegionEquivalentsAction } from '@/app/actions/analysis';
 
 export const useAlternativeSearch = () => {
   const [isSearchingAlternatives, setIsSearchingAlternatives] = useState(false);
@@ -29,12 +29,16 @@ export const useAlternativeSearch = () => {
 
     setIsSearchingAlternatives(true);
     try {
-      const result = await findRegionEquivalents(entities, analysisStore.targetAudience);
-      app.addCost(result.cost.totalCost, result.usage.totalTokens);
+      const res = await findRegionEquivalentsAction(entities, analysisStore.targetAudience);
+      
+      const result = res.mappings;
+      if (!result) return;
 
-      if (result.mappings.length > 0) {
+      app.addCost(res.cost.totalCost, res.usage.totalTokens);
+
+      if (result.length > 0) {
         const existingReplacements = refAnalysis.regionalReplacements || [];
-        const newReplacements = result.mappings.map((m) => ({
+        const newReplacements = result.map((m) => ({
           original: m.original,
           replacement: m.regionEquivalent,
           reason: m.context,

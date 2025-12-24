@@ -1,3 +1,4 @@
+import 'server-only';
 import { KeywordData } from '../../types';
 
 interface NlpResponse {
@@ -10,17 +11,14 @@ interface NlpResponse {
     }[];
   };
 }
-
 export const analyzeText = async (text: string): Promise<KeywordData[]> => {
   if (!text || text.trim().length === 0) return [];
 
   // External NLP API Endpoint
   const TARGET_URL = 'https://nlp.award-seo.com/api/v1/tokenize';
-  // CORS Proxy to bypass browser restrictions
-  const PROXY_URL = 'https://corsproxy.io/?';
 
   try {
-    const response = await fetch(PROXY_URL + encodeURIComponent(TARGET_URL), {
+    const response = await fetch(TARGET_URL, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -28,7 +26,7 @@ export const analyzeText = async (text: string): Promise<KeywordData[]> => {
       body: JSON.stringify({
         text: text,
         min_length: 2,
-        stop_words: [], // Empty array as per requirement, can be populated if needed
+        stop_words: [], 
       }),
     });
 

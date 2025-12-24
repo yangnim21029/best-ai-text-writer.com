@@ -39,7 +39,7 @@ import {
   ProductBrief,
   TargetAudience,
 } from '@/types';
-import { mergeMultipleAnalyses } from '@/services/research/referenceAnalysisService';
+import { mergeAnalysesAction } from '@/app/actions/analysis';
 import { SectionItem } from './seo/SectionItem';
 import { KeywordItem } from './seo/KeywordItem';
 import { LoadingButton } from './LoadingButton';
@@ -145,7 +145,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
       const validAnalyses = selectedDocs.map((d) => d.refAnalysis).filter((r): r is ReferenceAnalysis => !!r);
       if (validAnalyses.length < 2) return;
 
-      const mergedRefBase = await mergeMultipleAnalyses(validAnalyses, primaryAudience, synthesisInstruction);
+      const mergedRefBase = await mergeAnalysesAction(validAnalyses, primaryAudience, synthesisInstruction);
       const mergedRef: ReferenceAnalysis = { ...mergedRefBase, isSynthesis: true, sourceCount: selectedDocs.length };
 
       const keywordMap = new Map<string, FrequentWordsPlacementAnalysis>();

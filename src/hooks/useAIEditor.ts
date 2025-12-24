@@ -1,7 +1,8 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { marked } from 'marked';
 import { TargetAudience, CostBreakdown, TokenUsage } from '../types';
-import { generateSnippet, smartInjectPoint } from '../services/generation/contentGenerationService';
+import { generateSnippetAction, smartInjectPointAction } from '@/app/actions/generation';
+import { useAppStore } from '../store/useAppStore';
 
 interface UseAIEditorParams {
   editorRef: React.RefObject<HTMLDivElement>;
@@ -50,7 +51,7 @@ export const useAIEditor = ({
           promptToSend = `TARGET TEXT TO MODIFY: """${selectedContext}"""\n\nINSTRUCTION: ${aiPrompt}\n\nTASK: Rewrite or replace the target text based on the instruction. Return ONLY the result in Markdown/HTML.`;
         }
 
-        const res = await generateSnippet(promptToSend, targetAudience as TargetAudience);
+        const res = await generateSnippetAction(promptToSend, targetAudience as TargetAudience);
         const htmlSnippet = marked.parse(res.data, { async: false }) as string;
         restoreSelection();
         document.execCommand('insertHTML', false, htmlSnippet);
@@ -87,7 +88,7 @@ export const useAIEditor = ({
       try {
         const fullHtml = editorRef.current.innerHTML;
 
-        const res = await smartInjectPoint(fullHtml, point, targetAudience as TargetAudience);
+        const res = await smartInjectPointAction(fullHtml, point, targetAudience as TargetAudience);
 
         if (res.data && res.data.originalSnippet && res.data.newSnippet) {
           const { originalSnippet, newSnippet } = res.data;

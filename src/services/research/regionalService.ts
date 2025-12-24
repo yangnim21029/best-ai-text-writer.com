@@ -3,7 +3,8 @@
  * Consolidated logic for detecting, validating, and adapting content for regional markets.
  */
 
-import { TokenUsage, CostBreakdown, TargetAudience, SectionAnalysis, ServiceResponse, RegionIssue, RegionGroundingResult } from '../../types';
+import 'server-only';
+import { ServiceResponse, RegionalReplacement, TargetAudience, TokenUsage, CostBreakdown, RegionIssue, RegionGroundingResult, SectionAnalysis } from '../../types';
 import { REGION_CONFIG } from '../../config/regionConfig';
 import { aiService } from '../engine/aiService';
 import { Type } from '../engine/schemaTypes';

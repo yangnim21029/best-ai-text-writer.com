@@ -102,7 +102,7 @@ export const useArticleForm = ({
     onAddCost,
     setInputType,
     onCreatePage: createPage,
-    targetAudience: watch('targetAudience'),
+    targetAudience: watchedValues.targetAudience,
     scrapedImages,
     setScrapedImages,
   });

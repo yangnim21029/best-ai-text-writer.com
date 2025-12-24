@@ -38,8 +38,8 @@ import { useAppStore } from '@/store/useAppStore';
 import { LoadingButton } from './LoadingButton';
 import { WebsiteLibraryModal } from './modals/WebsiteLibraryModal';
 import { ServiceLibraryModal } from './modals/ServiceLibraryModal';
-import { fetchUrlContent } from '@/services/research/webScraper';
-import { extractWebsiteTypeAndTerm } from '@/services/research/referenceAnalysisService';
+import { scrapeUrlAction } from '@/app/actions/scrape';
+import { extractWebsiteTypeAction, summarizeBrandAction } from '@/app/actions/analysis';
 import { PageLibraryModal } from './modals/PageLibraryModal';
 
 interface InputFormProps {
@@ -139,8 +139,8 @@ export const InputForm: React.FC<InputFormProps> = ({
   });
 
   const handleAnalyzeSite = async (url: string) => {
-    const { content } = await fetchUrlContent(url, { includeNav: true });
-    const res = await extractWebsiteTypeAndTerm(content);
+    const { content } = await scrapeUrlAction(url, { includeNav: true });
+    const res = await extractWebsiteTypeAction(content);
     if (onAddCost) onAddCost(res.cost, res.usage);
     return { websiteType: res.data.websiteType, authorityTerms: res.data.authorityTerms };
   };
@@ -228,7 +228,7 @@ export const InputForm: React.FC<InputFormProps> = ({
         .split('\n')
         .map((u) => u.trim())
         .filter((u) => u.length > 0);
-      const res = await summarizeBrandContent(urls, watchedValues.targetAudience as TargetAudience);
+      const res = await summarizeBrandAction(urls, watchedValues.targetAudience as TargetAudience);
 
       setValue('productRawText', res.data);
       setProductMode('text');
@@ -259,11 +259,12 @@ export const InputForm: React.FC<InputFormProps> = ({
   const isReadyToGenerate = useMemo(() => {
     const hasTitle = (watchedValues.title || '').trim().length > 0;
     const hasRef = (watchedValues.referenceContent || '').trim().length > 0;
-    // If we have an active page config, it should imply we have the content ready 
-    // (even if watchedValues hasn't synced yet or we trust the activePageId state).
     const hasActivePage = !!activePageId;
 
-    return (hasTitle || hasActivePage) && (hasRef || hasActivePage) && !isFetchingUrl && !isSummarizingProduct;
+    // Enable button if title is present and there's either content or an active profile selected.
+    // Let the form validation (handleSubmit) handle the "min 50 characters" error message 
+    // for better UX instead of a disabled button.
+    return (hasTitle && (hasRef || hasActivePage)) && !isFetchingUrl && !isSummarizingProduct;
   }, [watchedValues.title, watchedValues.referenceContent, activePageId, isFetchingUrl, isSummarizingProduct]);
 
   const handlePreviewSemanticFilter = () => {

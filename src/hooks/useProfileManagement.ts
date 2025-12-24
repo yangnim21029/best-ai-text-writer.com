@@ -1,7 +1,7 @@
 import { useAppStore } from '@/store/useAppStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { SavedProfile, ScrapedImage } from '@/types';
-import { parseProductContext } from '@/services/research/productFeatureToPainPointMapper';
+import { parseProductContextAction } from '@/app/actions/analysis';
 
 export const useProfileManagement = () => {
   const app = useAppStore();
@@ -13,7 +13,7 @@ export const useProfileManagement = () => {
     analysisStore.setBrandKnowledge(profile.brandKnowledge || '');
 
     if (profile.productRawText) {
-      const res = await parseProductContext(profile.productRawText);
+      const res = await parseProductContextAction(profile.productRawText);
       analysisStore.setActiveProductBrief(res.data);
     }
   };

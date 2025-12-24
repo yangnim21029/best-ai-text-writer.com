@@ -1,6 +1,7 @@
+import 'server-only';
 import { AIResponse } from '../../types';
 import { AI_DEFAULTS } from '../../config/constants';
-import { serverEnv, clientEnv, getAiBaseUrl, getProxySecret } from '../../config/env';
+import { serverEnv, getAiBaseUrl, getProxySecret } from '../../config/env';
 
 interface GenAIRequest {
   model: string;
@@ -23,12 +24,10 @@ const DEFAULT_RETRY: Required<RetryOptions> = {
 
 const DEFAULT_TIMEOUT = AI_DEFAULTS.TIMEOUT_MS;
 
-const isBrowser = typeof window !== 'undefined';
-
 // In Next.js, we'll use the local API route (/api/ai) as a proxy
 // This avoids CORS issues and keeps the AI token secure on the server.
-const AI_BASE_URL = isBrowser ? '' : getAiBaseUrl();
-const AI_PATH = isBrowser ? '/api/ai' : process.env.AI_PATH || '/ai';
+const AI_BASE_URL = getAiBaseUrl();
+const AI_PATH = process.env.AI_PATH || '/ai';
 
 export const buildAiUrl = (path: string) => {
   const prefix = AI_PATH ? (AI_PATH.startsWith('/') ? AI_PATH : `/${AI_PATH}`) : '';
@@ -36,20 +35,20 @@ export const buildAiUrl = (path: string) => {
 };
 
 export const getAiHeaders = () => {
-  const token = serverEnv.AI_TOKEN; // Only available on server
-  const proxySecret = getProxySecret(); // Only available on server
+  const token = serverEnv.AI_TOKEN; 
+  const proxySecret = getProxySecret(); 
   
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   
   // On the server, we might authenticate directly against the upstream AI service
-  if (!isBrowser && token) {
+  if (token) {
     headers['Authorization'] = `Bearer ${token}`;
   }
   
   // On the server (e.g. scripts), we might identify ourselves with the proxy secret
-  if (!isBrowser && proxySecret) {
+  if (proxySecret) {
     headers['x-ai-proxy-secret'] = proxySecret;
   }
   
@@ -353,9 +352,7 @@ export class GenAIClient {
 
       try {
         // DEBUG: Log request summary (Server only)
-        if (!isBrowser) {
-          console.log(`[GenAIClient] Sending request: ${taskLabel} (${model})`);
-        }
+        console.log(`[GenAIClient] Sending request: ${taskLabel} (${model})`);
 
         const headers = getAiHeaders();
 
@@ -365,8 +362,6 @@ export class GenAIClient {
             headers,
             body: JSON.stringify(payload),
             signal: combinedSignal,
-            // Ensure cookies (app_access_granted) are sent in the browser
-            credentials: isBrowser ? 'include' : undefined,
           });
 
         const response = await doRequest('/generate');

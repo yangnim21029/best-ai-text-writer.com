@@ -1,3 +1,4 @@
+import 'server-only';
 import { genAIClient, buildAiUrl } from './genAIClient';
 import { MODEL } from '../../config/constants';
 import { calculateCost } from './promptService';

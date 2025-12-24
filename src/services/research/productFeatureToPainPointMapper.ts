@@ -1,3 +1,4 @@
+import 'server-only';
 import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } from '../../types';
 import { calculateCost, getLanguageInstruction } from '../engine/promptService';
 import { aiService } from '../engine/aiService';

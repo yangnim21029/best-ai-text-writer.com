@@ -1,8 +1,8 @@
-import { refineHeadings } from '../../services/generation/headingRefinerService';
 import { useGenerationStore } from '@/store/useGenerationStore';
 import { useAnalysisStore } from '@/store/useAnalysisStore';
 import { useAppStore } from '@/store/useAppStore';
 import { cleanHeadingText } from '../../utils/parsingUtils';
+import { refineHeadingsAction } from '@/app/actions/generation';
 
 const isStopped = () => useGenerationStore.getState().isStopped;
 
@@ -27,7 +27,7 @@ export const refineAllHeadings = async (
 
   console.log('[Heading Refinement] Processing', headingsInput.length, 'headings');
   try {
-    const refineRes = await refineHeadings(
+    const refineRes = await refineHeadingsAction(
       fullConfig.title || 'Article',
       headingsInput,
       fullConfig.targetAudience

@@ -17,7 +17,7 @@ import {
 import { dedupeScrapedImages } from '../../utils/imageUtils';
 import { LoadingButton } from '../LoadingButton';
 import { UrlInputModal } from '../modals/UrlInputModal';
-import { aiService } from '../../services/engine/aiService';
+import { convertToMarkdownAction } from '@/app/actions/analysis';
 
 interface SourceMaterialSectionProps {
   register: UseFormRegister<ArticleFormValues>;
@@ -85,7 +85,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
     if (!content || !content.trim()) return;
     setIsConverting(true);
     try {
-      const markdown = await aiService.convertToMarkdown(content);
+      const markdown = await convertToMarkdownAction(content);
       setValue('referenceContent', markdown, { shouldDirty: true, shouldValidate: true });
     } catch (e) {
       console.error(e);

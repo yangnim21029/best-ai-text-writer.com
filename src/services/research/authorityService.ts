@@ -1,3 +1,4 @@
+import 'server-only';
 import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../../types';
 import { aiService } from '../engine/aiService';
 import { promptTemplates } from '../engine/promptTemplates';

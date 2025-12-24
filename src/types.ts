@@ -80,6 +80,12 @@ export interface RegionIssue {
   sourceRegion: string;
 }
 
+export interface RegionalReplacement {
+  original: string;
+  replacement: string;
+  reason?: string;
+}
+
 export interface RegionGroundingResult {
   isRegionRelevant: boolean;
   relevanceScore: number;

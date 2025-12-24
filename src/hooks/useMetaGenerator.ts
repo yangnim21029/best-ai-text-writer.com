@@ -1,9 +1,8 @@
 import { useCallback, useState } from 'react';
-import { generateSnippet } from '../services/generation/contentGenerationService';
+import { generateSnippetAction } from '@/app/actions/generation';
 import { TargetAudience, CostBreakdown, TokenUsage, ProductBrief } from '../types';
 import { promptTemplates } from '../services/engine/promptTemplates';
 import { Type } from '../services/engine/schemaTypes';
-import { aiService } from '../services/engine/aiService';
 
 interface MetaContext {
   keyPoints: string[];
@@ -63,7 +62,7 @@ export const useMetaGenerator = ({
         articlePreview: articleText,
       });
 
-      const res = await generateSnippet(metaPrompt, targetAudience, {
+      const res = await generateSnippetAction(metaPrompt, targetAudience, {
         responseMimeType: 'application/json',
         responseSchema: {
           type: Type.OBJECT,

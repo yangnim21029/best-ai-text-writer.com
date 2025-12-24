@@ -19,7 +19,7 @@ import { useMetaGenerator } from '../hooks/useMetaGenerator';
 import { useOptionalEditorContext } from './editor/EditorContext';
 import { useAskAi } from '../hooks/useAskAi';
 import { useEditorAutosave } from '../hooks/useEditorAutosave';
-import { smartInjectPoint } from '../services/generation/contentGenerationService';
+import { smartInjectPointAction } from '@/app/actions/generation';
 import { useAnalysisStore } from '../store/useAnalysisStore';
 import { FormattingCleanupModal } from './editor/FormattingCleanupModal';
 
@@ -231,7 +231,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       setIsAiRunning(true);
       try {
         const fullHtml = tiptapApi.getHtml();
-        const res = await smartInjectPoint(
+        const res = await smartInjectPointAction(
           fullHtml,
           point,
           effectiveTargetAudience as TargetAudience

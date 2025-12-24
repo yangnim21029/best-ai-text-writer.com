@@ -1,3 +1,4 @@
+import 'server-only';
 import { ScrapedImage } from '../../types';
 import { fetchWithRetry } from '../../utils/fetchUtils';
 import { SCRAPING_JUNK_PHRASES, SCRAPING_NOISE_WORDS, BRAND_UI_JUNK } from '../../config/scrapingRules';

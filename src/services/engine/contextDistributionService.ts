@@ -1,3 +1,4 @@
+import 'server-only';
 import { ServiceResponse, TargetAudience } from '../../types';
 import { getLanguageInstruction } from './promptService';
 import { aiService } from './aiService';
