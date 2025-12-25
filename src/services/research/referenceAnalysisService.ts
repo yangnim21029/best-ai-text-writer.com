@@ -8,26 +8,17 @@ import { analyzeText } from '@/services/adapters/nlpService';
 import { embedTexts, cosineSimilarity } from '@/services/adapters/embeddingService';
 import { extractSemanticKeywordsAnalysis } from '@/services/research/termUsagePlanner';
 import { fetchUrlContent } from './webScraper';
+import { logger } from '../../utils/logger';
 
 // Helper to determine if input contains URLs and fetch them
 const resolveContent = async (input: string) => {
-  if (!input) return '';
-
-  // Split by newlines to handle multiple inputs
-  const lines = input.split('\n').map(l => l.trim()).filter(Boolean);
-
-  // If single line and not URL, return original
-  if (lines.length === 1 && !lines[0].match(/^https?:\/\//i)) {
-    return input;
-  }
-
-  // Identifiy which lines are URLs
-  const urls = lines.filter(l => l.match(/^https?:\/\//i));
-  const rawText = lines.filter(l => !l.match(/^https?:\/\//i));
+  const urlRegex = /(https?:\/\/[^\s]+)/g;
+  const urls = input.match(urlRegex) || [];
+  const rawText = input.split(urlRegex).filter(part => !part.match(urlRegex) && part.trim().length > 0);
 
   if (urls.length === 0) return input;
 
-  console.log(`[RefAnalysis] Resolving ${urls.length} URLs and ${rawText.length} text blocks...`);
+  logger.log('init', `RefAnalysis: Resolving ${urls.length} URLs and ${rawText.length} text blocks...`);
 
   // Limit to 5 URLs to prevent abuse
   const urlsToFetch = urls.slice(0, 5);
@@ -38,7 +29,7 @@ const resolveContent = async (input: string) => {
         const scraped = await fetchUrlContent(url);
         return `# SOURCE: ${scraped.title}\n${scraped.content}`;
       } catch (e) {
-        console.error('[RefAnalysis] Failed to fetch URL:', url, e);
+        logger.error('init', `RefAnalysis: Failed to fetch URL: ${url}`, { error: e });
         return `[Failed to fetch: ${url}]`;
       }
     })
@@ -101,7 +92,7 @@ export const analyzeReferenceStructure = async (
     });
 
     // --- STAGE 1: Skeleton Extraction ---
-    console.log('[RefAnalysis] Stage 1: Skeleton Extraction...');
+    logger.log('extracting_structure', 'RefAnalysis: Stage 1: Skeleton Extraction...');
     const outlinePrompt = promptTemplates.extractOutline({
       content: referenceContent,
       targetAudience,
@@ -125,7 +116,7 @@ export const analyzeReferenceStructure = async (
     });
 
     const outlineData = outlineRes.data;
-    console.log('[RefAnalysis] Outline Data:', JSON.stringify(outlineData, null, 2));
+    logger.log('extracting_structure', 'RefAnalysis: Outline Extraction complete', { h1: outlineData.h1Title });
 
     // Filter excluded sections for deep analysis
     const sectionsToAnalyze = (outlineData.structure || []).filter((item: any) => {
@@ -156,9 +147,7 @@ export const analyzeReferenceStructure = async (
     }
 
     // --- STAGE 2: Deep Narrative Logic Analysis (Parallel Batches) ---
-    console.log(
-      `[RefAnalysis] Stage 2: Deep Logic Analysis for ${sectionsToAnalyze.length} sections...`
-    );
+    logger.log('nlp_analysis', `RefAnalysis: Stage 2: Deep Logic Analysis for ${sectionsToAnalyze.length} sections...`);
 
     const chunkArray = <T>(array: T[], size: number): T[][] => {
       const chunked: T[][] = [];
@@ -210,7 +199,7 @@ export const analyzeReferenceStructure = async (
             promptId: `narrative_logic_analysis_chunk_${idx} `,
           });
         } catch (err) {
-          console.error(`[RefAnalysis] Logic analysis chunk ${idx} failed`, err);
+          logger.error('nlp_analysis', `RefAnalysis: Logic analysis chunk ${idx} failed`, { error: err });
           return null; // Handle partial failure
         }
       });
@@ -327,7 +316,7 @@ export const analyzeReferenceStructure = async (
       duration: Date.now() - startTs,
     };
   } catch (e: any) {
-    console.error('Structure analysis failed', e);
+    logger.error('extracting_structure', 'RefAnalysis: Structure analysis failed', { error: e });
     const errorUsage = toTokenUsage(0); // Simplified error handling
     const errorCost = { inputCost: 0, outputCost: 0, totalCost: 0 };
     return {
@@ -403,7 +392,7 @@ export const extractVoiceProfileOnly = async (
       duration: Date.now() - startTs,
     };
   } catch (error) {
-    console.error('Voice extraction failed', error);
+    logger.error('nlp_analysis', 'RefAnalysis: Voice extraction failed', { error });
     throw error;
   }
 };
@@ -464,7 +453,7 @@ export const extractVoiceProfileFull = async (
       duration: Date.now() - startTs,
     };
   } catch (error) {
-    console.error('Full voice extraction failed', error);
+    logger.error('nlp_analysis', 'RefAnalysis: Full voice extraction failed', { error });
     throw error;
   }
 };
@@ -765,7 +754,7 @@ export const mergeMultipleAnalyses = async (
   }));
 
   // 2. AI Synthesis for Structure & Voice
-  console.log(`[RefAnalysis] Merging ${analyses.length} analyses...`);
+  logger.log('nlp_analysis', `RefAnalysis: Merging ${analyses.length} analyses...`);
   const mergePrompt = promptTemplates.mergeAnalyses({
     analysesJson: JSON.stringify(simplifiedInputs, null, 2),
     targetAudience,
@@ -819,7 +808,7 @@ export const mergeMultipleAnalyses = async (
       })),
     };
   } catch (e) {
-    console.error('Merge failed', e);
+    logger.error('nlp_analysis', 'RefAnalysis: Merge failed', { error: e });
     // Fallback: Return the first analysis
     return analyses[0];
   }
@@ -855,9 +844,106 @@ export const extractVectorContext = async (sourceText: string, query: string): P
     })).sort((a, b) => b.score - a.score);
     return scored.slice(0, 3).map(s => s.chunk).join('\n---\n');
   } catch (e) {
-    console.error('[MixMatch] Vector RAG failed', e);
+    logger.error('nlp_analysis', 'RefAnalysis: MixMatch: Vector RAG failed', { error: e });
     return '';
   }
+};
+
+// Strategy Constants
+const RAG_CHUNK_SIZE = 500;
+const RAG_CHUNK_OVERLAP = 100;
+const MAX_CHUNKS_PER_SECTION = 4;
+
+/**
+ * CORE LOGIC: Global Exclusive Allocation
+ * Assigns chunks to sections such that overlaps are minimized (or zero),
+ * enforcing that each section gets "fresh" insights.
+ */
+export const distributeChunksExclusively = async (
+  sourceText: string,
+  sections: { title: string; coreFocus?: string }[]
+): Promise<Map<string, string>> => {
+  if (!sourceText || sections.length === 0) return new Map();
+
+  logger.log('nlp_analysis', `RefAnalysis: DistributeChunks: Allocating chunks for ${sections.length} sections...`);
+
+  // 1. Chunking (Overlap to avoid cutting sentences too harshly)
+  const step = RAG_CHUNK_SIZE - RAG_CHUNK_OVERLAP;
+  const chunks: string[] = [];
+
+  for (let i = 0; i < sourceText.length; i += step) {
+    chunks.push(sourceText.substring(i, i + RAG_CHUNK_SIZE));
+  }
+
+  if (chunks.length === 0) return new Map();
+
+  // 2. Embed Everything (Sections + Chunks)
+  const sectionQueries = sections.map(s => `${s.title} ${s.coreFocus || ''}`);
+  const allTexts = [...sectionQueries, ...chunks];
+
+  let embeddings: number[][] = [];
+  try {
+    embeddings = await embedTexts(allTexts);
+  } catch (e) {
+    logger.error('nlp_analysis', 'RefAnalysis: DistributeChunks: Embedding failed', { error: e });
+    return new Map();
+  }
+
+  const sectionVecs = embeddings.slice(0, sections.length);
+  const chunkVecs = embeddings.slice(sections.length);
+
+  // 3. Score Everything Matrix [SectionIndex][ChunkIndex] = Score
+  // We flatten this to a list of potential assignments: { sectionIdx, chunkIdx, score }
+  const allMatches: { sectionIdx: number; chunkIdx: number; score: number }[] = [];
+
+  for (let sIdx = 0; sIdx < sections.length; sIdx++) {
+    for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
+      const score = cosineSimilarity(sectionVecs[sIdx], chunkVecs[cIdx]);
+      // Only consider meaningful matches
+      if (score > 0.35) {
+        allMatches.push({ sectionIdx: sIdx, chunkIdx: cIdx, score });
+      }
+    }
+  }
+
+  // 4. Sort by Strength
+  allMatches.sort((a, b) => b.score - a.score);
+
+  // 5. Exclusive Allocation Loop
+  const assignments = new Map<string, string[]>(); // SectionTitle -> AssignedChunks[]
+  const usedChunks = new Set<number>();
+  const chunksPerSectionCount = new Map<number, number>(); // SectionIdx -> Count
+
+  // Initialize Maps
+  sections.forEach((_, idx) => chunksPerSectionCount.set(idx, 0));
+  sections.forEach(s => assignments.set(s.title, []));
+
+  for (const match of allMatches) {
+    const { sectionIdx, chunkIdx, score } = match;
+
+    // Check constraints
+    if (usedChunks.has(chunkIdx)) continue; // Already taken
+    if ((chunksPerSectionCount.get(sectionIdx) || 0) >= MAX_CHUNKS_PER_SECTION) continue; // Section full
+
+    // Assign
+    const sectionTitle = sections[sectionIdx].title;
+    const currentList = assignments.get(sectionTitle) || [];
+    currentList.push(chunks[chunkIdx]); // Store the text
+    assignments.set(sectionTitle, currentList);
+
+    // Update State
+    usedChunks.add(chunkIdx);
+    chunksPerSectionCount.set(sectionIdx, (chunksPerSectionCount.get(sectionIdx) || 0) + 1);
+  }
+
+  // 6. Format Output
+  const result = new Map<string, string>();
+  assignments.forEach((chunkList, title) => {
+    result.set(title, chunkList.join('\n\n---\n\n'));
+  });
+
+  logger.log('nlp_analysis', `RefAnalysis: DistributeChunks: Allocation Complete. Used ${usedChunks.size}/${chunks.length} chunks.`);
+  return result;
 };
 
 // 2. Agentic RAG (LLM Distribution)
@@ -899,7 +985,7 @@ export const runMixAndMatchReplication = async (
   ]);
 
   // 2. Parallel Analyzers
-  console.log('[MixAndMatch] Starting parallel analysis of A, B, C...');
+  logger.log('nlp_analysis', 'RefAnalysis: MixAndMatch: Starting parallel analysis of A, B, C...');
   // We now run Deep Analysis on A (Voice) as well to get "Semantic" insights
   const [voiceMicroRes, voiceSemanticRes, structureRes, contentRes] = await Promise.all([
     // A1: Voice Micro-Style (Full Text Analysis)
@@ -1003,9 +1089,9 @@ export const runMixAndMatchReplication = async (
 
       mergedVoiceProfile.keywordPlans = filtered.length > 0 ? filtered : scoredKeywords.slice(0, 5);
 
-      console.log(`[MixAndMatch] Filtered Keywords: ${scoredKeywords.length} -> ${mergedVoiceProfile.keywordPlans.length} `);
+      logger.log('nlp_analysis', `RefAnalysis: MixAndMatch: Filtered Keywords: ${scoredKeywords.length} -> ${mergedVoiceProfile.keywordPlans.length}`);
     } catch (err) {
-      console.warn('Keyword embedding filtering failed, using original list', err);
+      logger.warn('nlp_analysis', 'RefAnalysis: MixAndMatch: Keyword embedding filtering failed, using original list', { error: err });
     }
   }
 
@@ -1136,7 +1222,7 @@ export const runMixAndMatchReplication = async (
   };
 
   // 6. Run Batch Generation
-  console.log('[MixAndMatch] Starting Batch Ablation Generation...');
+  logger.log('writing_content', 'RefAnalysis: MixAndMatch: Starting Batch Ablation Generation...');
 
   // Pre-calculate RAG Contexts for ORIGINAL Mode
   const [agenticContext, vectorContext] = await Promise.all([
@@ -1190,38 +1276,27 @@ export const runMixAndMatchReplication = async (
     voiceProfile: mergedVoiceProfile,
     structure: structureData,
     targetSection,
-    simulatedSource: { facts: allContentFacts },
     contentSourceData: contentData,
-
-    // Legacy single output (keeping strictly for backward compat if needed, using Full)
     generatedContent: fullRes.data,
     originalVoiceContent: originalRes.data,
-
-    // New Ablation Variations
     variations: [
-      { id: 'full', label: 'Full Profile', data: fullRes.data },
-      { id: 'no_human', label: 'No Tone & Human', data: noVibeRes.data }, // Renamed ID, label
-      { id: 'no_strategy', label: 'No Plan & Entry', data: noStrategyRes.data },
-      { id: 'no_logic', label: 'No Logic Arc', data: noLogicRes.data },
-      { id: 'no_mechanics', label: 'No Sentence Flow', data: noMechanicsRes.data },
-
-      // New Structure Ablations
-      { id: 'no_difficulty', label: 'No Difficulty', data: noDifficultyRes.data },
-      { id: 'no_mode', label: 'No Writing Mode', data: noModeRes.data },
-      { id: 'no_narrative', label: 'No Action Plan', data: noNarrativeRes.data },
-
-      { id: 'original', label: 'Original Source B', data: originalRes.data },
-
-      // RAG Ablations
+      { id: 'full', label: 'FULL (A+B+C)', data: fullRes.data },
+      { id: 'no_logic', label: '-Logic', data: noLogicRes.data },
+      { id: 'no_vibe', label: '-Vibe', data: noVibeRes.data },
+      { id: 'no_strategy', label: '-Strategy', data: noStrategyRes.data },
+      { id: 'no_mechanics', label: '-Mechanics', data: noMechanicsRes.data },
+      { id: 'original', label: 'Original (B Only)', data: originalRes.data },
+      { id: 'no_difficulty', label: '-Difficulty (B)', data: noDifficultyRes.data },
+      { id: 'no_mode', label: '-Mode (B)', data: noModeRes.data },
+      { id: 'no_narrative', label: '-Narrative (B)', data: noNarrativeRes.data },
       { id: 'rag_full', label: 'RAG: Full Text', data: ragFullRes.data },
-      { id: 'rag_agentic', label: 'RAG: Agentic (Smart)', data: ragAgenticRes.data },
-      { id: 'rag_vector', label: 'RAG: Vector (Chunk)', data: ragVectorRes.data },
+      { id: 'rag_agentic', label: 'RAG: Agentic', data: ragAgenticRes.data },
+      { id: 'rag_vector', label: 'RAG: Vector', data: ragVectorRes.data },
     ],
-
     duration: Date.now() - startTs,
   };
 
-  console.log('[MixAndMatch] Batch Finished. Variations generated:', finalResult.variations.length);
+  logger.log('nlp_analysis', `RefAnalysis: MixAndMatch: Batch Finished. Variations generated: ${finalResult.variations.length}`);
 
   return finalResult;
 };

@@ -15,20 +15,35 @@ const ensureDataUrl = (value: string, mimeType = 'image/png'): string | null => 
  * Generates an image using Vercel AI SDK
  */
 import { MODEL } from '../../config/constants';
-// ...
+import { generateText } from 'ai';
+
 export const generateImage = async (
   prompt: string
 ): Promise<ServiceResponse<string | null>> => {
   const startTs = Date.now();
 
   try {
-    const { image } = await generateImageSDK({
-      model: getVertex().imageModel(MODEL.IMAGE_PREVIEW),
+    // Gemini 2.5 Flash Image is a multimodal language model, not a strict image generation model in the SDK sense
+    // We must use generateText and extract the image from the response files
+    const result = await generateText({
+      model: getVertex()(MODEL.IMAGE_GEN),
       prompt: prompt,
-      aspectRatio: '16:9',
     });
 
-    const imageData = image.base64 ? `data:image/png;base64,${image.base64}` : null;
+    let imageData: string | null = null;
+
+    // Check if the model returned any files (images)
+    const rawResult = result as any;
+    if (rawResult.files && Array.isArray(rawResult.files)) {
+      const imageFile = rawResult.files.find((f: any) => f.contentType?.startsWith('image/') || f.mediaType?.startsWith('image/'));
+
+      if (imageFile) {
+        if (imageFile.base64) {
+          imageData = `data:${imageFile.mediaType || 'image/png'};base64,${imageFile.base64}`;
+        }
+      }
+    }
+
     const metrics = calculateCost({}, 'IMAGE_GEN');
 
     return {
@@ -53,7 +68,7 @@ export const generateSectionImage = async (
   targetAudience: TargetAudience
 ): Promise<ServiceResponse<string | null>> => {
   const startTs = Date.now();
-  
+
   // 1. 判斷此段落是否需要圖片
   const decisionPrompt = `You are a visual editor. Analyze the section and decide if it needs an illustration. 
   Section: ${sectionTitle}

@@ -6,6 +6,7 @@ import {
   FileText,
   Link2,
   ChevronDown,
+  ChevronUp,
   LayoutTemplate,
   Database,
   RotateCw,
@@ -22,6 +23,7 @@ import { convertToMarkdownAction } from '@/app/actions/analysis';
 interface SourceMaterialSectionProps {
   register: UseFormRegister<ArticleFormValues>;
   setValue: UseFormSetValue<ArticleFormValues>;
+  watchedValues: ArticleFormValues; // Added
   content?: string;
   errors: any;
   // inputType prop is effectively deprecated but kept for compatibility if needed implicitly, 
@@ -42,11 +44,13 @@ interface SourceMaterialSectionProps {
   activePageId?: string;
   onCreatePage: (name: string) => void;
   activePageTitle?: string;
+  // Director props moved to DirectorToolsSection
 }
 
 export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
   register,
   setValue,
+  watchedValues, // Added
   content,
   errors,
   urlValue,
@@ -59,6 +63,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
   websiteType,
   activePageId,
   onCreatePage,
+
   activePageTitle,
 }) => {
   const [isSourceInputOpen, setIsSourceInputOpen] = useState(true);
@@ -241,6 +246,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
                   <p className="text-[10px] text-red-500 mt-1 ml-1">{errors.referenceContent.message}</p>
                 )}
               </div>
+
 
               <div className="flex items-center justify-between pt-1 gap-2">
                 <div className="flex items-center gap-2">

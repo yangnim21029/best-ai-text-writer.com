@@ -22,6 +22,7 @@ import { aiService } from '../adapters/aiService';
 import { normalizeMarkdown } from '../../utils/parsingUtils';
 import { marked } from 'marked';
 import { sectionSchema } from '../../schemas/sectionSchema';
+import { logger } from '../../utils/logger';
 
 // Helper to determine injection strategy for the current section
 const getSectionInjectionPlan = (
@@ -92,12 +93,17 @@ export const prepareSectionPrompt = async (ctx: SectionContext) => {
   const keywordPlansForPrompt = keywordPlans.slice(0, SEMANTIC_KEYWORD_LIMIT);
 
   // RAG: Filter context to reduce token usage
+  // IF assignedContext is provided (Global Allocation), we use THAT as the "Reference Input".
+  // This effectively bypasses the semantic search on the FULL text, 
+  // but still lets us filter the *allocated* chunks for token limits if needed.
+  const sourceMaterialToFilter = ctx.assignedContext || config.referenceContent;
+
   const contextFilter = await filterSectionContext(
     sectionTitle,
     keyInfoPoints,
     authorityAnalysis?.relevantTerms || [],
     config.brandKnowledge, // Knowledge Base
-    config.referenceContent, // NEW: RAG Source
+    sourceMaterialToFilter, // NEW: Can be the massive global text OR the specific allocated chunk
     config.targetAudience
   );
 
@@ -270,6 +276,30 @@ export const generateSectionContent = async (
     cost: totalCost,
     duration,
   };
+};
+
+/**
+ * Convert plain text to Markdown using AI.
+ * Business logic moved from AIService for better separation of concerns.
+ */
+export const convertToMarkdown = async (
+  content: string,
+  onSuccess?: (markdown: string) => void
+): Promise<string> => {
+  try {
+    const prompt = promptTemplates.convertToMarkdown({ content });
+    const response = await aiService.runText(prompt, 'FLASH');
+    const markdown = response.text;
+
+    if (onSuccess) {
+      onSuccess(markdown);
+    }
+
+    return markdown;
+  } catch (error) {
+    logger.error('finalizing', 'ContentGenerationService: convertToMarkdown failed', { error });
+    throw error;
+  }
 };
 
 // AI Rewriter / Formatter (Small Tool)

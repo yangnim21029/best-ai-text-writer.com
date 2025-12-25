@@ -2,6 +2,7 @@ import 'server-only';
 import { ScrapedImage } from '../../types';
 import { fetchWithRetry } from '../../utils/fetchUtils';
 import { SCRAPING_JUNK_PHRASES, SCRAPING_NOISE_WORDS, BRAND_UI_JUNK } from '../../config/scrapingRules';
+import { logger } from '../../utils/logger';
 
 /**
  * Web Scraper Service
@@ -27,7 +28,7 @@ export const fetchUrlContent = async (
   const cacheKey = `${url}|nav:${!!options.includeNav}`;
   const cached = SCRAPE_CACHE.get(cacheKey);
   if (cached && Date.now() - cached.ts < CACHE_TTL_MS) {
-    console.log(`[WebScraper] Serving cached content for: ${url}`);
+    logger.log('init', `WebScraper: Serving cached content for: ${url}`);
     return cached.data;
   }
 
@@ -78,7 +79,7 @@ export const fetchUrlContent = async (
 
     return { ...cleaned };
   } catch (error: any) {
-    console.error('Web Scraping Error:', error);
+    logger.error('init', 'WebScraper: Web Scraping Error', { error, url });
     throw new Error(error.message || 'Failed to scrape URL');
   }
 };

@@ -10,6 +10,7 @@ import { SEMANTIC_KEYWORD_LIMIT } from '../../config/constants';
 import { extractRawSnippets, getLanguageInstruction, toTokenUsage } from '../adapters/promptService';
 import { promptTemplates } from '../adapters/promptTemplates';
 import { aiService } from '../adapters/aiService';
+import { logger } from '../../utils/logger';
 
 // Helper to chunk array
 const chunkArray = <T>(array: T[], size: number): T[][] => {
@@ -65,9 +66,7 @@ export const extractSemanticKeywordsAnalysis = async (
 
   const batches = chunkArray(allAnalysisPayloads, BATCH_SIZE);
 
-  console.log(
-    `[SemanticKeywords] Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Concurrency: ${CONCURRENCY_LIMIT})...`
-  );
+  logger.log('planning_keywords', `SemanticKeywords: Processing ${allAnalysisPayloads.length} words in ${batches.length} batches (Concurrency: ${CONCURRENCY_LIMIT})...`);
 
   const batchPromises = batches.map((batchPayload, batchIdx) =>
     limit(async () => {
@@ -87,7 +86,7 @@ export const extractSemanticKeywordsAnalysis = async (
       });
 
       try {
-        console.log(`[SemanticKeywords] Starting batch ${batchIdx + 1}/${batches.length}...`);
+        logger.log('planning_keywords', `SemanticKeywords: Starting batch ${batchIdx + 1}/${batches.length}...`);
         const planRes = await aiService.runJson<any[]>(planPrompt, 'FLASH', {
           schema: z.array(
             z.object({
@@ -102,17 +101,14 @@ export const extractSemanticKeywordsAnalysis = async (
           ),
         });
 
-        console.log(`[SemanticKeywords] Batch ${batchIdx + 1} Result:`, {
+        logger.log('planning_keywords', `SemanticKeywords: Batch ${batchIdx + 1} Result`, {
           requested: batchPayload.length,
           received: planRes.data?.length || 0,
           duration: planRes.duration,
         });
 
         if (!planRes.data || planRes.data.length === 0) {
-          console.warn(
-            `[SemanticKeywords] Batch ${batchIdx + 1} returned NO data. Batch payload:`,
-            batchPayload.map((p) => p.word)
-          );
+          logger.warn('planning_keywords', `SemanticKeywords: Batch ${batchIdx + 1} returned NO data`, { words: batchPayload.map((p) => p.word) });
           return {
             data: [],
             usage: planRes.usage,
@@ -131,7 +127,7 @@ export const extractSemanticKeywordsAnalysis = async (
           duration: planRes.duration,
         };
       } catch (e) {
-        console.warn(`[SemanticKeywords] Batch ${batchIdx + 1} failed`, e);
+        logger.error('planning_keywords', `SemanticKeywords: Batch ${batchIdx + 1} failed`, { error: e });
         return {
           data: [],
           usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },

@@ -9,12 +9,15 @@ import {
   TargetAudience,
   TokenUsage,
   PageProfile,
+  SavedVoiceProfile,
+  ReferenceAnalysis,
 } from '@/types';
 import { ArticleFormValues } from '@/schemas/formSchema';
 import { summarizeBrandContent } from '@/services/research/productFeatureToPainPointMapper';
 import { WebsiteProfileSection } from './form/WebsiteProfileSection';
 import { ServiceProductSection } from './form/ServiceProductSection';
 import { SourceMaterialSection } from './form/SourceMaterialSection';
+import { DirectorToolsSection } from './form/DirectorToolsSection';
 import { AnalysisDocumentList } from './form/AnalysisDocumentList';
 import { SemanticFilterModal } from './form/SemanticFilterModal';
 import {
@@ -39,8 +42,9 @@ import { useAppStore } from '@/store/useAppStore';
 import { LoadingButton } from './LoadingButton';
 import { WebsiteLibraryModal } from './modals/WebsiteLibraryModal';
 import { ServiceLibraryModal } from './modals/ServiceLibraryModal';
+import { VoiceLibraryModal } from './modals/VoiceLibraryModal';
 import { scrapeUrlAction } from '@/app/actions/scrape';
-import { extractWebsiteTypeAction, summarizeBrandAction } from '@/app/actions/analysis';
+import { extractWebsiteTypeAction, summarizeBrandAction, convertToMarkdownAction, planArticleWithDirectorAction, runDetailedSourcingAction, findTopGroundingUrlsAction } from '@/app/actions/analysis';
 import { PageLibraryModal } from './modals/PageLibraryModal';
 
 interface InputFormProps {
@@ -61,6 +65,9 @@ interface InputFormProps {
   setSavedPages?: (pages: PageProfile[]) => void;
   activePageId?: string;
   onSetActivePageId?: (id: string | undefined) => void;
+  // Voice Profiles
+  savedVoiceProfiles?: SavedVoiceProfile[];
+  setSavedVoiceProfiles?: (profiles: SavedVoiceProfile[]) => void;
 
   inputType: 'text' | 'url';
   setInputType: (type: 'text' | 'url') => void;
@@ -85,6 +92,9 @@ export const InputForm: React.FC<InputFormProps> = ({
   setSavedPages,
   activePageId,
   onSetActivePageId,
+  // Voice Profiles
+  savedVoiceProfiles = [],
+  setSavedVoiceProfiles,
   inputType,
   setInputType,
   brandKnowledge = '',
@@ -94,6 +104,7 @@ export const InputForm: React.FC<InputFormProps> = ({
   const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [isPageModalOpen, setIsPageModalOpen] = useState(false);
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false);
   const [isProfileSectionExpanded, setIsProfileSectionExpanded] = useState(false);
 
   const analysisStore = useAnalysisStore();
@@ -123,6 +134,9 @@ export const InputForm: React.FC<InputFormProps> = ({
     updatePage,
     deletePage,
     applyPageToForm,
+    createVoiceProfile,
+    deleteVoiceProfile,
+    applyVoiceProfile,
     usableImages,
     handleClear,
   } = useArticleForm({
@@ -135,6 +149,8 @@ export const InputForm: React.FC<InputFormProps> = ({
     setSavedPages,
     activePageId,
     onSetActivePageId,
+    savedVoiceProfiles, // Pass to hook
+    setSavedVoiceProfiles,
     setBrandRagUrl: analysisStore.setBrandRagUrl,
     onAddCost,
     setInputType,
@@ -247,6 +263,173 @@ export const InputForm: React.FC<InputFormProps> = ({
     }
   };
 
+  // NEW: Sourcing Logic
+  const [isSourcing, setIsSourcing] = useState(false);
+  const [isPlanning, setIsPlanning] = useState(false);
+  const [isDiscovering, setIsDiscovering] = useState(false);
+
+  const handleSourcing = async () => {
+    // 1. Check for valid plan
+    if (!analysisStore.refAnalysis?.structure?.length) {
+      alert('請先使用 Director Plan 建立文章架構，才能進行內容搜尋。');
+      return;
+    }
+
+    const topic = watchedValues.title || watchedValues.referenceContent?.slice(0, 50) || 'Article Topic';
+    setIsSourcing(true);
+
+    try {
+      // 2. Run detailed sourcing (now returns structured facts)
+      const res = await runDetailedSourcingAction(topic, analysisStore.refAnalysis.structure, watchedValues.targetAudience);
+
+      if (res && res.sourcingResults) {
+        // 3. Merge new facts into the existing structure
+        const currentStructure = [...analysisStore.refAnalysis.structure];
+
+        const updatedStructure = currentStructure.map(section => {
+          const match = res.sourcingResults.find((r: any) => r.sectionTitle === section.title);
+          if (match && match.freshKeyFacts && match.freshKeyFacts.length > 0) {
+            return {
+              ...section,
+              keyFacts: [
+                ...(section.keyFacts || []),
+                ...match.freshKeyFacts
+              ]
+            };
+          }
+          return section;
+        });
+
+        // 4. Update Analysis Source
+        analysisStore.setRefAnalysis({
+          ...analysisStore.refAnalysis,
+          source: 'Director Plan + Sourcing',
+          structure: updatedStructure
+        });
+
+        alert('Sourcing complete! Fresh Key Facts have been injected into your article plan.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Sourcing failed. Please try again.');
+    } finally {
+      setIsSourcing(false);
+    }
+  };
+
+  const handleDiscoverReferences = async () => {
+    const topic = watchedValues.title || watchedValues.referenceContent?.slice(0, 50);
+    if (!topic || topic.length < 2) {
+      alert('Please provide a topic or title to search for.');
+      return;
+    }
+
+    setIsDiscovering(true);
+    try {
+      // 1. Get Top URLs using structure if available
+      const urls = await findTopGroundingUrlsAction(topic, watchedValues.targetAudience || 'zh-TW', analysisStore.refAnalysis?.structure || []);
+      if (!urls || urls.length === 0) {
+        alert('No suitable sources found.');
+        return;
+      }
+
+      let combinedContent = `Source URLs:\n${urls.map((u: string) => `- ${u}`).join('\n')}\n\n`;
+
+      const results = await Promise.all(urls.map((url: string) => scrapeUrlAction(url)));
+
+      results.forEach((res, idx) => {
+        if (res && res.content) {
+          combinedContent += `--- Content from ${urls[idx]} ---\n\n${res.content.slice(0, 3000)}\n\n`;
+        }
+      });
+
+      setValue('referenceContent', combinedContent);
+      analysisStore.setReferenceContent(combinedContent);
+
+      alert(`Found and imported content from ${urls.length} top sources!`);
+
+    } catch (e) {
+      console.error(e);
+      alert('Discovery failed.');
+    } finally {
+      setIsDiscovering(false);
+    }
+  };
+
+
+
+  const handleDirectorPlan = async () => {
+    let desc = watchedValues.referenceContent || '';
+    const targetUrls = watchedValues.targetUrlList;
+
+    setIsPlanning(true);
+    try {
+      // 1. Collect all URLs to scrape (Explicit + Embedded)
+      // Use targetUrls if available (new independent field), otherwise fallback to checking embedded URLs in referenceContent IF directorContext is not used?
+      // Actually, if we have DIRECTOR CONTEXT, that is the "desc".
+      // If directorContext is empty, we fallback to referenceContent?
+      // User asked to SEPARATE. So let's prioritize directorContext.
+
+      const contextToUse = watchedValues.directorContext || watchedValues.referenceContent || '';
+
+      // Update local desc variable
+      desc = contextToUse;
+
+      const visibleTargetUrls = targetUrls ? targetUrls.split('\n').map(u => u.trim()).filter(u => u.length > 0 && u.startsWith('http')) : [];
+      const urlRegex = /(https?:\/\/[^\s]+)/g;
+
+      // Only key off embedded URLs if we are using referenceContent as fallback? 
+      // Or search both? Let's search both contextToUse.
+      const embeddedUrls = (contextToUse.match(urlRegex) || []).map(u => u.trim());
+
+      const allUrls = Array.from(new Set([...visibleTargetUrls, ...embeddedUrls]));
+
+      // 2. Scrape them if found
+      if (allUrls.length > 0) {
+        const results = await Promise.all(allUrls.map(url => scrapeUrlAction(url)));
+        results.forEach((res, idx) => {
+          if (res && res.content) {
+            desc += `\n\n--- [Context from Detected URL: ${allUrls[idx]}] ---\n${res.content.slice(0, 10000)}\n`;
+          }
+        });
+      }
+
+      if (!desc || desc.length < 5) {
+        alert('Please enter a description or provide valid Target URLs.');
+        setIsPlanning(false);
+        return;
+      }
+
+      // 3. Prepare Voice Context if selected
+      let voiceContextString = '';
+      if (watchedValues.customVoiceProfileId) {
+        const profile = savedVoiceProfiles.find(p => p.id === watchedValues.customVoiceProfileId);
+        if (profile && profile.voiceData) {
+          const v = profile.voiceData;
+          voiceContextString = `Voice Name: ${profile.name}\nTone: ${v.toneSensation || 'N/A'}\nWriting Style: ${v.humanWritingVoice || 'N/A'}\nKey Logic: ${v.logicStyle || 'N/A'}`;
+        }
+      }
+
+      const res = await planArticleWithDirectorAction(desc, watchedValues.targetAudience, voiceContextString);
+      if (res && res.structure) {
+        // Set the structure directly to store
+        analysisStore.setRefAnalysis({
+          ...res,
+          source: 'Director Plan'
+        } as ReferenceAnalysis);
+
+        // We do NOT auto-fill referenceContent anymore.
+        // The user must click "Sourcing" to do that separately.
+        alert('Director has created an article plan using your context!');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Director planning failed. Please try again.');
+    } finally {
+      setIsPlanning(false);
+    }
+  };
+
   const handleToggleScrapedImage = (image: ScrapedImage) => {
     const keyToMatch = image.id || image.url || image.altText;
     setScrapedImages((prev) =>
@@ -311,6 +494,37 @@ export const InputForm: React.FC<InputFormProps> = ({
               <h2 className="text-sm font-bold tracking-tight">Writer Config</h2>
             </div>
 
+            {/* Voice Library Button */}
+            {/* Voice Library Button */}
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setIsVoiceModalOpen(true)}
+                className={`flex items-center gap-1.5 px-3 py-1 border rounded-lg text-[10px] font-bold transition-all shadow-sm ${watchedValues.customVoiceProfileId
+                  ? 'bg-purple-100 border-purple-300 text-purple-700 ring-2 ring-purple-500/20'
+                  : 'bg-purple-50 border-purple-200 text-purple-700 hover:bg-purple-100'
+                  }`}
+                title="Open Voice Library"
+              >
+                <span className="w-3.5 h-3.5 flex items-center justify-center">🎤</span>
+                {watchedValues.customVoiceProfileId ? (
+                  <span>
+                    {savedVoiceProfiles.find(p => p.id === watchedValues.customVoiceProfileId)?.name || 'Custom Voice'}
+                  </span>
+                ) : (
+                  'Voice Library'
+                )}
+              </button>
+              {watchedValues.customVoiceProfileId && (
+                <button
+                  onClick={() => setValue('customVoiceProfileId', undefined)}
+                  className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                  title="Remove Custom Voice"
+                >
+                  <Trash2 className="w-3 h-3" />
+                </button>
+              )}
+            </div>
+
             {/* Page Library Button */}
             <button
               onClick={() => setIsPageModalOpen(true)}
@@ -349,6 +563,7 @@ export const InputForm: React.FC<InputFormProps> = ({
           <SourceMaterialSection
             register={register}
             setValue={setValue}
+            watchedValues={watchedValues} // Added
             content={watchedValues.referenceContent}
             errors={errors}
             inputType={inputType}
@@ -368,6 +583,19 @@ export const InputForm: React.FC<InputFormProps> = ({
             activePageTitle={
               savedPages.find((p) => p.id === activePageId)?.name || watchedValues.title
             }
+          />
+
+          {/* 1.5 Director Tools (New Independent Section) */}
+          <DirectorToolsSection
+            onDirectorPlan={handleDirectorPlan}
+            isPlanning={isPlanning}
+            onSourcing={handleSourcing}
+            isSourcing={isSourcing}
+            onDiscover={handleDiscoverReferences}
+            isDiscovering={isDiscovering}
+            register={register}
+            setValue={setValue}
+            watchedValues={watchedValues}
           />
 
           {/* 2. Analysis Documents (Separate Card) */}
@@ -509,7 +737,9 @@ export const InputForm: React.FC<InputFormProps> = ({
               icon={<Sparkles className="w-4 h-4" />}
               className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:shadow-blue-500/30 hover:brightness-110"
             >
-              語氣與大綱分析
+              {watchedValues.customVoiceProfileId
+                ? '語氣與大綱分析 (使用自訂語氣)'
+                : '語氣與大綱分析'}
             </LoadingButton>
 
             <LoadingButton
@@ -597,6 +827,22 @@ export const InputForm: React.FC<InputFormProps> = ({
           } else {
             alert('No active page profile to sync.');
           }
+        }}
+      />
+
+      <VoiceLibraryModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        profiles={savedVoiceProfiles || []}
+        activeProfileId={watchedValues.customVoiceProfileId}
+        onSelect={(id) => {
+          applyVoiceProfile(id); // sets customVoiceProfileId
+          setIsVoiceModalOpen(false);
+        }}
+        onDelete={deleteVoiceProfile}
+        onCreate={(data) => {
+          createVoiceProfile(data);
+          // Auto select the new one? Maybe.
         }}
       />
 

@@ -5,6 +5,7 @@ export const useProfileStore = () => {
   return useAppStore(
     useShallow((state) => ({
       savedProfiles: state.savedProfiles,
+      savedVoiceProfiles: state.savedVoiceProfiles,
       activeProfile: state.activeProfile,
       savedPages: state.savedPages,
       activePageId: state.activePageId,
@@ -23,6 +24,8 @@ export const useProfileStore = () => {
       addVisualProfile: state.addVisualProfile,
       updateVisualProfile: state.updateVisualProfile,
       deleteVisualProfile: state.deleteVisualProfile,
+
+      setSavedVoiceProfiles: state.setSavedVoiceProfiles,
     }))
   );
 };

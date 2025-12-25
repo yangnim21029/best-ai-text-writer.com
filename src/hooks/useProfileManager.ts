@@ -1,7 +1,7 @@
 import { useCallback } from 'react';
 import { UseFormSetValue } from 'react-hook-form';
 import { ArticleFormValues } from '../schemas/formSchema';
-import { SavedProfile, PageProfile, ScrapedImage } from '../types';
+import { SavedProfile, PageProfile, ScrapedImage, SavedVoiceProfile, ReferenceAnalysis } from '../types';
 
 interface ProfileManagerParams {
   savedProfiles?: SavedProfile[];
@@ -18,6 +18,10 @@ interface ProfileManagerParams {
   setValue: UseFormSetValue<ArticleFormValues>;
   setScrapedImages?: (images: ScrapedImage[]) => void;
   setBrandRagUrl?: (url: string) => void;
+
+  // Voice Profiles
+  savedVoiceProfiles?: SavedVoiceProfile[];
+  setSavedVoiceProfiles?: (profiles: SavedVoiceProfile[]) => void;
 }
 
 export const useProfileManager = ({
@@ -33,6 +37,8 @@ export const useProfileManager = ({
   setValue,
   setScrapedImages,
   setBrandRagUrl,
+  savedVoiceProfiles = [],
+  setSavedVoiceProfiles,
 }: ProfileManagerParams) => {
   // --- Website Profile Logic ---
   const createProfile = useCallback(
@@ -215,9 +221,30 @@ export const useProfileManager = ({
     applyProfileToForm,
     loadProductFromProfile,
     // Page operations
+    // Page operations
     createPage,
     updatePage,
     deletePage,
     applyPageToForm,
+    // Voice operations
+    createVoiceProfile: useCallback((data: { name: string; sources: string[]; voiceData: Partial<ReferenceAnalysis> }) => {
+      if (!setSavedVoiceProfiles) return null;
+      const newProfile: SavedVoiceProfile = {
+        id: Date.now().toString(),
+        name: data.name,
+        sources: data.sources,
+        voiceData: data.voiceData,
+        createdAt: Date.now()
+      };
+      setSavedVoiceProfiles([...savedVoiceProfiles, newProfile]);
+      return newProfile;
+    }, [savedVoiceProfiles, setSavedVoiceProfiles]),
+    deleteVoiceProfile: useCallback((id: string) => {
+      if (!setSavedVoiceProfiles) return;
+      setSavedVoiceProfiles(savedVoiceProfiles.filter(p => p.id !== id));
+    }, [savedVoiceProfiles, setSavedVoiceProfiles]),
+    applyVoiceProfile: useCallback((profileId: string) => {
+      setValue('customVoiceProfileId', profileId);
+    }, [setValue])
   };
 };

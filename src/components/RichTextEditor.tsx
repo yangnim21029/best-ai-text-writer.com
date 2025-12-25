@@ -64,7 +64,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   toolbarExtras,
 }) => {
   const ctx = useOptionalEditorContext();
-  
+
   // Effective values: Favor props if provided, fallback to context
   const effectiveKeyPoints = keyPointsProp.length ? keyPointsProp : ctx?.keyPoints || [];
   const effectiveBrandPoints = brandPointsProp.length ? brandPointsProp : ctx?.brandExclusivePoints || [];
@@ -102,7 +102,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const [selectedBlocks, setSelectedBlocks] = useState<Set<string>>(new Set());
   const [refiningPoint, setRefiningPoint] = useState<string | null>(null);
   const [hasAutoCheckedPoints, setHasAutoCheckedPoints] = useState(false);
-  
+
   const [tiptapApi, setTiptapApi] = useState<any>(null);
   const askAiRef = useRef<AskAiSelectionHandle>(null);
 
@@ -115,7 +115,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     }
   }, [initialHtml, html, isAiRunning, ctx?.status]);
 
-  const { recordHtml, recordMeta, consumeDraft } = useEditorAutosave({
+  const { recordHtml, recordMeta, consumeDraft, isReady } = useEditorAutosave({
     storageKey: 'ai_writer_editor_autosave_v1',
   });
   const setCoveredPoints = useAnalysisStore((s) => s.setCoveredPoints);
@@ -159,6 +159,19 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
     recordHtml(nextHtml);
   };
 
+  // Prevent accidental tab close
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent) => {
+      // Only warn if we have meaningful content (e.g. > 20 chars) to avoid annoyance on empty docs
+      if (charCount > 20) {
+        e.preventDefault();
+        e.returnValue = ''; // Trigger browser standard dialog
+      }
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [charCount]);
+
   const refreshCleanupSummary = useCallback(() => {
     if (!tiptapApi) return;
     const summary = tiptapApi.summarizeFormatting
@@ -196,7 +209,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
         scope: { from: block.from, to: block.to },
       });
     });
-    
+
     const plain = tiptapApi.getPlainText();
     const htmlValue = tiptapApi.getHtml();
     setHtml(htmlValue);
@@ -331,7 +344,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       recordHtml(htmlValue);
     },
     saveSelection: () => null,
-    restoreSelection: () => {},
+    restoreSelection: () => { },
   });
 
   const {
@@ -354,7 +367,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
   const totalPoints = effectiveKeyPoints.length + effectiveBrandPoints.length;
 
   useEffect(() => {
-    if (!tiptapApi || hasRestoredDraftRef.current) return;
+    if (!tiptapApi || hasRestoredDraftRef.current || !isReady) return;
     const draft = consumeDraft();
     if (draft && draft.html) {
       setHtml(draft.html);
@@ -369,7 +382,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
       }
     }
     hasRestoredDraftRef.current = true;
-  }, [consumeDraft, ctx, onTitleChange, tiptapApi, updateCounts, setMetaTitle, setMetaDescription, setUrlSlug]);
+  }, [consumeDraft, ctx, onTitleChange, tiptapApi, updateCounts, setMetaTitle, setMetaDescription, setUrlSlug, isReady]);
 
   useEffect(() => {
     recordMeta({
@@ -428,7 +441,7 @@ export const RichTextEditor: React.FC<RichTextEditorProps> = ({
           }}
           showKeyPoints={showKeyPoints}
           hasKeyPoints={totalPoints > 0}
-          onRebrand={() => {}}
+          onRebrand={() => { }}
           isRebranding={false}
           productName={effectiveProductBrief?.productName}
           onToggleMetaPanel={() => setShowMetaPanel((v) => !v)}

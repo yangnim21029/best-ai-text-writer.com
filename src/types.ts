@@ -44,10 +44,10 @@ export interface ReferenceAnalysis {
   h1Title?: string; // NEW: H1 title extracted from reference
   introText?: string; // NEW: Intro paragraph after H1
   structure: SectionAnalysis[]; // Detailed structure with plans
-  generalPlan: string[]; // Global style rules
-  conversionPlan: string[]; // NEW: How the author presents value/benefits
-  keyInformationPoints: string[]; // General High density facts/concepts
-  brandExclusivePoints: string[]; // NEW: Unique Selling Points / Brand specific claims
+  generalPlan?: string[]; // Global style rules
+  conversionPlan?: string[]; // NEW: How the author presents value/benefits
+  keyInformationPoints?: string[]; // General High density facts/concepts
+  brandExclusivePoints?: string[]; // NEW: Unique Selling Points / Brand specific claims
   replacementRules?: string[]; // Deprecated: Old generic rules
   regionalReplacements?: { original: string; replacement: string; reason?: string }[]; // NEW: Automated regional fixes
   competitorBrands?: string[]; // Specific brand names to nuke
@@ -60,10 +60,16 @@ export interface ReferenceAnalysis {
   // Detailed Voice Metrics
   toneSensation?: string; // 語感 (Tone/Voice vibe)
   entryPoint?: string; // 切入點 (Angle/Entry point)
+  logicStyle?: string[]; // NEW: Logic Arc styles
+  sentenceStartFeatures?: string[]; // NEW: Sentence start patterns
+  sentenceEndFeatures?: string[]; // NEW: Sentence end patterns
+  keywordPlans?: { word: string; plan: string[]; score?: number; exampleSentence?: string }[]; // NEW: Key terms usage
 
   // Synthesis Metadata
   isSynthesis?: boolean;
   sourceCount?: number;
+  source?: string; // NEW: Origin of the analysis (e.g., 'Director Plan', 'Manual', 'Scraped')
+  researchDigest?: string; // NEW: Consolidated research notes
 }
 
 export interface AuthorityAnalysis {
@@ -123,6 +129,15 @@ export interface SavedProfile {
   siteUrl?: string; // NEW: The domain or subfolder for this site profile
   brandRagUrl?: string; // NEW: Link to external RAG knowledge base
 }
+
+export interface SavedVoiceProfile {
+  id: string;
+  name: string;
+  sources: string[]; // List of URLs used
+  voiceData: Partial<ReferenceAnalysis>; // The extracted voice profile
+  createdAt: number;
+}
+
 
 export interface PageProfile {
   id: string;
@@ -190,6 +205,7 @@ export interface ArticleConfig {
   // NEW: The Visual Identity
   visualStyle?: string;
   writingStyle?: string;
+  customVoiceProfileId?: string; // NEW: ID of the selected custom voice from library
 }
 
 export type GenerationStatus =
@@ -292,6 +308,7 @@ export interface SectionContext {
   authorityAnalysis: AuthorityAnalysis | null;
   keyInfoPoints: string[];
   sectionMeta: Partial<SectionAnalysis>;
+  assignedContext?: string; // NEW: Exclusive pre-allocated context
 }
 
 export interface HeadingOption {

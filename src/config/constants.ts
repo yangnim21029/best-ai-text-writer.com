@@ -7,7 +7,8 @@ const env =
 
 export const MODEL = {
   FLASH: 'gemini-3-flash-preview',
-  IMAGE_PREVIEW: 'gemini-3-flash-preview',
+  VISION: 'gemini-3-flash-preview',
+  IMAGE_GEN: 'gemini-2.5-flash-image',
 };
 
 export const EMBED_MODEL_ID = serverEnv.AI_EMBED_MODEL_ID;
@@ -17,7 +18,7 @@ export const PRICING = {
     input: 0.3 / 1000000,
     output: 0.3 / 1000000,
   },
-  IMAGE_PREVIEW: {
+  VISION: {
     input: 0.3 / 1000000,
     output: 30.0 / 1000000,
   },

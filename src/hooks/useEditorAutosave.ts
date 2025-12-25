@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from 'react';
-import { getScopedKey } from '../utils/scopedStorage';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { scopedStorage } from '../utils/scopedStorage';
 
 type MetaState = {
   metaTitle?: string;
@@ -23,26 +23,33 @@ export const useEditorAutosave = ({
   const pendingRestoreRef = useRef<any | null>(null);
   const lastSavedRef = useRef<string>(''); // cache serialized payload to avoid redundant writes
 
+  const [isReady, setIsReady] = useState(false);
+
   // Load saved draft on mount
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    try {
-      const key = getScopedKey(storageKey);
-      const savedRaw = localStorage.getItem(key);
-      if (!savedRaw) return;
-      const saved = JSON.parse(savedRaw);
-      if (saved && saved.html) {
-        pendingRestoreRef.current = saved;
+    const load = async () => {
+      try {
+        const savedRaw = await scopedStorage.getItem(storageKey);
+        if (savedRaw) {
+          const saved = JSON.parse(savedRaw);
+          if (saved && saved.html) {
+            pendingRestoreRef.current = saved;
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to read autosave', e);
+      } finally {
+        setIsReady(true);
       }
-    } catch (e) {
-      console.warn('Failed to read autosave', e);
-    }
+    };
+    load();
   }, [storageKey]);
 
   const queueAutosave = useCallback(() => {
     if (typeof window === 'undefined') return;
     if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
-    autosaveTimerRef.current = setTimeout(() => {
+    autosaveTimerRef.current = setTimeout(async () => {
       const payload = {
         html: latestHtmlRef.current || '',
         ...latestMetaRef.current,
@@ -52,8 +59,7 @@ export const useEditorAutosave = ({
       const serialized = JSON.stringify(payload);
       if (serialized === lastSavedRef.current) return;
       try {
-        const key = getScopedKey(storageKey);
-        localStorage.setItem(key, serialized);
+        await scopedStorage.setItem(storageKey, serialized);
         lastSavedRef.current = serialized;
       } catch (e) {
         console.warn('Autosave failed', e);
@@ -83,5 +89,5 @@ export const useEditorAutosave = ({
     return saved as (MetaState & { html: string }) | null;
   }, []);
 
-  return { recordHtml, recordMeta, consumeDraft };
+  return { recordHtml, recordMeta, consumeDraft, isReady };
 };

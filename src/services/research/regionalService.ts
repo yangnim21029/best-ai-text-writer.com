@@ -7,41 +7,23 @@ import 'server-only';
 
 import { z } from 'zod';
 
-import { ServiceResponse, RegionalReplacement, TargetAudience, TokenUsage, CostBreakdown, RegionIssue, RegionGroundingResult, SectionAnalysis } from '../../types';
+import { ServiceResponse, TargetAudience, TokenUsage, CostBreakdown, RegionIssue, RegionGroundingResult, SectionAnalysis } from '../../types';
 
 import { REGION_CONFIG } from '../../config/regionConfig';
-
+import { logger } from '../../utils/logger';
 import { aiService } from '../adapters/aiService';
 
 import { promptTemplates } from '../adapters/promptTemplates';
 
-
-
-// --- Utils ---
-
-
-
-const mergeUsage = (a: TokenUsage, b: TokenUsage): TokenUsage => ({
-
-  inputTokens: (a.inputTokens || 0) + (b.inputTokens || 0),
-
-  outputTokens: (a.outputTokens || 0) + (b.outputTokens || 0),
-
-  totalTokens: (a.totalTokens || 0) + (b.totalTokens || 0),
-
-});
+import { mergeUsage, mergeCost } from '../adapters/promptService';
 
 
 
-const mergeCost = (a: CostBreakdown, b: CostBreakdown): CostBreakdown => ({
+// --- Constants ---
 
-  inputCost: (a.inputCost || 0) + (b.inputCost || 0),
 
-  outputCost: (a.outputCost || 0) + (b.outputCost || 0),
 
-  totalCost: (a.totalCost || 0) + (b.totalCost || 0),
-
-});
+const REMOVE_MARKER = '[刪除]';
 
 
 
@@ -79,51 +61,79 @@ export const detectForeignEntities = async (
 
 
 
-  const prompt = promptTemplates.detectForeignEntities(config, content);
+  try {
+
+    const prompt = promptTemplates.detectForeignEntities(config, content);
 
 
 
-  const response = await aiService.runJson<{
+    const response = await aiService.runJson<{
 
-    entities: { text: string; type: string; region: string }[];
+      entities: { text: string; type: string; region: string }[];
 
-  }>(prompt, 'FLASH', {
+    }>(prompt, 'FLASH', {
 
-    schema: z.object({
+      schema: z.object({
 
-      entities: z.array(
+        entities: z.array(
 
-        z.object({
+          z.object({
 
-          text: z.string(),
+            text: z.string(),
 
-          type: z.string(),
+            type: z.string(),
 
-          region: z.string(),
+            region: z.string(),
 
-        })
+          })
 
-      ),
+        ),
 
-    }),
+      }),
 
-    promptId: 'detect_foreign_entities',
+      promptId: 'detect_foreign_entities',
 
-  });
-
-
-
-  const foreignEntities = (response.data.entities || []).filter(
-
-    (e) => config.excludeRegions.includes(e.region) || e.region === 'OTHER'
-
-  );
+    });
 
 
 
-  return { entities: foreignEntities, usage: response.usage, cost: response.cost, duration: response.duration };
+        const foreignEntities = (response.data.entities || []).filter(
 
-};
+
+
+          (e) => config.excludeRegions.includes(e.region) || e.region === 'OTHER'
+
+
+
+        );
+
+
+
+    
+
+
+
+        return { entities: foreignEntities, usage: response.usage, cost: response.cost, duration: response.duration };
+
+
+
+      } catch (error) {
+
+
+
+        logger.error('nlp_analysis', 'regionalService: detectForeignEntities failed', { error });
+
+
+
+        return { entities: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: 0 };
+
+
+
+      }
+
+
+
+    };
 
 
 
@@ -151,91 +161,105 @@ export const findRegionEquivalents = async (
 
 
 
-  const entityList = entities.map((e) => `- ${e.text} (${e.type})`).join('\n');
+  try {
 
-  const prompt = promptTemplates.findRegionEquivalents(config, entityList);
+    const entityList = entities.map((e) => `- ${e.text} (${e.type})`).join('\n');
 
-
-
-  const response = await aiService.runJson<{
-
-    mappings: RegionIssue[];
-
-  }>(prompt, 'FLASH', {
-
-    schema: z.object({
-
-      mappings: z.array(
-
-        z.object({
-
-          type: z.enum(['entity', 'brand', 'regulation', 'currency', 'location', 'service']),
-
-          original: z.string(),
-
-          regionEquivalent: z.string(),
-
-          confidence: z.number(),
-
-          context: z.string(),
-
-          sourceRegion: z.string(),
-
-        })
-
-      ),
-
-    }),
-
-    useSearch: true,
-
-    promptId: 'find_region_equivalents',
-
-  });
+    const prompt = promptTemplates.findRegionEquivalents(config, entityList);
 
 
 
-  const aiMappings = response.data.mappings || [];
+    const response = await aiService.runJson<{
 
-  const finalMappings: RegionIssue[] = entities.map((entity) => {
+      mappings: RegionIssue[];
 
-    const found = aiMappings.find((m) => m.original === entity.text);
+    }>(prompt, 'FLASH', {
 
-    if (found) {
+      schema: z.object({
+
+        mappings: z.array(
+
+          z.object({
+
+            type: z.enum(['entity', 'brand', 'regulation', 'currency', 'location', 'service']),
+
+            original: z.string(),
+
+            regionEquivalent: z.string(),
+
+            confidence: z.number(),
+
+            context: z.string(),
+
+            sourceRegion: z.string(),
+
+          })
+
+        ),
+
+      }),
+
+
+
+      promptId: 'find_region_equivalents',
+
+    });
+
+
+
+    const aiMappings = response.data.mappings || [];
+
+    const finalMappings: RegionIssue[] = entities.map((entity) => {
+
+      const found = aiMappings.find((m) => m.original === entity.text);
+
+      if (found) {
+
+        return {
+
+          ...found,
+
+          regionEquivalent: found.regionEquivalent === REMOVE_MARKER ? '' : found.regionEquivalent,
+
+        };
+
+      }
 
       return {
 
-        ...found,
+        type: (['entity', 'brand', 'regulation', 'currency', 'location', 'service'].includes(entity.type) 
 
-        regionEquivalent: found.regionEquivalent === '[刪除]' ? '' : found.regionEquivalent,
+          ? entity.type 
+
+          : 'entity') as RegionIssue['type'],
+
+        original: entity.text,
+
+        regionEquivalent: '',
+
+        confidence: 0,
+
+        context: '未找到合適替代，建議從內容中移除',
+
+        sourceRegion: entity.region,
+
+            };
+
+          });
+
+      
+
+          return { mappings: finalMappings, usage: response.usage, cost: response.cost, duration: response.duration };
+
+        } catch (error) {
+
+          logger.error('nlp_analysis', 'regionalService: findRegionEquivalents failed', { error });
+
+          return { mappings: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: 0 };
+
+        }
 
       };
-
-    }
-
-    return {
-
-      type: entity.type as any,
-
-      original: entity.text,
-
-      regionEquivalent: '',
-
-      confidence: 0,
-
-      context: '未找到合適替代，建議從內容中移除',
-
-      sourceRegion: entity.region,
-
-    };
-
-  });
-
-
-
-  return { mappings: finalMappings, usage: response.usage, cost: response.cost, duration: response.duration };
-
-};
 
 
 
@@ -273,65 +297,97 @@ export const rewriteForRegion = async (
 
 
 
-  const mappingInstructions = mappings
+  try {
 
-    .map((m) => `- 「${m.original}」→「${m.regionEquivalent}」：${m.context}`)
+    const mappingInstructions = mappings
 
-    .join('\n');
+      .map((m) => `- 「${m.original}」→「${m.regionEquivalent}」：${m.context}`)
 
-
-
-  const prompt = promptTemplates.rewriteForRegion(config, mappingInstructions, content);
+      .join('\n');
 
 
 
-  const response = await aiService.runJson<{
-
-    rewrittenContent: string;
-
-    changes: { original: string; rewritten: string }[];
-
-  }>(prompt, 'FLASH', {
-
-    schema: z.object({
-
-      rewrittenContent: z.string(),
-
-      changes: z.array(
-
-        z.object({
-
-          original: z.string(),
-
-          rewritten: z.string(),
-
-        })
-
-      ),
-
-    }),
-
-    promptId: 'rewrite_for_region',
-
-  });
+    const prompt = promptTemplates.rewriteForRegion(config, mappingInstructions, content);
 
 
 
-  return {
+    const response = await aiService.runJson<{
 
-    rewrittenContent: response.data.rewrittenContent || content,
+      rewrittenContent: string;
 
-    changes: response.data.changes || [],
+      changes: { original: string; rewritten: string }[];
 
-    usage: response.usage,
+    }>(prompt, 'FLASH', {
 
-    cost: response.cost,
+      schema: z.object({
 
-    duration: response.duration,
+        rewrittenContent: z.string(),
 
-  };
+        changes: z.array(
 
-};
+          z.object({
+
+            original: z.string(),
+
+            rewritten: z.string(),
+
+          })
+
+        ),
+
+      }),
+
+      promptId: 'rewrite_for_region',
+
+    });
+
+
+
+        return {
+
+
+
+          rewrittenContent: response.data.rewrittenContent || content,
+
+
+
+          changes: response.data.changes || [],
+
+
+
+          usage: response.usage,
+
+
+
+          cost: response.cost,
+
+
+
+          duration: response.duration,
+
+
+
+        };
+
+
+
+      } catch (error) {
+
+
+
+        logger.error('nlp_analysis', 'regionalService: rewriteForRegion failed', { error });
+
+
+
+        return { rewrittenContent: content, changes: [], usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 }, cost: { inputCost: 0, outputCost: 0, totalCost: 0 }, duration: 0 };
+
+
+
+      }
+
+
+
+    };
 
 
 
@@ -545,79 +601,147 @@ export const localizePlanWithAI = async (
 
 
 
-  const response = await aiService.runJson<{
+  try {
 
-    generalPlan: string[];
+    const response = await aiService.runJson<{
 
-    conversionPlan: string[];
+      generalPlan: string[];
 
-    humanWritingVoice: string;
+      conversionPlan: string[];
 
-    sections: SectionAnalysis[];
+      humanWritingVoice: string;
 
-  }>(prompt, 'FLASH', {
+      sections: SectionAnalysis[];
 
-    schema: z.object({
+    }>(prompt, 'FLASH', {
 
-      generalPlan: z.array(z.string()),
+      schema: z.object({
 
-      conversionPlan: z.array(z.string()),
+        generalPlan: z.array(z.string()),
 
-      humanWritingVoice: z.string(),
+        conversionPlan: z.array(z.string()),
 
-      sections: z.array(
+        humanWritingVoice: z.string(),
 
-        z.object({
+        sections: z.array(
 
-          title: z.string(),
+          z.object({
 
-          narrativePlan: z.array(z.string()),
+            title: z.string(),
 
-          coreQuestion: z.string().optional(),
+            narrativePlan: z.array(z.string()),
 
-          difficulty: z.enum(['easy', 'medium', 'unclear']).optional(),
+            coreQuestion: z.string().optional(),
 
-          writingMode: z.enum(['direct', 'multi_solutions']).optional(),
+            difficulty: z.enum(['easy', 'medium', 'unclear']).optional(),
 
-          subheadings: z.array(z.string()).optional(),
+            writingMode: z.enum(['direct', 'multi_solutions']).optional(),
 
-          keyFacts: z.array(z.string()).optional(),
+            subheadings: z.array(z.string()).optional(),
 
-          logicalFlow: z.string().optional(),
+            keyFacts: z.array(z.string()).optional(),
 
-          coreFocus: z.string().optional(),
+            logicalFlow: z.string().optional(),
 
-        })
+            coreFocus: z.string().optional(),
 
-      ),
+          })
 
-    }),
+        ),
 
-    promptId: 'localize_plan_ai',
+      }),
 
-  });
+      promptId: 'localize_plan_ai',
+
+    });
 
 
 
-  return {
+        return {
 
-    localizedGeneralPlan: response.data.generalPlan || data.generalPlan,
 
-    localizedConversionPlan: response.data.conversionPlan || data.conversionPlan,
 
-    localizedSections: response.data.sections || data.sections,
+          localizedGeneralPlan: response.data.generalPlan || data.generalPlan,
 
-    localizedHumanWritingVoice: response.data.humanWritingVoice || data.humanWritingVoice,
 
-    usage: response.usage,
 
-    cost: response.cost,
+          localizedConversionPlan: response.data.conversionPlan || data.conversionPlan,
 
-    duration: response.duration,
 
-  };
 
-};
+          localizedSections: response.data.sections || data.sections,
+
+
+
+          localizedHumanWritingVoice: response.data.humanWritingVoice || data.humanWritingVoice,
+
+
+
+          usage: response.usage,
+
+
+
+          cost: response.cost,
+
+
+
+          duration: response.duration,
+
+
+
+        };
+
+
+
+      } catch (error) {
+
+
+
+        logger.error('nlp_analysis', 'regionalService: localizePlanWithAI failed', { error });
+
+
+
+        return {
+
+
+
+          localizedGeneralPlan: data.generalPlan,
+
+
+
+          localizedConversionPlan: data.conversionPlan,
+
+
+
+          localizedSections: data.sections,
+
+
+
+          localizedHumanWritingVoice: data.humanWritingVoice,
+
+
+
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+
+
+
+          cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+
+
+
+          duration: 0,
+
+
+
+        };
+
+
+
+      }
+
+
+
+    };
 
 
 
@@ -657,46 +781,96 @@ export const analyzeRegionalTerms = async (
 
   const startTs = Date.now();
 
-  const prompt = promptTemplates.regionalBrandAnalysis({ content, targetAudience });
+  try {
+
+    const prompt = promptTemplates.regionalBrandAnalysis({ content, targetAudience });
 
 
 
-  const response = await aiService.runJson< 
+    const response = await aiService.runJson<
 
-    { original: string; replacement: string; reason: string }[]
+      { original: string; replacement: string; reason: string }[]
 
-  >(prompt, 'FLASH', {
+    >(prompt, 'FLASH', {
 
-    schema: z.array(
+      schema: z.array(
 
-      z.object({
+        z.object({
 
-        original: z.string(),
+          original: z.string(),
 
-        replacement: z.string(),
+          replacement: z.string(),
 
-        reason: z.string(),
+          reason: z.string(),
 
-      })
+        })
 
-    ),
+      ),
 
-    promptId: 'analyze_regional_terms',
+      promptId: 'analyze_regional_terms',
 
-  });
+    });
 
 
 
-  return {
+        return {
 
-    data: response.data || [],
 
-    usage: response.usage,
 
-    cost: response.cost,
+          data: response.data || [],
 
-    duration: Date.now() - startTs,
 
-  };
 
-};
+          usage: response.usage,
+
+
+
+          cost: response.cost,
+
+
+
+          duration: Date.now() - startTs,
+
+
+
+        };
+
+
+
+      } catch (error) {
+
+
+
+        logger.error('nlp_analysis', 'regionalService: analyzeRegionalTerms failed', { error });
+
+
+
+        return {
+
+
+
+          data: [],
+
+
+
+          usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
+
+
+
+          cost: { inputCost: 0, outputCost: 0, totalCost: 0 },
+
+
+
+          duration: Date.now() - startTs,
+
+
+
+        };
+
+
+
+      }
+
+
+
+    };

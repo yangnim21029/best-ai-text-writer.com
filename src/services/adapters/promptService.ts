@@ -99,6 +99,18 @@ export const calculateCost = (
 // Helper: Normalize usage to TokenUsage shape
 export const toTokenUsage = (usage: any): TokenUsage => normalizeTokenUsage(usage);
 
+export const mergeUsage = (a: TokenUsage, b: TokenUsage): TokenUsage => ({
+  inputTokens: (a.inputTokens || 0) + (b.inputTokens || 0),
+  outputTokens: (a.outputTokens || 0) + (b.outputTokens || 0),
+  totalTokens: (a.totalTokens || 0) + (b.totalTokens || 0),
+});
+
+export const mergeCost = (a: CostBreakdown, b: CostBreakdown): CostBreakdown => ({
+  inputCost: (a.inputCost || 0) + (b.inputCost || 0),
+  outputCost: (a.outputCost || 0) + (b.outputCost || 0),
+  totalCost: (a.totalCost || 0) + (b.totalCost || 0),
+});
+
 // Helper: Get Language Instruction
 export const getLanguageInstruction = (audience: TargetAudience): string => {
   switch (audience) {

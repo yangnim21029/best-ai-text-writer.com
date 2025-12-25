@@ -10,7 +10,12 @@ import {
 } from '../../types';
 import { aiService } from '../adapters/aiService';
 import { embedTexts, cosineSimilarity } from '../adapters/embeddingService';
-import { getLanguageInstruction, toTokenUsage } from '../adapters/promptService';
+import {
+  getLanguageInstruction,
+  toTokenUsage,
+  mergeUsage,
+  mergeCost,
+} from '../adapters/promptService';
 import { promptTemplates } from '../adapters/promptTemplates';
 import { logger } from '../../utils/logger';
 
@@ -123,18 +128,6 @@ export const refineHeadings = async (
   const started = Date.now();
   const languageInstruction = getLanguageInstruction(targetAudience);
   const BATCH_SIZE = 12;
-
-  const mergeUsage = (a: TokenUsage, b: TokenUsage): TokenUsage => ({
-    inputTokens: (a.inputTokens || 0) + (b.inputTokens || 0),
-    outputTokens: (a.outputTokens || 0) + (b.outputTokens || 0),
-    totalTokens: (a.totalTokens || 0) + (b.totalTokens || 0),
-  });
-
-  const mergeCost = (a: CostBreakdown, b: CostBreakdown): CostBreakdown => ({
-    inputCost: (a.inputCost || 0) + (b.inputCost || 0),
-    outputCost: (a.outputCost || 0) + (b.outputCost || 0),
-    totalCost: (a.totalCost || 0) + (b.totalCost || 0),
-  });
 
   const refineBatch = async (batch: string[]): Promise<ServiceResponse<HeadingResult[]>> => {
     logger.log('refining_headings', `Refining ${batch.length} headings...`);

@@ -154,7 +154,7 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
         doc.keywordPlans.forEach((kp) => { if (!keywordMap.has(kp.word)) keywordMap.set(kp.word, kp); });
         if (doc.sourceContent) mergedContent += `\n\n--- Source ${idx + 1} (${doc.title}) ---\n${doc.sourceContent}`;
       });
-      
+
       analysisStore.setRefAnalysis(mergedRef);
       analysisStore.setKeywordPlans(Array.from(keywordMap.values()));
       analysisStore.setReferenceContent(mergedContent.trim());
@@ -269,13 +269,13 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
               </div>
             )}
 
-                        {/* 2. Localization Profile */}
-                        {(currentAudience || currentLangInst) && (
-                          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-4 group hover:shadow-md transition-all duration-300">
-                            <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
-                              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
-                                <Globe className="w-3.5 h-3.5 text-blue-500" /> 語氣與地緣分析
-                              </h3>                  <div className="flex items-center gap-1.5">
+            {/* 2. Localization Profile */}
+            {(currentAudience || currentLangInst) && (
+              <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden p-4 group hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4 border-b border-gray-50 pb-3">
+                  <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] flex items-center gap-2">
+                    <Globe className="w-3.5 h-3.5 text-blue-500" /> 語氣與地緣分析
+                  </h3>                  <div className="flex items-center gap-1.5">
                     <button onClick={handleCopyLanguage} className="p-2 hover:bg-indigo-50 rounded-xl transition-all text-gray-400 hover:text-blue-600">
                       {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
@@ -354,13 +354,13 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                   )}
                   {currentRefAnalysis?.humanWritingVoice && (
                     <div className="p-4 bg-white border border-blue-100 rounded-2xl shadow-sm group">
-                                            <div className="flex items-center gap-2 mb-2">
-                                              <BrainCircuit className="w-3.5 h-3.5 text-blue-500" />
-                                              <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">
-                                                品牌語氣藍圖
-                                              </span>
-                                            </div>
-                      
+                      <div className="flex items-center gap-2 mb-2">
+                        <BrainCircuit className="w-3.5 h-3.5 text-blue-500" />
+                        <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">
+                          品牌語氣藍圖
+                        </span>
+                      </div>
+
                       <p className="text-[11px] text-gray-700 leading-relaxed font-medium">{currentRefAnalysis.humanWritingVoice}</p>
                     </div>
                   )}
@@ -486,19 +486,19 @@ export const SeoSidebar: React.FC<SeoSidebarProps> = ({
                 <div className="absolute top-0 right-0 p-4 opacity-5 rotate-12 transition-transform duration-1000"><Gem className="w-20 h-20 text-white" /></div>
                 <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em] mb-6">Strategic Intelligence Hub</h3>
                 <div className="space-y-6">
-                  {currentRefAnalysis.keyInformationPoints?.length > 0 && (
+                  {currentRefAnalysis.keyInformationPoints && currentRefAnalysis.keyInformationPoints.length > 0 && (
                     <div className="space-y-3">
                       <p className="text-[9px] font-black text-blue-400 uppercase tracking-widest">Global Key Facts</p>
                       {currentRefAnalysis.keyInformationPoints.map((point, idx) => <div key={idx} className="flex gap-3 text-[11px] text-slate-300 leading-relaxed"><span className="text-blue-500 font-black">#</span><span>{point}</span></div>)}
                     </div>
                   )}
-                  {currentRefAnalysis.conversionPlan?.length > 0 && (
+                  {currentRefAnalysis.conversionPlan && currentRefAnalysis.conversionPlan.length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-slate-700/50">
                       <p className="text-[9px] font-black text-emerald-400 uppercase tracking-widest">Conversion Psychology Plan</p>
                       {currentRefAnalysis.conversionPlan.map((plan, idx) => <div key={idx} className="flex gap-3 text-[11px] text-slate-300 leading-relaxed"><span className="text-emerald-500 font-black">→</span><span>{plan}</span></div>)}
                     </div>
                   )}
-                  {currentRefAnalysis.brandExclusivePoints?.length > 0 && (
+                  {currentRefAnalysis.brandExclusivePoints && currentRefAnalysis.brandExclusivePoints.length > 0 && (
                     <div className="space-y-3 pt-4 border-t border-slate-700/50">
                       <p className="text-[9px] font-black text-amber-400 uppercase tracking-widest">Brand Exclusive Assets</p>
                       {currentRefAnalysis.brandExclusivePoints.map((asset, idx) => <div key={idx} className="flex gap-3 text-[11px] text-slate-300 leading-relaxed"><span className="text-amber-500 font-black">★</span><span>{asset}</span></div>)}

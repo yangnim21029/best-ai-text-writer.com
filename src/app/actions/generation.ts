@@ -1,6 +1,6 @@
 'use server';
 
-import { extractVectorContext } from '@/services/research/referenceAnalysisService';
+import { extractVectorContext, distributeChunksExclusively } from '@/services/research/referenceAnalysisService';
 import {
   planImagesForArticle,
   generateImage,
@@ -44,13 +44,30 @@ export async function distributeContextAction(
 
     // Process in parallel with concurrency limit if needed, 
     // but here sections length is usually < 10, so simple Promise.all is fine.
-    await Promise.all(sections.map(async (section) => {
-      const vectorCtx = await extractVectorContext(referenceContent, section.title);
+    // Process in parallel with concurrency limit if needed, 
+    // but here sections length is usually < 10, so simple Promise.all is fine.
+
+    // NEW: Global Exclusive Allocation
+    const allocationMap = await distributeChunksExclusively(referenceContent, sections);
+
+    // Convert Map to Array format expected by UI
+    allocationMap.forEach((context, title) => {
       contextMap.push({
-        title: section.title,
-        relevantContext: vectorCtx
+        title,
+        relevantContext: context
       });
-    }));
+    });
+
+    // Fallback: If map is empty (e.g. short text), perform legacy independent retrieval
+    if (contextMap.length === 0) {
+      await Promise.all(sections.map(async (section) => {
+        const vectorCtx = await extractVectorContext(referenceContent, section.title);
+        contextMap.push({
+          title: section.title,
+          relevantContext: vectorCtx
+        });
+      }));
+    }
 
     return { data: contextMap };
   } catch (error) {
@@ -170,7 +187,8 @@ export async function generateSectionContentAction(
   futureSections: string[] = [],
   authorityAnalysis: AuthorityAnalysis | null = null,
   keyInfoPoints: string[] = [],
-  sectionMeta: Partial<SectionAnalysis> = {}
+  sectionMeta: Partial<SectionAnalysis> = {},
+  assignedContext?: string // NEW: Optional pre-allocated context
 ) {
   const authorized = await isAuthorizedAction();
   if (!authorized && process.env.NODE_ENV !== 'development') {
@@ -188,7 +206,8 @@ export async function generateSectionContentAction(
       futureSections,
       authorityAnalysis,
       keyInfoPoints,
-      sectionMeta
+      sectionMeta,
+      assignedContext // Pass it through
     });
   } catch (error) {
     console.error('[generateSectionContentAction] Failed:', error);

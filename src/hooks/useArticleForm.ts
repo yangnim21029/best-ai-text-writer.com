@@ -1,13 +1,13 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { ArticleFormValues, articleFormSchema } from '../schemas/formSchema';
-import { SavedProfile, ScrapedImage, PageProfile, CostBreakdown, TokenUsage } from '../types';
+import { SavedProfile, ScrapedImage, PageProfile, CostBreakdown, TokenUsage, SavedVoiceProfile } from '../types';
 import { useUrlScraper } from './useUrlScraper';
 import { useProfileManager } from './useProfileManager';
 import { useStorageReset } from './useStorageReset';
 import { dedupeScrapedImages } from '../utils/imageUtils';
-import { getScopedKey } from '../utils/scopedStorage';
+import { scopedStorage } from '../utils/scopedStorage';
 
 const BASE_STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
 
@@ -24,6 +24,9 @@ interface UseArticleFormParams {
   onSetActivePageId?: (id: string | undefined) => void;
   setBrandRagUrl?: (url: string) => void;
   onAddCost?: (cost: CostBreakdown, usage: TokenUsage) => void;
+  // Voice Profiles
+  savedVoiceProfiles?: SavedVoiceProfile[];
+  setSavedVoiceProfiles?: (profiles: SavedVoiceProfile[]) => void;
 
   setInputType: (type: 'text' | 'url') => void;
 }
@@ -41,6 +44,8 @@ export const useArticleForm = ({
   setBrandRagUrl,
   onAddCost,
   setInputType,
+  savedVoiceProfiles = [],
+  setSavedVoiceProfiles,
 }: UseArticleFormParams) => {
   const {
     register,
@@ -72,6 +77,7 @@ export const useArticleForm = ({
   const [refCharCount, setRefCharCount] = useState(0);
   const [refWordCount, setRefWordCount] = useState(0);
   const { clearAll } = useStorageReset();
+  const saveTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const {
     createProfile,
@@ -83,6 +89,9 @@ export const useArticleForm = ({
     updatePage,
     deletePage,
     applyPageToForm,
+    createVoiceProfile,
+    deleteVoiceProfile,
+    applyVoiceProfile,
   } = useProfileManager({
     savedProfiles,
     setSavedProfiles,
@@ -96,6 +105,8 @@ export const useArticleForm = ({
     setValue,
     setScrapedImages,
     setBrandRagUrl,
+    savedVoiceProfiles,
+    setSavedVoiceProfiles,
   });
 
   const { isFetchingUrl, fetchAndPopulate } = useUrlScraper({
@@ -111,28 +122,38 @@ export const useArticleForm = ({
   // Restore persisted form
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const key = getScopedKey(BASE_STORAGE_KEY);
-    const saved = localStorage.getItem(key);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        Object.keys(parsed).forEach((key) => {
-          // @ts-ignore
-          setValue(key, parsed[key]);
-        });
-        if (parsed.scrapedImages) setScrapedImages(dedupeScrapedImages(parsed.scrapedImages));
-      } catch (e) {
-        console.warn('Failed to restore persisted form', e);
+
+    const restore = async () => {
+      const saved = await scopedStorage.getItem(BASE_STORAGE_KEY);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          Object.keys(parsed).forEach((key) => {
+            // @ts-ignore
+            setValue(key, parsed[key]);
+          });
+          if (parsed.scrapedImages) setScrapedImages(dedupeScrapedImages(parsed.scrapedImages));
+        } catch (e) {
+          console.warn('Failed to restore persisted form', e);
+        }
       }
-    }
+    };
+    restore();
   }, [setScrapedImages, setValue]);
 
   // Persist + counts
   useEffect(() => {
     const subscription = watch((values) => {
-      const dataToSave = { ...values, scrapedImages };
-      const key = getScopedKey(BASE_STORAGE_KEY);
-      localStorage.setItem(key, JSON.stringify(dataToSave));
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+
+      saveTimerRef.current = setTimeout(async () => {
+        const dataToSave = { ...values, scrapedImages };
+        try {
+          await scopedStorage.setItem(BASE_STORAGE_KEY, JSON.stringify(dataToSave));
+        } catch (e) {
+          console.error(e);
+        }
+      }, 1000);
 
       const content = values.referenceContent || '';
       setRefCharCount(content.length);
@@ -144,7 +165,10 @@ export const useArticleForm = ({
         .filter((w) => w.length > 0);
       setRefWordCount(cjkCount + englishWords.length);
     });
-    return () => subscription.unsubscribe();
+    return () => {
+      subscription.unsubscribe();
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    };
   }, [scrapedImages, watch]);
 
   // Apply active profile
@@ -193,6 +217,9 @@ export const useArticleForm = ({
     updatePage,
     deletePage,
     applyPageToForm,
+    createVoiceProfile,
+    deleteVoiceProfile,
+    applyVoiceProfile,
     usableImages,
     handleClear,
   };

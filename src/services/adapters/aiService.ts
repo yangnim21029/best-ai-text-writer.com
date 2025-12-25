@@ -47,19 +47,12 @@ export const getVertex = () => {
 };
 
 class AIService {
-  private getModelId(key: LlmModelKey): string {
-    // Server-side fallback: Use constants directly.
-    // Client-side settings (useAppStore) are not accessible here.
-    return MODEL[key];
-  }
-
   private getModel(key: LlmModelKey): LanguageModel {
-    const modelId = this.getModelId(key);
-    return vertex(modelId);
+    return vertex(MODEL[key]);
   }
 
   /**
-   * Run a text generation request
+   * Run a text generation request (Standard text output)
    */
   async runText(
     prompt: string,
@@ -94,27 +87,25 @@ class AIService {
   }
 
   /**
-   * Run a JSON generation request using Vercel AI SDK 6 (Modern way)
+   * Run a structured JSON generation request (Standard v4+ output: Output.object)
    */
   async runJson<T>(
     prompt: string,
     modelKey: LlmModelKey = 'FLASH',
-    options: { schema?: z.ZodType<T>; useSearch?: boolean; promptId?: string } = {}
+    options: { schema: z.ZodType<T>; promptId?: string; temperature?: number }
   ): Promise<{ data: T; usage: TokenUsage; cost: CostBreakdown; duration: number }> {
     const start = Date.now();
     const model = this.getModel(modelKey);
-
-    if (!options.schema) {
-      throw new Error('[AIService] runJson requires a schema (zod).');
-    }
 
     try {
       const { output, usage } = await generateText({
         model,
         prompt,
-        output: Output.object({
-          schema: options.schema,
-        }),
+        output: Output.object({ schema: options.schema }),
+        temperature: options.temperature,
+        headers: {
+          'x-prompt-id': options.promptId || 'unnamed_json_task',
+        },
       });
 
       const { usage: normalizedUsage, cost } = calculateCost(usage, modelKey);
@@ -132,66 +123,35 @@ class AIService {
   }
 
   /**
-   * Stream a JSON generation request using Vercel AI SDK 6 (Modern way)
+   * Stream a structured JSON generation request (Modern v4+ output: Output.object)
    */
   async streamJson<T>(
     prompt: string,
     modelKey: LlmModelKey = 'FLASH',
-    options: { schema?: z.ZodType<T>; promptId?: string } = {}
+    options: { schema: z.ZodType<T>; promptId?: string }
   ) {
     const model = this.getModel(modelKey);
 
-    if (!options.schema) {
-      throw new Error('[AIService] streamJson requires a schema (zod).');
-    }
-
     const safePromptId = (options.promptId || 'unnamed_stream_task')
-      .replace(/[^\x00-\x7F]/g, '_'); // Replace non-ASCII with underscore
+      .replace(/[^\x00-\x7F]/g, '_');
 
     return streamText({
       model,
       prompt,
-      output: Output.object({
-        schema: options.schema,
-      }),
+      output: Output.object({ schema: options.schema }),
       headers: {
         'x-prompt-id': safePromptId,
       },
       onFinish({ usage, finishReason }) {
         if (process.env.NODE_ENV === 'development') {
-          console.log(`[AIService] Stream finished. Reason: ${finishReason}, Usage:`, usage);
+          const { cost } = calculateCost(usage, modelKey);
+          console.log(`[AIService] Stream finished. Reason: ${finishReason}, Cost: $${cost.totalCost.toFixed(4)}`);
         }
       },
       onError({ error }) {
         console.error(`[AIService] Stream error for ${modelKey}:`, error);
       }
     });
-  }
-
-
-  /**
-   * Convert plain text to Markdown using AI
-   */
-  async convertToMarkdown(
-    content: string,
-    onSuccess?: (markdown: string) => void
-  ): Promise<string> {
-    try {
-      const { promptTemplates } = await import('./promptTemplates');
-      const prompt = promptTemplates.convertToMarkdown({ content });
-
-      const response = await this.runText(prompt, 'FLASH');
-      const markdown = response.text;
-
-      if (onSuccess) {
-        onSuccess(markdown);
-      }
-
-      return markdown;
-    } catch (error) {
-      console.error('[AIService] convertToMarkdown failed', error);
-      throw error;
-    }
   }
 }
 

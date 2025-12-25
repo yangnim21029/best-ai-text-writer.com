@@ -4,6 +4,7 @@ import { ServiceResponse, ProductBrief, ProblemProductMapping, TargetAudience } 
 import { getLanguageInstruction } from '../adapters/promptService';
 import { aiService } from '../adapters/aiService';
 import { promptTemplates } from '../adapters/promptTemplates';
+import { logger } from '../../utils/logger';
 
 export const generateProductBrief = async (
   productName: string,
@@ -44,7 +45,7 @@ export const generateProductBrief = async (
       duration: response.duration,
     };
   } catch (e) {
-    console.error('Product Brief Generation Failed', e);
+    logger.error('parsing_product', 'Product Brief Generation Failed', { error: e });
     return {
       data: { brandName: '', productName: productName, usp: '', ctaLink: productUrl },
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
@@ -86,7 +87,7 @@ export const mapProblemsToProduct = async (
       duration: response.duration,
     };
   } catch (e) {
-    console.error('Brand Content Summarization Failed', e);
+    logger.error('parsing_product', 'Brand Content Summarization Failed', { error: e });
     return {
       data: [],
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
@@ -129,7 +130,7 @@ export const parseProductContext = async (
       duration: response.duration,
     };
   } catch (e) {
-    console.error('Product Context Parsing Failed', e);
+    logger.error('parsing_product', 'Product Context Parsing Failed', { error: e });
     return {
       data: { brandName: '', productName: '', usp: '', ctaLink: '' },
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },
@@ -167,7 +168,7 @@ export const summarizeBrandContent = async (
       duration: response.duration,
     };
   } catch (e) {
-    console.error('Brand Summary Failed', e);
+    logger.error('parsing_product', 'Brand Summary Failed', { error: e });
     return {
       data: '',
       usage: { inputTokens: 0, outputTokens: 0, totalTokens: 0 },

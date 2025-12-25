@@ -55,10 +55,15 @@ const runWritingPhase = async () => {
 
   // Check for accumulated analysis errors
   const missingData: string[] = [];
+  const isDirectorPlan = analysisStore.refAnalysis?.source === 'Director Plan';
+
   if (!analysisStore.refAnalysis?.structure?.length) missingData.push('文章架構 (Structure)');
-  if (!analysisStore.authAnalysis && !analysisResults?.structureResult?.authRes?.data)
-    missingData.push('權威分析 (Authority)');
-  if (!analysisStore.keywordPlans?.length) missingData.push('關鍵字規劃 (Keywords)');
+
+  if (!isDirectorPlan) {
+    if (!analysisStore.authAnalysis && !analysisResults?.structureResult?.authRes?.data)
+      missingData.push('權威分析 (Authority)');
+    if (!analysisStore.keywordPlans?.length) missingData.push('關鍵字規劃 (Keywords)');
+  }
 
   if (missingData.length > 0) {
     const confirmMsg = `偵測到部分分析資料缺失：\n${missingData.map((s) => `- ${s}`).join('\n')}\n\n是否仍要嘗試生成？(選擇「取消」將重新執行分析)`;

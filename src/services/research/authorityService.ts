@@ -4,6 +4,7 @@ import { ServiceResponse, AuthorityAnalysis, TargetAudience } from '../../types'
 import { aiService } from '../adapters/aiService';
 import { promptTemplates } from '../adapters/promptTemplates';
 import { getLanguageInstruction, toTokenUsage } from '../adapters/promptService';
+import { logger } from '../../utils/logger';
 
 export const analyzeAuthorityTerms = async (
   authorityTerms: string,
@@ -47,7 +48,7 @@ export const analyzeAuthorityTerms = async (
       duration: response.duration,
     };
   } catch (e) {
-    console.error('Authority analysis failed', e);
+    logger.error('nlp_analysis', 'Authority analysis failed', { error: e });
     const usage = toTokenUsage((e as any)?.usage);
     return {
       data: {

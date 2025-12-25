@@ -7,7 +7,9 @@ import {
   extractVoiceProfileOnly,
   generateTestSectionWithVoice,
   runFullReplicationTest,
-  runMixAndMatchReplication
+  runMixAndMatchReplication,
+  extractVectorContext, // NEW
+  distributeChunksExclusively // NEW
 } from '@/services/research/referenceAnalysisService';
 import { analyzeVisualStyle } from '@/services/generation/imageService';
 import {
@@ -36,6 +38,11 @@ import {
 import { aiService } from '@/services/adapters/aiService';
 import { isAuthorizedAction } from './auth';
 
+import {
+  convertToMarkdown
+} from '@/services/generation/contentGenerationService';
+import { logger } from '@/utils/logger';
+
 /**
  * Server Action to convert content to Markdown.
  */
@@ -45,7 +52,7 @@ export async function convertToMarkdownAction(content: string) {
     throw new Error('Unauthorized');
   }
 
-  return await aiService.convertToMarkdown(content);
+  return await convertToMarkdown(content);
 }
 
 /**
@@ -103,9 +110,56 @@ export async function mergeAnalysesAction(
   return await mergeMultipleAnalyses(analyses, targetAudience, instruction);
 }
 
+// ... (previous imports)
+import {
+  extractVoiceProfileFull, // Ensure this is imported
+} from '@/services/research/referenceAnalysisService';
+
+/**
+ * Server Action to create a voice profile from content.
+ */
+export async function createVoiceProfileAction(
+  content: string,
+  targetAudience: TargetAudience
+) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+
+  // Use the "Full" version to ensure deep analysis
+  const voiceData = await extractVoiceProfileFull(content, targetAudience);
+  return voiceData;
+}
+
+import { runDirectorResearch } from '@/services/research/directorService';
+
+/**
+ * Server Action for Director Research (Grounding).
+ */
+export async function runDirectorResearchAction(topic: string, context: string) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+  return await runDirectorResearch(topic, context);
+}
+
+import { planArticleWithDirector } from '@/services/research/directorService';
+
+/**
+ * Server Action to plan a full article (Director Mode).
+ */
+export async function planArticleWithDirectorAction(description: string, targetAudience: string = 'zh-TW', voiceContext: string = '') {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+  return await planArticleWithDirector(description, targetAudience, voiceContext);
+}
+
 /**
  * Server Action to run the entire analysis pipeline.
- * This replaces the client-side coordination logic.
  */
 export async function runFullAnalysisAction(config: ArticleConfig & { brandKnowledge?: string }) {
   const authorized = await isAuthorizedAction();
@@ -212,7 +266,7 @@ export async function extractWebsiteTypeAction(content: string) {
   try {
     return await extractWebsiteTypeAndTerm(content);
   } catch (error) {
-    console.error('[extractWebsiteTypeAction] Failed:', error);
+    logger.error('nlp_analysis', 'extractWebsiteTypeAction Failed', { error });
     throw error;
   }
 }
@@ -229,7 +283,7 @@ export async function summarizeBrandAction(urls: string[], targetAudience: Targe
   try {
     return await summarizeBrandContent(urls, targetAudience);
   } catch (error) {
-    console.error('[summarizeBrandAction] Failed:', error);
+    logger.error('nlp_analysis', 'summarizeBrandAction Failed', { error });
     throw error;
   }
 }
@@ -310,10 +364,44 @@ export async function scoreSemanticChunksAction(chunks: string[], title: string)
 
     return similarities;
   } catch (error) {
-    console.error('[scoreSemanticChunksAction] Failed:', error);
+    logger.error('nlp_analysis', 'scoreSemanticChunksAction Failed', { error });
     throw error;
   }
 }
+
+/**
+ * LAB ACTION: Compare Allocation Strategies
+ */
+export async function compareAllocationStrategiesAction(
+  sourceText: string,
+  sections: { title: string }[]
+): Promise<{ legacy: Record<string, string>; exclusive: Record<string, string> }> {
+  try {
+    // 1. Legacy: Independent Retrieval
+    const legacyMap: Record<string, string> = {};
+    await Promise.all(sections.map(async (sec) => {
+      const ctx = await extractVectorContext(sourceText, sec.title);
+      legacyMap[sec.title] = ctx;
+    }));
+
+    // 2. New: Exclusive Allocation
+    const exclusiveMapOrigin = await distributeChunksExclusively(sourceText, sections);
+    const exclusiveMap: Record<string, string> = {};
+    exclusiveMapOrigin.forEach((val, key) => {
+      exclusiveMap[key] = val;
+    });
+
+    return {
+      legacy: legacyMap,
+      exclusive: exclusiveMap,
+    };
+  } catch (error) {
+    logger.error('nlp_analysis', 'compareAllocationStrategiesAction Failed', { error });
+    throw error;
+  }
+}
+
+
 
 /**
  * EXPERIMENTAL: Server Action to extract voice profile only.
@@ -378,4 +466,30 @@ export async function runMixAndMatchReplicationAction(
     contentSource,
     targetAudience
   );
+}
+
+import { runDetailedSourcing } from '@/services/research/directorService';
+
+/**
+ * Server Action for Detailed Sourcing (Director Mode).
+ */
+export async function runDetailedSourcingAction(topic: string, structure: any[], targetAudience: string = 'zh-TW') {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+  return await runDetailedSourcing(topic, structure, targetAudience);
+}
+
+import { findTopGroundingUrls } from '@/services/research/directorService';
+
+/**
+ * Server Action to find authoritative URLs via Grounding.
+ */
+export async function findTopGroundingUrlsAction(topic: string, targetAudience: string = 'zh-TW', structure: any[] = []) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+  return await findTopGroundingUrls(topic, targetAudience, structure);
 }

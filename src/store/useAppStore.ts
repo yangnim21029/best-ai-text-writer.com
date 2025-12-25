@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
-import { ContentScore, SavedProfile, ScrapedImage, PageProfile, VisualProfile } from '@/types';
+import { ContentScore, SavedProfile, ScrapedImage, PageProfile, VisualProfile, SavedVoiceProfile } from '@/types';
 import {
   MODEL,
   KEYWORD_CHAR_DIVISOR,
@@ -43,6 +43,10 @@ interface AppState {
   // Visual Profiles (Style Library)
   visualProfiles: VisualProfile[];
 
+  // Voice Profiles (Voice Library)
+  savedVoiceProfiles: SavedVoiceProfile[];
+
+
   // Actions
   toggleInput: () => void;
   toggleSidebar: () => void;
@@ -83,6 +87,11 @@ interface AppState {
   addVisualProfile: (profile: VisualProfile) => void;
   updateVisualProfile: (profile: VisualProfile) => void;
   deleteVisualProfile: (id: string) => void;
+
+  // Voice Profile Actions
+  setSavedVoiceProfiles: (profiles: SavedVoiceProfile[]) => void;
+  addVoiceProfile: (profile: SavedVoiceProfile) => void;
+  deleteVoiceProfile: (id: string) => void;
 }
 
 export const useAppStore = create<AppState>()(
@@ -102,7 +111,7 @@ export const useAppStore = create<AppState>()(
       sessionTokens: 0,
 
       modelFlash: MODEL.FLASH,
-      modelImage: MODEL.IMAGE_PREVIEW,
+      modelImage: MODEL.IMAGE_GEN,
       keywordCharDivisor: KEYWORD_CHAR_DIVISOR,
       minKeywords: MIN_KEYWORDS,
       maxKeywords: SEMANTIC_KEYWORD_LIMIT,
@@ -136,6 +145,9 @@ export const useAppStore = create<AppState>()(
         },
       ],
 
+      savedVoiceProfiles: [],
+
+
       // Actions
       toggleInput: () => set((state) => ({ showInput: !state.showInput })),
       toggleSidebar: () => set((state) => ({ showSidebar: !state.showSidebar })),
@@ -166,7 +178,7 @@ export const useAppStore = create<AppState>()(
       resetSettings: () =>
         set({
           modelFlash: MODEL.FLASH,
-          modelImage: MODEL.IMAGE_PREVIEW,
+          modelImage: MODEL.IMAGE_GEN,
           keywordCharDivisor: KEYWORD_CHAR_DIVISOR,
           minKeywords: MIN_KEYWORDS,
           maxKeywords: SEMANTIC_KEYWORD_LIMIT,
@@ -215,6 +227,17 @@ export const useAppStore = create<AppState>()(
         set((state) => ({
           visualProfiles: state.visualProfiles.filter((p) => p.id !== id),
         })),
+
+      setSavedVoiceProfiles: (profiles) => set({ savedVoiceProfiles: profiles }),
+      addVoiceProfile: (profile) =>
+        set((state) => ({
+          savedVoiceProfiles: [...state.savedVoiceProfiles, profile],
+        })),
+      deleteVoiceProfile: (id) =>
+        set((state) => ({
+          savedVoiceProfiles: state.savedVoiceProfiles.filter((p) => p.id !== id),
+        })),
+
     }),
     {
       name: 'pro_content_writer_app_v1',

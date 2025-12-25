@@ -19,6 +19,8 @@ import { useMetricsStore } from '@/store/useMetricsStore';
 import { SectionPlanModal } from '@/components/SectionPlanModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { StreamingModal } from '@/components/StreamingModal';
+import { VoiceAnalysisLab } from '@/components/modals/VoiceAnalysisLab';
+import { ContextAllocationLab } from '@/components/modals/ContextAllocationLab'; // NEW
 import { useAppAccess } from '@/hooks/useAppAccess';
 import { useContentScore } from '@/hooks/useContentScore';
 import { useAppHydration } from '@/hooks/useAppHydration';
@@ -51,6 +53,9 @@ export default function AppPage() {
   const { isLocalizingPlan, handleLocalizePlan } = usePlanLocalization();
   const { handleLoadProfile, handleRemoveScrapedImage } = useProfileManagement();
   useAutoShowUI();
+
+  const [showVoiceLab, setShowVoiceLab] = React.useState(false);
+  const [showAllocationLab, setShowAllocationLab] = React.useState(false); // NEW
 
   // Sync server session with client local storage state
   useEffect(() => {
@@ -108,6 +113,8 @@ export default function AppPage() {
               setSavedPages={app.setSavedPages}
               activePageId={app.activePageId}
               onSetActivePageId={app.setActivePageId}
+              savedVoiceProfiles={app.savedVoiceProfiles}
+              setSavedVoiceProfiles={app.setSavedVoiceProfiles}
               inputType={app.inputType}
               setInputType={app.setInputType}
               brandKnowledge={analysisStore.brandKnowledge}
@@ -221,6 +228,15 @@ export default function AppPage() {
       />
 
       <GenerationOrchestrator />
+
+      <VoiceAnalysisLab isOpen={showVoiceLab} onClose={() => setShowVoiceLab(false)} />
+      <ContextAllocationLab isOpen={showAllocationLab} onClose={() => setShowAllocationLab(false)} />
+
+      {/* Dev Labs Trigger */}
+      <div className="fixed bottom-4 left-4 z-50 flex gap-2">
+        <button onClick={() => setShowVoiceLab(true)} className="p-2 bg-purple-600 text-white rounded-full shadow-lg opacity-50 hover:opacity-100 transition-opacity text-[10px] font-bold">Voice Lab</button>
+        <button onClick={() => setShowAllocationLab(true)} className="p-2 bg-emerald-600 text-white rounded-full shadow-lg opacity-50 hover:opacity-100 transition-opacity text-[10px] font-bold">Alloc Lab</button>
+      </div>
     </div>
   );
 }
