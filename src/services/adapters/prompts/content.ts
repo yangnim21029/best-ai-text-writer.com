@@ -868,17 +868,75 @@ DEFINITION: A collection of analyzes from different top - ranking competitor art
 `,
 
   convertToMarkdown: ({ content }: { content: string }) => `
-    You are a Markdown formatting expert.
-    Turn the following text into clean, structured Markdown format without changing the original text content or its inherent meaning. 
+    You are a Markdown formatting expert with deep SEO knowledge.
+    Turn the following text into clean, structured Markdown format without changing the original text content or its inherent meaning.
     
     <InputText>
     ${content}
     </InputText>
 
-    RULES:
-    1. Detect headings and apply #, ##, ### appropriately.
-    2. Detect lists and apply - or 1. appropriately.
-    3. Preserve all original wording. Do not summarize or rewrite.
-    4. Return ONLY the Markdown text.
+    ## HEADING HIERARCHY ACTION PLAN (CRITICAL)
+
+    ### Step 1: Identify the Page Title (H1)
+    - The H1 is the ROOT NODE of the document. There should be ONLY ONE H1.
+    - Detection Heuristics:
+      - Usually the first prominent line of text (often styled differently in source).
+      - Answers "What is this entire page about?"
+      - If the source has an obvious "title" or "headline", that's your H1.
+    - If no clear H1 exists, infer one from the overall topic.
+
+    ### Step 2: Identify Major Sections (H2)
+    - H2s are TOP-LEVEL sections that divide the article into distinct parts.
+    - Detection Heuristics:
+      - Look for text that introduces a NEW main topic or question.
+      - Often preceded by a blank line in source text.
+      - May be numbered (e.g., "1. First Topic") or styled as subheadings.
+      - Navigation items, "Table of Contents", or sidebar links are NOT H2s.
+    - Key Question: "Does this heading start a NEW major discussion under the H1?"
+      - YES → Make it H2.
+      - NO (it's a subtopic of something above) → Make it H3.
+
+    ### Step 3: Identify Subsections (H3)
+    - H3s are CHILDREN of H2s. They break down a major section into smaller parts.
+    - Detection Heuristics:
+      - Text that elaborates on or divides the H2 above it.
+      - More specific/narrow scope than its parent H2.
+      - If you read only the H3s under an H2, they should outline that H2's content.
+    - Key Question: "Is this a subtopic under the current H2?"
+      - YES → Make it H3.
+      - NO (it's a peer section) → Go back to Step 2, make it H2.
+
+    ### Step 4: Validate the Hierarchy
+    - NEVER skip levels (e.g., H1 → H3 without H2 in between is WRONG).
+    - Each H2 should logically belong under the H1.
+    - Each H3 should logically belong under its preceding H2.
+    - Read the headings aloud: Do they create a clear outline of the document?
+
+    ## EXAMPLES
+
+    **BAD (skips levels, navigation mixed in):**
+    \`\`\`
+       ### Quick Links        ← Wrong: navigation, not content
+       ### Photography Tips   ← Wrong: should be H2 if it's a main section
+    # Main Title
+       ### Set the ISO        ← Wrong: jumped from H1 to H3
+    \`\`\`
+
+    **GOOD (proper hierarchy):**
+    \`\`\`
+    # Setting the Exposure Manually on a Camera    ← H1: Page title
+       ## Set the ISO                              ← H2: Major section
+          ### The effect of ISO on image quality   ← H3: Subtopic under "Set the ISO"
+          ### High ISO cameras                     ← H3: Another subtopic
+       ## Choose an Aperture                       ← H2: Next major section
+          ### Depth of focus effects               ← H3: Subtopic
+    \`\`\`
+
+    ## OTHER FORMATTING RULES
+    1. Detect lists and apply \`-\` or \`1.\` appropriately.
+    2. Preserve all original wording. Do not summarize or rewrite.
+    3. Use **bold** for emphasis where source text implies it.
+    4. Add blank lines before headings for readability.
+    5. Return ONLY the Markdown text, no explanations.
   `,
 };

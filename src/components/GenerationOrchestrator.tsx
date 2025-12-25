@@ -17,7 +17,6 @@ export const GenerationOrchestrator: React.FC = () => {
           id={item.id}
           index={item.index}
           body={item.body}
-          shouldAutoPlanImages={Boolean(lastConfig?.autoImagePlan)}
           onDone={() => {
             removeFromStreamingQueue(item.id);
           }}

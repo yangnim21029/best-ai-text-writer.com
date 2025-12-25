@@ -5,7 +5,6 @@ import {
   planImagesForArticle,
   generateImage,
   generateImagePromptFromContext,
-  generateSectionImage
 } from '@/services/generation/imageService';
 import {
   generateSectionContent,
@@ -143,33 +142,6 @@ export async function generateImagePromptFromContextAction(
     );
   } catch (error) {
     console.error('[generateImagePromptFromContextAction] Failed:', error);
-    throw error;
-  }
-}
-
-/**
- * Server Action to generate an image specifically for a section.
- */
-export async function generateSectionImageAction(
-  sectionTitle: string,
-  sectionContent: string,
-  visualStyle: string,
-  targetAudience: TargetAudience
-) {
-  const authorized = await isAuthorizedAction();
-  if (!authorized && process.env.NODE_ENV !== 'development') {
-    throw new Error('Unauthorized');
-  }
-
-  try {
-    return await generateSectionImage(
-      sectionTitle,
-      sectionContent,
-      visualStyle,
-      targetAudience
-    );
-  } catch (error) {
-    console.error('[generateSectionImageAction] Failed:', error);
     throw error;
   }
 }
