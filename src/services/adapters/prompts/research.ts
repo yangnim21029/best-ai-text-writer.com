@@ -282,4 +282,94 @@ DEFINITION: Source text.
       ]
     }
   `,
+
+  voiceAndToneBlueprint: ({
+    content,
+    targetAudience,
+    languageInstruction,
+    analysisPayloadString,
+  }: any) => `
+    You are an expert Linguistic Analyst and Brand Strategist.
+    Your task is to extract a comprehensive "Voice & Tone Blueprint" from the provided content, including both High-Level Strategy and Micro-Level Sentence Patterns.
+
+    <Content>
+    ${content}
+    </Content>
+
+    <KeywordContext>
+    ${analysisPayloadString}
+    </KeywordContext>
+    DEFINITION: Key frequent terms found in the text with their surrounding context snippets.
+
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+    DEFINITION: Output language for the analysis.
+
+    ---
+
+    ## PART 1: MACRO VOICE STRATEGY (The "Vibe")
+    Analyze the overall persona and strategy:
+    1. **Tone Sensation**: The 3-5 words that describe the "Vibe" (e.g. "Authoritative but empathetic", "Witty and fast-paced").
+    2. **Human Writing Voice**: Why does this sound human? (e.g. "Uses direct 'You' address", "Admits flaws", "Rhythmic variance").
+    3. **Region Detection**: What is the regional flavor? (e.g. "HK Cantonese mixed with English", "Standard TW Mandarin").
+    4. **General Plan (Semantic Blueprint)**: The 3 golden writing rules. (Analyze as if an Editor-in-Chief giving clear, concise instructions to a Junior Editor).
+    5. **Entry Point**: The strategic angle used to hook the reader. (Analyze as if an Editor-in-Chief explaining the "Hook Strategy").
+    6. **Conversion Plan**: How does the text sell/persuade?
+
+    ## PART 2: MICRO SENTENCE PATTERNS (The "Mechanics")
+    Using the <KeywordContext> and the text, identify specific linguistic habits:
+    1. **Sentence Flow (Connection)**: How do they connect ideas *within* the paragraph? (Analyze the bridges between sentences, not just openers. e.g. "Use 'However' to pivot", "Short rhythmic bursts", "Connective grouping").
+    2. **Sentence End Features**: How do they end? (e.g. "Rhetorical questions", "Exclamation marks", "Soft particles like 吧/呢").
+    3. **Keyword Plans**: For the top 20 keywords provided in <KeywordContext> (if available), provide a specific "Usage Plan" (e.g. "Use at start of sentence for impact").
+
+    ---
+
+    OUTPUT JSON:
+    {
+      "toneSensation": "string",
+      "humanWritingVoice": "string",
+      "regionVoiceDetect": "string",
+      "generalPlan": ["rule 1", "rule 2", "rule 3"],
+      "entryPoint": "string",
+      "conversionPlan": ["tactic 1", "tactic 2"],
+      "sentenceStartFeatures": ["feature 1", "feature 2"],
+      "sentenceEndFeatures": ["feature 1", "feature 2"],
+      "keywordPlans": [
+        {
+          "word": "keyword",
+          "plan": ["usage rule 1", "usage rule 2"],
+          "exampleSentence": "short example"
+        }
+      ]
+    }
+  `,
+
+  simulateSourceMaterial: ({
+    sectionTitle,
+    subheadings,
+    languageInstruction,
+  }: any) => `
+    You are a Knowledge Retrieval Simulator.
+    The user wants to write a section titled: "${sectionTitle}".
+    Subheadings: ${subheadings?.join(', ') || 'None'}.
+
+    <LanguageInstruction>
+    ${languageInstruction}
+    </LanguageInstruction>
+
+    TASK:
+    Simulate "Real-world Search Results" for this specific topic.
+    Extract the following from your internal knowledge base as if they were found on top-ranking websites:
+    1. **Unique Viewpoints**: What are the specific arguments experts make?
+    2. **Supporting Facts**: Data, stats, or logical proofs used to support those viewpoints.
+    3. **Key Sentences**: 2-3 specific, high-quality sentences that might appear in such articles (for the writer to mimic or quote).
+
+    OUTPUT JSON:
+    {
+      "viewpoints": ["viewpoint 1", "viewpoint 2"],
+      "facts": ["fact 1", "fact 2"],
+      "quotes": ["sentence 1", "sentence 2"]
+    }
+  `,
 };

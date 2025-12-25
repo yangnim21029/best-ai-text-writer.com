@@ -133,6 +133,7 @@ export interface PageProfile {
   websiteType?: string;
   authorityTerms?: string;
   targetAudience: TargetAudience;
+  originalUrl?: string; // NEW: The source URL for this page profile
   brandRagUrl?: string; // NEW: Snapshotted link
 }
 

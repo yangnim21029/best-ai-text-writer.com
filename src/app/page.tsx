@@ -41,9 +41,10 @@ export default function AppPage() {
   const generationStore = useGenerationStore();
   const analysisStore = useAnalysisStore();
   const { isUnlocked, unlock, lock } = useAppAccess();
+  const [isAuthVerified, setIsAuthVerified] = React.useState(false);
   const { structurePoints } = useContentScore();
   const { generate, startWriting, stop } = useGeneration();
-  useAppHydration();
+  useAppHydration(isUnlocked, isAuthVerified);
 
   // Custom Business Logic Hooks
   const { isSearchingAlternatives, handleSearchLocalAlternatives } = useAlternativeSearch();
@@ -59,6 +60,7 @@ export default function AppPage() {
       } else if (!isAuth && isUnlocked) {
         lock();
       }
+      setIsAuthVerified(true);
     });
   }, [isUnlocked, unlock, lock]);
 

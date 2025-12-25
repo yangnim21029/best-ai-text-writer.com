@@ -1,31 +1,35 @@
 'use server';
 
-import { 
-  extractWebsiteTypeAndTerm, 
+import {
+  extractWebsiteTypeAndTerm,
   analyzeReferenceStructure,
-  mergeMultipleAnalyses
+  mergeMultipleAnalyses,
+  extractVoiceProfileOnly,
+  generateTestSectionWithVoice,
+  runFullReplicationTest,
+  runMixAndMatchReplication
 } from '@/services/research/referenceAnalysisService';
 import { analyzeVisualStyle } from '@/services/generation/imageService';
-import { 
-  analyzeRegionalTerms, 
-  localizePlanWithAI, 
-  findRegionEquivalents 
+import {
+  analyzeRegionalTerms,
+  localizePlanWithAI,
+  findRegionEquivalents
 } from '@/services/research/regionalService';
 import { analyzeAuthorityTerms } from '@/services/research/authorityService';
 import { analyzeText } from '@/services/adapters/nlpService';
 import { embedTexts, cosineSimilarity } from '@/services/adapters/embeddingService';
 import { extractSemanticKeywordsAnalysis } from '@/services/research/termUsagePlanner';
 
-import { 
-  parseProductContext, 
+import {
+  parseProductContext,
   generateProblemProductMapping,
   summarizeBrandContent
 } from '@/services/research/productFeatureToPainPointMapper';
-import { 
-  TargetAudience, 
-  ScrapedImage, 
-  ProductBrief, 
-  ArticleConfig, 
+import {
+  TargetAudience,
+  ScrapedImage,
+  ProductBrief,
+  ArticleConfig,
   ReferenceAnalysis,
   KeywordData
 } from '@/types';
@@ -309,4 +313,69 @@ export async function scoreSemanticChunksAction(chunks: string[], title: string)
     console.error('[scoreSemanticChunksAction] Failed:', error);
     throw error;
   }
+}
+
+/**
+ * EXPERIMENTAL: Server Action to extract voice profile only.
+ */
+export async function extractVoiceProfileAction(content: string, targetAudience: TargetAudience) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+
+  return await extractVoiceProfileOnly(content, targetAudience);
+}
+
+/**
+ * EXPERIMENTAL: Server Action to test voice profile by generating a section.
+ */
+export async function testVoiceSectionGenerationAction(
+  sectionTitle: string,
+  voiceProfile: any,
+  targetAudience: TargetAudience
+) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+
+  return await generateTestSectionWithVoice(sectionTitle, voiceProfile, targetAudience);
+}
+
+/**
+ * EXPERIMENTAL: Server Action to run full replication test.
+ */
+export async function runFullReplicationTestAction(
+  sourceContent: string,
+  targetAudience: TargetAudience
+) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+
+  return await runFullReplicationTest(sourceContent, targetAudience);
+}
+
+/**
+ * EXPERIMENTAL: Server Action to run mix and match replication test.
+ */
+export async function runMixAndMatchReplicationAction(
+  voiceSource: string,
+  structureSource: string,
+  contentSource: string,
+  targetAudience: TargetAudience
+) {
+  const authorized = await isAuthorizedAction();
+  if (!authorized && process.env.NODE_ENV !== 'development') {
+    throw new Error('Unauthorized');
+  }
+
+  return await runMixAndMatchReplication(
+    voiceSource,
+    structureSource,
+    contentSource,
+    targetAudience
+  );
 }

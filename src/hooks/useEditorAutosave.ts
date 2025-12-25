@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
+import { getScopedKey } from '../utils/scopedStorage';
 
 type MetaState = {
   metaTitle?: string;
@@ -26,7 +27,8 @@ export const useEditorAutosave = ({
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const savedRaw = localStorage.getItem(storageKey);
+      const key = getScopedKey(storageKey);
+      const savedRaw = localStorage.getItem(key);
       if (!savedRaw) return;
       const saved = JSON.parse(savedRaw);
       if (saved && saved.html) {
@@ -50,7 +52,8 @@ export const useEditorAutosave = ({
       const serialized = JSON.stringify(payload);
       if (serialized === lastSavedRef.current) return;
       try {
-        localStorage.setItem(storageKey, serialized);
+        const key = getScopedKey(storageKey);
+        localStorage.setItem(key, serialized);
         lastSavedRef.current = serialized;
       } catch (e) {
         console.warn('Autosave failed', e);

@@ -4,7 +4,6 @@ import { generateText, streamText, Output, LanguageModel } from 'ai';
 import { MODEL } from '../../config/constants';
 import { calculateCost } from './promptService';
 import { TokenUsage, CostBreakdown, AIRequestConfig } from '../../types';
-import { useAppStore } from '../../store/useAppStore';
 import { serverEnv } from '../../config/env';
 import { z } from 'zod';
 
@@ -49,9 +48,8 @@ export const getVertex = () => {
 
 class AIService {
   private getModelId(key: LlmModelKey): string {
-    const settings = useAppStore.getState();
-    if (key === 'FLASH') return settings.modelFlash;
-    if (key === 'IMAGE_PREVIEW') return settings.modelImage;
+    // Server-side fallback: Use constants directly.
+    // Client-side settings (useAppStore) are not accessible here.
     return MODEL[key];
   }
 

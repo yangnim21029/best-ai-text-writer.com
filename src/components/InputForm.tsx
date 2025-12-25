@@ -30,6 +30,7 @@ import {
   FileUp,
   Slack,
   FolderOpen,
+  Database,
 } from 'lucide-react';
 import { useArticleForm } from '@/hooks/useArticleForm';
 import { useSemanticFilter } from '@/hooks/useSemanticFilter';
@@ -93,6 +94,7 @@ export const InputForm: React.FC<InputFormProps> = ({
   const [isWebsiteModalOpen, setIsWebsiteModalOpen] = useState(false);
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [isPageModalOpen, setIsPageModalOpen] = useState(false);
+  const [isProfileSectionExpanded, setIsProfileSectionExpanded] = useState(false);
 
   const analysisStore = useAnalysisStore();
   const { useRag, autoImagePlan } = useAppStore();
@@ -309,6 +311,16 @@ export const InputForm: React.FC<InputFormProps> = ({
               <h2 className="text-sm font-bold tracking-tight">Writer Config</h2>
             </div>
 
+            {/* Page Library Button */}
+            <button
+              onClick={() => setIsPageModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg text-[10px] font-bold hover:bg-indigo-100 transition-all shadow-sm"
+              title="Open Page Library"
+            >
+              <Database className="w-3.5 h-3.5" />
+              Page Library
+            </button>
+
             {/* Compact Language Selector */}
             <div className="relative group/lang">
               <select
@@ -352,7 +364,6 @@ export const InputForm: React.FC<InputFormProps> = ({
             canSemanticFilter={(watchedValues.referenceContent || '').trim().length > 0}
             websiteType={watchedValues.websiteType}
             activePageId={activePageId}
-            onOpenLibrary={() => setIsPageModalOpen(true)}
             onCreatePage={(name) => createPage({ name, ...watchedValues, scrapedImages })}
             activePageTitle={
               savedPages.find((p) => p.id === activePageId)?.name || watchedValues.title
@@ -371,17 +382,23 @@ export const InputForm: React.FC<InputFormProps> = ({
 
           {/* 3. Global Library Explorer */}
           <div className="space-y-4 pt-2 border-t border-gray-100">
-            <div className="px-1 flex items-center justify-between">
+            <div
+              className="px-1 flex items-center justify-between cursor-pointer hover:bg-slate-50 p-1 rounded-lg transition-colors"
+              onClick={() => setIsProfileSectionExpanded(!isProfileSectionExpanded)}
+            >
               <div className="flex items-center gap-2">
                 <BookOpen className="w-3.5 h-3.5 text-blue-600" />
                 <h4 className="text-[11px] font-black text-slate-800 uppercase tracking-wider">
                   Website Profile
                 </h4>
               </div>
+              <ChevronDown
+                className={`w-3.5 h-3.5 text-slate-400 transition-transform duration-200 ${isProfileSectionExpanded ? 'rotate-180' : ''}`}
+              />
             </div>
 
             {/* Flat Sections No Nesting inside one card */}
-            <div className="space-y-3">
+            <div className={`space-y-3 ${isProfileSectionExpanded ? '' : 'hidden'}`}>
               <WebsiteProfileSection
                 savedProfiles={savedProfiles}
                 activeProfile={activeProfile}
@@ -570,6 +587,7 @@ export const InputForm: React.FC<InputFormProps> = ({
             const updated = updatePage(activePageId, {
               title: watchedValues.title,
               referenceContent: watchedValues.referenceContent,
+              originalUrl: watchedValues.urlInput, // Sync URL
               scrapedImages: refreshedImages,
               websiteType: watchedValues.websiteType,
               authorityTerms: watchedValues.authorityTerms,

@@ -27,6 +27,7 @@ export const contentPrompts = {
     replacementRules,
     logicalFlow,
     coreFocus,
+    sourceContext,
   }: any) => {
     const resolvedDifficulty = difficulty || 'easy';
     const mode = writingMode || (resolvedDifficulty === 'easy' ? 'direct' : 'multi_solutions');
@@ -59,6 +60,14 @@ export const contentPrompts = {
     ${futureSections.join(', ')}
     </UpcomingSections>
     DEFINITION: Titles of sections to be written later.
+
+    ${sourceContext ? `
+    <SourceContext>
+    ${sourceContext}
+    </SourceContext>
+    DEFINITION: The raw source text relevant to this section.
+    INSTRUCTION: Use facts and details from here to substantiate your writing.
+    ` : ''}
 
 
     ## Strategy & Style
@@ -610,7 +619,7 @@ export const contentPrompts = {
 
     STRICT RULES FOR EVERY SECTION:
     - ** LANGUAGE LEVEL **: Use extremely simple, direct language(elementary school level simplicity).No jargon or flowery summaries.
-    - ** "logicalFlow" **: A one - sentence description of the INNER RELATIONSHIP / CONNECTION between points.Do NOT summarize what to do.Instead, explain the "Logic Bridge": "Why does point A lead to point B?".It supplements Narrative Plan / Key Facts by clarifying the hidden "Why" or "Transition Logic".
+    - ** "logicalFlow" **: An Editor-in-Chief's direct, explicit instruction on the LOGIC BRIDGE. (e.g. "Because X happened, you must immediately transition to Y to show the consequence."). Do NOT summarize content. Define the *hidden causal connection* or *argumentative strategy* that links the points.
     - ** "coreFocus" **: Defines the TONE and EMOTIONAL HOOK.Tell the writer * how * to emphasize things and what vibe to maintain(e.g., "Urgent warning: sound concerned", "Relief and comfort: sound like a calm expert").
     
     - ** "narrativePlan" **: 4 - 6 specific writing instructions.

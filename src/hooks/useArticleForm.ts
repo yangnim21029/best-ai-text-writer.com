@@ -7,8 +7,9 @@ import { useUrlScraper } from './useUrlScraper';
 import { useProfileManager } from './useProfileManager';
 import { useStorageReset } from './useStorageReset';
 import { dedupeScrapedImages } from '../utils/imageUtils';
+import { getScopedKey } from '../utils/scopedStorage';
 
-const STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
+const BASE_STORAGE_KEY = 'pro_content_writer_inputs_simple_v4';
 
 interface UseArticleFormParams {
   brandKnowledge?: string;
@@ -110,7 +111,8 @@ export const useArticleForm = ({
   // Restore persisted form
   useEffect(() => {
     if (typeof window === 'undefined') return;
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const key = getScopedKey(BASE_STORAGE_KEY);
+    const saved = localStorage.getItem(key);
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -129,7 +131,8 @@ export const useArticleForm = ({
   useEffect(() => {
     const subscription = watch((values) => {
       const dataToSave = { ...values, scrapedImages };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dataToSave));
+      const key = getScopedKey(BASE_STORAGE_KEY);
+      localStorage.setItem(key, JSON.stringify(dataToSave));
 
       const content = values.referenceContent || '';
       setRefCharCount(content.length);

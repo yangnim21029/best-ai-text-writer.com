@@ -6,23 +6,17 @@ export const buildTurboPlaceholder = (
   sections: TurboSection[],
   outlineSourceLabel: string
 ): string => {
-  const headerBanner = `> 📑 **Active Blueprint:** ${outlineSourceLabel}\n\n`;
-
-  const placeholders = sections.map((s) => `> ⏳ **Writing Section:** ${s.title}...`).join('\n\n');
-
-  return headerBanner + placeholders;
+  // User requested to remove all "noise" including the initial list of sections waiting to be written.
+  return '';
 };
 
 export const mergeTurboSections = (sections: TurboSection[], sectionContents: string[]): string => {
-  const placeholders = sections
-    .map((s, idx) => {
-      const content = sectionContents[idx];
-      if (content) return content;
-      return `> ⏳ **Writing Section:** ${s.title}...`;
-    })
+  // Simply join the content that exists. The caller (useContentGenerator) 
+  // already decides what to pass in (e.g. empty strings for future sections).
+  // We filter out any empty strings here just in case, or we can just join them.
+  // The user wants clean output, so no placeholders.
+
+  return sectionContents
+    .filter(content => content && content.trim().length > 0)
     .join('\n\n');
-
-  const headerBanner = `> 📑 **Active Blueprint:** Turbo Mode\n\n`;
-
-  return headerBanner + placeholders;
 };

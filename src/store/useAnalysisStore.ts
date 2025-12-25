@@ -103,6 +103,7 @@ interface AnalysisState {
   reset: () => void;
 }
 
+import { scopedStorage } from '../utils/scopedStorage';
 import { db } from '../db/analysisDb';
 
 export const useAnalysisStore = create<AnalysisState>()(
@@ -265,7 +266,7 @@ export const useAnalysisStore = create<AnalysisState>()(
     }),
     {
       name: 'pro_content_writer_analysis',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => scopedStorage),
       partialize: (state) => ({
         keywordPlans: state.keywordPlans,
         refAnalysis: state.refAnalysis,

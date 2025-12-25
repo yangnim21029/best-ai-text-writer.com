@@ -146,20 +146,50 @@ export const runContentGeneration = async (
   const renderSectionBlock = (idx: number, bodyOverride?: string) => {
     const heading = getHeading(idx);
     const body = typeof bodyOverride === 'string' ? bodyOverride : '';
+    // If body is present, show header + body.
     if (body) return `## ${heading}\n\n${body}`;
-    return `## ${heading}\n\n_(Writing...)_`;
+    // If no body, we now return heading only if we want to show "it's about to write this", 
+    // BUT the new requirements say "just like writing", so maybe we don't even show the header until content starts?
+    // Let's stick to showing the header with a small indicator OR just the header.
+    // However, the caller logic (renderTurboSections) filters out empty ones now.
+    return '';
   };
 
   const renderTurboSections = () => {
     const results = useGenerationStore.getState().sectionResults;
+    // Only render sections that have content or are the immediate next one being worked on
+    const relevantSections = sectionsToGenerate.filter((s, idx) => {
+      const id = `${idx}-${s.title}`;
+      const result = results.find((r) => r.id === id);
+      // Show if it has content, or if it's the very first one and nothing exists yet
+      if (result?.content) return true;
+      // Also show if it's the *current* target but has no content yet (optionally)
+      // For now, let's strictly show only what has content to mimic "writing from scratch"
+      // But we might want to show the header of the *current* section just before it starts
+      return false;
+    });
+
+    // Fallback: If nothing has content yet, show the first section's header to avoid empty screen
+    let displaySections = relevantSections;
+    if (results.length > 0 && relevantSections.length === 0) {
+      // Find the active one
+      const active = results.find(r => !r.content); // first one without content?
+      if (active) {
+        // Check index
+        const idx = sectionsToGenerate.findIndex(s => active.id.includes(s.title));
+        if (idx !== -1) return renderSectionBlock(idx, '');
+      }
+    }
+
     return mergeTurboSections(
       sectionsToGenerate,
       sectionsToGenerate.map((s, idx) => {
         const id = `${idx}-${s.title}`;
         const result = results.find((r) => r.id === id);
-        return result?.content
-          ? renderSectionBlock(idx, result.content)
-          : renderSectionBlock(idx, '');
+
+        // Logic: ONLY return string if it has content.
+        // If content is empty, return empty string so it doesn't appear in the merged output
+        return result?.content ? renderSectionBlock(idx, result.content) : '';
       })
     );
   };
@@ -170,10 +200,12 @@ export const runContentGeneration = async (
       .map((s, idx) => {
         const id = `${idx}-${s.title}`;
         const result = results.find((r) => r.id === id);
+        // Only show if content exists
         return result?.content
           ? renderSectionBlock(idx, result.content)
-          : renderSectionBlock(idx, '');
+          : '';
       })
+      .filter(Boolean)
       .join('\n\n');
   };
 
@@ -206,14 +238,11 @@ export const runContentGeneration = async (
 
   const getKeywordPlans = () => useAnalysisStore.getState().keywordPlans || [];
 
-  const limit = pLimit(2); // Concurrency limit for stability
+  const limit = pLimit(4); // Concurrency limit for stability
 
-  const outlineSourceLabel = isUsingCustomOutline
-    ? `**User Custom Outline**`
-    : `**AI Narrative Structure (Outline)**`;
-
-  const initialDisplay = `> 📑 **Active Blueprint:** ${outlineSourceLabel}\n\n`;
-  generationStore.setContent(initialDisplay);
+  // generationStore.setContent(initialDisplay); 
+  // We want to start clean, so we don't set any initial "Blueprint" text anymore.
+  generationStore.setContent('');
 
   // 2. Context Distribution
   let contextMap: Record<number, string> = {};
@@ -282,22 +311,21 @@ export const runContentGeneration = async (
         body,
       });
 
-      // Wait for completion
+      // Wait for completion via store subscription (more efficient than setInterval)
       await new Promise<void>((resolve) => {
-        const checkInterval = setInterval(() => {
-          if (isStopped()) {
-            clearInterval(checkInterval);
+        const unmount = useGenerationStore.subscribe((state) => {
+          const isDone = state.completedSections.includes(id);
+          if (isDone || state.isStopped) {
+            unmount();
             resolve();
-            return;
           }
+        });
 
-          // Check if section is marked as completed in store
-          const isDone = useGenerationStore.getState().completedSections.includes(id);
-          if (isDone) {
-            clearInterval(checkInterval);
-            resolve();
-          }
-        }, 500);
+        // Safety check in case it's already done
+        if (useGenerationStore.getState().completedSections.includes(id) || useGenerationStore.getState().isStopped) {
+          unmount();
+          resolve();
+        }
       });
     })
   );

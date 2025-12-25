@@ -33,7 +33,9 @@ export const SectionStreamer: React.FC<SectionStreamerProps> = ({
     api: '/api/ai/section',
     schema: sectionSchema,
     onFinish: ({ object, error }) => {
-// ...
+      if (object) {
+        finalize(object);
+      }
     },
   });
 

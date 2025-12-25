@@ -40,7 +40,6 @@ interface SourceMaterialSectionProps {
   // Page Profile Props
   websiteType?: string;
   activePageId?: string;
-  onOpenLibrary: () => void;
   onCreatePage: (name: string) => void;
   activePageTitle?: string;
 }
@@ -59,7 +58,6 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
   canSemanticFilter,
   websiteType,
   activePageId,
-  onOpenLibrary,
   onCreatePage,
   activePageTitle,
 }) => {
@@ -130,18 +128,7 @@ export const SourceMaterialSection: React.FC<SourceMaterialSectionProps> = ({
         </div>
       </div>
 
-      {/* Library Button in Collapsed Card */}
-      <button
-        type="button"
-        onClick={(e) => {
-          e.stopPropagation();
-          onOpenLibrary();
-        }}
-        className="h-8 px-3 bg-white text-slate-600 rounded-lg text-[10px] font-black hover:bg-slate-50 transition-all border border-slate-200 shadow-sm active:scale-95 flex items-center justify-center gap-1.5 mr-2"
-      >
-        <Database className="w-3 h-3" />
-        Library
-      </button>
+
 
       <ChevronDown
         className={`w-3.5 h-3.5 text-slate-400 flex-shrink-0 transition-transform duration-300 ${isSourceInputOpen ? 'rotate-180' : ''}`}

@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import { scopedStorage } from '../utils/scopedStorage';
 import {
   ArticleConfig,
   GenerationStatus,
@@ -117,7 +118,7 @@ export const useGenerationStore = create<GenerationState>()(
     }),
     {
       name: 'pro_content_writer_generation',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => scopedStorage),
       partialize: (state) => {
         const stripImages = (html: string) =>
           (html || '').replace(/src="data:image\/[^"]+"/g, 'src=""');

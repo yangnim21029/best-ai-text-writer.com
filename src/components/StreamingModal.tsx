@@ -61,7 +61,8 @@ export const StreamingModal: React.FC<StreamingModalProps> = ({ isOpen, content,
     .replace(
       /Active Blueprint:\s*(.*)/g,
       '' // Hide blueprint info from user for a cleaner look
-    );
+    )
+    .replace(/\\n/g, '\n'); // Fix literal escaped newlines
 
   const isRefining = step === 'refining_headings';
 
@@ -146,15 +147,15 @@ export const StreamingModal: React.FC<StreamingModalProps> = ({ isOpen, content,
           </div>
 
           <div className="hidden md:flex items-center gap-3">
-             <div className="flex flex-col items-end mr-4">
-                <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">Current Progress</span>
-                <div className="h-1 w-24 bg-slate-100 rounded-full mt-1 overflow-hidden">
-                    <div 
-                        className="h-full bg-blue-500 transition-all duration-1000 ease-out" 
-                        style={{ width: step === 'writing_content' ? '40%' : step === 'refining_headings' ? '75%' : '100%' }}
-                    ></div>
-                </div>
-             </div>
+            <div className="flex flex-col items-end mr-4">
+              <span className="text-[10px] font-black text-slate-300 uppercase tracking-tighter">Current Progress</span>
+              <div className="h-1 w-24 bg-slate-100 rounded-full mt-1 overflow-hidden">
+                <div
+                  className="h-full bg-blue-500 transition-all duration-1000 ease-out"
+                  style={{ width: step === 'writing_content' ? '40%' : step === 'refining_headings' ? '75%' : '100%' }}
+                ></div>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -166,7 +167,7 @@ export const StreamingModal: React.FC<StreamingModalProps> = ({ isOpen, content,
             className="absolute inset-0 overflow-y-auto px-10 sm:px-20 pb-20 custom-scrollbar scroll-smooth"
           >
             <div className="max-w-3xl mx-auto">
-                <div className="prose prose-slate prose-xl max-w-none 
+              <div className="prose prose-slate prose-xl max-w-none 
                     prose-headings:text-slate-900 prose-headings:font-bold prose-headings:tracking-tight
                     prose-p:text-slate-600 prose-p:leading-[1.8] prose-p:mb-8
                     prose-li:text-slate-600 prose-strong:text-slate-900
@@ -175,15 +176,15 @@ export const StreamingModal: React.FC<StreamingModalProps> = ({ isOpen, content,
 
                 {/* Intelligent Cursor */}
                 {step !== 'finalizing' && (
-                    <div className="mt-4 flex items-center gap-2 text-blue-500 font-medium italic animate-pulse">
-                        <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
-                        <span className="text-sm tracking-wide">AI 正在斟酌遣詞用句...</span>
-                    </div>
+                  <div className="mt-4 flex items-center gap-2 text-blue-500 font-medium italic animate-pulse">
+                    <span className="w-1.5 h-1.5 rounded-full bg-current"></span>
+                    <span className="text-sm tracking-wide">AI 正在斟酌遣詞用句...</span>
+                  </div>
                 )}
-                </div>
+              </div>
             </div>
           </div>
-          
+
           {/* Bottom Gradient overlay for smoother read */}
           <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-white to-transparent pointer-events-none"></div>
         </div>

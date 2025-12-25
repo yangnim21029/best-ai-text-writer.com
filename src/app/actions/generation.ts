@@ -1,6 +1,6 @@
 'use server';
 
-import { distributeSectionContexts } from '@/services/adapters/contextDistributionService';
+import { extractVectorContext } from '@/services/research/referenceAnalysisService';
 import {
   planImagesForArticle,
   generateImage,
@@ -38,14 +38,21 @@ export async function distributeContextAction(
     throw new Error('Unauthorized');
   }
 
-  // 2. Execution
+  // 2. Execution (Switched to Vector RAG)
   try {
-    const result = await distributeSectionContexts(
-      referenceContent,
-      sections,
-      targetAudience
-    );
-    return result;
+    const contextMap: { title: string; relevantContext: string }[] = [];
+
+    // Process in parallel with concurrency limit if needed, 
+    // but here sections length is usually < 10, so simple Promise.all is fine.
+    await Promise.all(sections.map(async (section) => {
+      const vectorCtx = await extractVectorContext(referenceContent, section.title);
+      contextMap.push({
+        title: section.title,
+        relevantContext: vectorCtx
+      });
+    }));
+
+    return { data: contextMap };
   } catch (error) {
     console.error('[distributeContextAction] Failed:', error);
     throw error;

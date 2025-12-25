@@ -155,7 +155,7 @@ export const prepareSectionPrompt = async (ctx: SectionContext) => {
     injectionPlan,
     articleTitle: config.title,
     coreQuestion,
-    difficulty,
+    difficulty: undefined, // DISABLED GLOBALLY per user request (was difficulty)
     writingMode,
     solutionAngles,
     renderMode,
@@ -169,10 +169,10 @@ export const prepareSectionPrompt = async (ctx: SectionContext) => {
       ...suppressHints,
     ],
     regionReplacements: config.referenceAnalysis?.regionalReplacements,
-    humanWritingVoice: config.referenceAnalysis?.humanWritingVoice,
+    humanWritingVoice: undefined, // DISABLED GLOBALLY per user request (was config.referenceAnalysis?.humanWritingVoice)
     regionVoiceDetect: config.referenceAnalysis?.regionVoiceDetect,
     replacementRules: config.referenceAnalysis?.replacementRules,
-    logicalFlow: (sectionMeta as any).logicalFlow,
+    logicalFlow: undefined, // DISABLED GLOBALLY per user request
     coreFocus: (sectionMeta as any).coreFocus,
   });
 

@@ -1,4 +1,5 @@
-import React, { useState, ReactNode } from 'react';
+import React, { useState, ReactNode, Fragment } from 'react';
+import { Dialog, Transition } from '@headlessui/react';
 import { Search, X, Plus, CheckCircle2, Edit2, Trash2, Save } from 'lucide-react';
 
 export interface LibraryItem {
@@ -23,6 +24,7 @@ interface GenericLibraryModalProps<T extends LibraryItem> {
     onCreate: (data: any) => void,
     onCancel: () => void
   ) => ReactNode;
+  renderHeaderActions?: () => ReactNode;
   onCreate?: (data: any) => void;
   searchPlaceholder?: string;
   filterItem?: (item: T, query: string) => boolean;
@@ -43,6 +45,7 @@ export const GenericLibraryModal = <T extends LibraryItem>({
   renderItem,
   renderDetail,
   renderCreateForm,
+  renderHeaderActions,
   onCreate,
   searchPlaceholder = 'Search...',
   filterItem,
@@ -68,108 +71,155 @@ export const GenericLibraryModal = <T extends LibraryItem>({
     }
   };
 
+  const isDetailView = isCreating || editingId !== null;
+
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-6 md:p-10">
-      {/* Backdrop */}
-      <div
-        className="absolute inset-0 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-300"
-        onClick={onClose}
-      />
+    <Transition appear show={isOpen} as={Fragment}>
+      <Dialog as="div" className="relative z-[60]" onClose={onClose}>
+        {/* Backdrop */}
+        <Transition.Child
+          as={Fragment}
+          enter="ease-out duration-300"
+          enterFrom="opacity-0"
+          enterTo="opacity-100"
+          leave="ease-in duration-200"
+          leaveFrom="opacity-100"
+          leaveTo="opacity-0"
+        >
+          <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-md" />
+        </Transition.Child>
 
-      {/* Modal Content */}
-      <div className="relative w-full max-w-6xl h-full max-h-[850px] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-slate-200 animate-in zoom-in-95 slide-in-from-bottom-4 duration-300">
-        {/* Header */}
-        <div className="px-10 py-8 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-          <div>
-            <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
-              {icon}
-              {title}
-            </h2>
-            {subtitle && <p className="text-sm text-slate-500 font-medium mt-1">{subtitle}</p>}
-          </div>
-          <button
-            onClick={onClose}
-            className="p-3 rounded-full hover:bg-slate-200/50 text-slate-400 hover:text-slate-600 transition-colors"
-          >
-            <X className="w-6 h-6" />
-          </button>
-        </div>
+        <div className="fixed inset-0 overflow-y-auto">
+          <div className="flex min-h-full items-center justify-center p-4 sm:p-6 md:p-10 text-center">
+            {/* Modal Content */}
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-300"
+              enterFrom="opacity-0 scale-95 translate-y-4"
+              enterTo="opacity-100 scale-100 translate-y-0"
+              leave="ease-in duration-200"
+              leaveFrom="opacity-100 scale-100 translate-y-0"
+              leaveTo="opacity-0 scale-95 translate-y-4"
+            >
+              <Dialog.Panel className="relative w-full max-w-6xl h-[85vh] max-h-[850px] bg-white rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-slate-200 text-left align-middle transform transition-all">
 
-        {/* Main Body */}
-        <div className="flex-1 overflow-hidden flex">
-          {/* Sidebar / List */}
-          <div className="w-80 border-r border-slate-100 flex flex-col bg-slate-50/30">
-            <div className="p-5 border-b border-slate-100">
-              <div className="relative">
-                <Search className="absolute left-3 top-2.5 w-4 h-4 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder={searchPlaceholder}
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2 bg-white border border-slate-200 focus:border-indigo-500 rounded-xl text-xs outline-none transition-all shadow-sm"
-                />
-              </div>
-            </div>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
-              {isCreating && renderCreateForm ? (
-                renderCreateForm(handleCreate, () => setIsCreating(false))
-              ) : (
-                <button
-                  onClick={() => setIsCreating(true)}
-                  className="w-full p-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-indigo-300 hover:text-indigo-600 hover:bg-indigo-50/30 transition-all flex items-center justify-center gap-2 text-xs font-bold"
-                >
-                  <Plus className="w-4 h-4" />
-                  {createButtonLabel}
-                </button>
-              )}
-
-              {filteredItems.map((item) => {
-                const isActive = activeItemId === item.id;
-                const isEditing = editingId === item.id;
-                return (
-                  <div
-                    key={item.id}
-                    onClick={() => {
-                      setEditingId(item.id);
-                      onSelect(item);
-                    }}
-                  >
-                    {renderItem(item, isActive, isEditing)}
+                {/* Header */}
+                <div className="px-10 py-6 border-b border-slate-100 flex items-center justify-between bg-white z-10">
+                  <div className="flex items-center gap-4">
+                    {isDetailView && (
+                      <button
+                        onClick={() => {
+                          setIsCreating(false);
+                          setEditingId(null);
+                        }}
+                        className="p-2 -ml-2 rounded-full hover:bg-slate-100 text-slate-500 hover:text-slate-900 transition-colors"
+                      >
+                        <div className="flex items-center gap-1 text-sm font-bold">
+                          <span className="text-xl">←</span>
+                          <span>Back</span>
+                        </div>
+                      </button>
+                    )}
+                    <div>
+                      <h2 className="text-2xl font-black text-slate-900 flex items-center gap-3">
+                        {icon}
+                        {title}
+                      </h2>
+                      {subtitle && !isDetailView && <p className="text-sm text-slate-500 font-medium mt-1">{subtitle}</p>}
+                    </div>
                   </div>
-                );
-              })}
-            </div>
-          </div>
 
-          {/* Editor Area */}
-          <div className="flex-1 bg-white overflow-y-auto p-12 custom-scrollbar">
-            {isCreating || editingId || activeItemId ? (
-              <div className="max-w-3xl mx-auto space-y-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {renderDetail(
-                  isCreating ? undefined : items.find(i => i.id === (editingId || activeItemId)),
-                  isCreating
-                )}
-              </div>
-            ) : (
-              emptyState || (
-                <div className="h-full flex flex-col items-center justify-center text-slate-200 text-center space-y-6">
-                  <div className="w-32 h-32 rounded-[3rem] bg-slate-50 flex items-center justify-center mb-4">
-                    {icon}
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-black text-slate-400">Select an Item</h3>
-                    <p className="text-slate-300 font-medium max-w-sm mx-auto mt-2">
-                      Select an item from the list to view details or edit.
-                    </p>
+                  <div className="flex items-center gap-3">
+                    {renderHeaderActions && renderHeaderActions()}
+
+                    {!isDetailView && (
+                      <div className="relative group">
+                        <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors" />
+                        <input
+                          type="text"
+                          placeholder={searchPlaceholder}
+                          value={searchQuery}
+                          onChange={(e) => setSearchQuery(e.target.value)}
+                          className="w-64 pl-10 pr-4 py-3 bg-slate-50 border-2 border-slate-100 focus:border-indigo-500 focus:bg-white rounded-xl text-sm font-bold text-slate-700 outline-none transition-all"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      onClick={onClose}
+                      className="p-3 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
                   </div>
                 </div>
-              )
-            )}
+
+                {/* Main Body */}
+                <div className="flex-1 overflow-hidden bg-white relative">
+
+                  {/* List View */}
+                  {!isDetailView && (
+                    <div className="absolute inset-0 overflow-y-auto custom-scrollbar p-8">
+                      <div className="max-w-5xl mx-auto space-y-4">
+                        {/* Create New Button Row */}
+                        <button
+                          onClick={() => setIsCreating(true)}
+                          className="w-full p-4 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 hover:border-indigo-400 hover:text-indigo-600 hover:bg-indigo-50/10 transition-all flex items-center justify-center gap-2 text-sm font-bold group"
+                        >
+                          <div className="p-2 bg-slate-50 rounded-full group-hover:bg-indigo-100 transition-colors">
+                            <Plus className="w-5 h-5" />
+                          </div>
+                          {createButtonLabel}
+                        </button>
+
+                        {/* Items List */}
+                        <div className="space-y-2">
+                          {filteredItems.map((item) => {
+                            const isActive = activeItemId === item.id;
+                            return (
+                              <div
+                                key={item.id}
+                                onClick={() => {
+                                  setEditingId(item.id);
+                                }}
+                                className="w-full"
+                              >
+                                {renderItem(item, isActive, false)}
+                              </div>
+                            );
+                          })}
+
+                          {filteredItems.length === 0 && (
+                            <div className="text-center py-20">
+                              <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                                <Search className="w-8 h-8 text-slate-300" />
+                              </div>
+                              <p className="text-slate-400 font-medium">No items found matching your search.</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detail View */}
+                  {isDetailView && (
+                    <div className="absolute inset-0 overflow-y-auto custom-scrollbar bg-white">
+                      <div className="max-w-4xl mx-auto p-10 animate-in fade-in slide-in-from-bottom-4 duration-300">
+                        {isCreating && renderCreateForm ? (
+                          renderCreateForm(handleCreate, () => setIsCreating(false))
+                        ) : (
+                          renderDetail(items.find(i => i.id === editingId), isCreating)
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Dialog.Panel>
+            </Transition.Child>
           </div>
         </div>
-      </div>
-    </div>
+      </Dialog>
+    </Transition>
   );
 };

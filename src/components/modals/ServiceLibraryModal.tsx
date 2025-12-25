@@ -62,12 +62,35 @@ export const ServiceLibraryModal: React.FC<ServiceLibraryModalProps> = ({
       )}
       onCreate={(data: any) => onCreate(data.name, data.content)}
       renderItem={(p, isActive) => (
-        <div className={`p-3 rounded-xl cursor-pointer transition-all flex items-center justify-between group ${isActive ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-200' : 'hover:bg-white hover:shadow-sm text-slate-600'}`}>
-          <div className="min-w-0 flex-1">
-            <p className={`text-xs font-bold truncate ${isActive ? 'text-white' : 'text-slate-800'}`}>{p.name}</p>
-            <p className={`text-[10px] truncate ${isActive ? 'text-emerald-100' : 'text-slate-400'}`}>{p.productRawText ? p.productRawText.substring(0, 40) + '...' : 'No details'}</p>
+        <div className={`group relative bg-white border-b last:border-0 p-4 transition-all hover:bg-slate-50 flex items-center gap-4 ${isActive ? 'bg-emerald-50/50 hover:bg-emerald-50' : ''}`}>
+
+          {/* Icon */}
+          <div className={`w-10 h-10 rounded-xl flex items-center justify-center border transition-colors shrink-0 ${isActive ? 'bg-emerald-600 text-white border-emerald-600 shadow-md shadow-emerald-200' : 'bg-white border-slate-100 text-slate-400 group-hover:border-slate-200'}`}>
+            <ShoppingBag className="w-5 h-5" />
           </div>
-          {isActive && <CheckCircle2 className="w-4 h-4 text-white ml-2" />}
+
+          {/* Content Info */}
+          <div className="flex-1 min-w-0 grid grid-cols-12 gap-4 items-center">
+            {/* Name */}
+            <div className="col-span-12 sm:col-span-4 min-w-0">
+              <div className="flex items-center gap-2">
+                <h3 className={`text-sm font-bold truncate ${isActive ? 'text-emerald-900' : 'text-slate-800'}`}>{p.name}</h3>
+                {isActive && <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />}
+              </div>
+            </div>
+
+            {/* Description Snippet */}
+            <div className="col-span-12 sm:col-span-8 min-w-0">
+              <p className={`text-xs truncate font-medium ${isActive ? 'text-emerald-700/70' : 'text-slate-400'}`}>
+                {p.productRawText ? p.productRawText.substring(0, 100) : 'No details provided'}
+              </p>
+            </div>
+          </div>
+
+          {/* Action Arrow (Hover) */}
+          <div className="opacity-0 group-hover:opacity-100 transition-opacity text-slate-300">
+            <FileText className="w-4 h-4" />
+          </div>
         </div>
       )}
       renderDetail={(p) => {
@@ -99,7 +122,7 @@ export const ServiceLibraryModal: React.FC<ServiceLibraryModalProps> = ({
                 {editingContent !== null && (
                   <button onClick={() => { if (onUpdate) { onUpdate(p.id, { productRawText: editingContent }); setEditingContent(null); } }} className="px-6 py-2.5 bg-indigo-600 text-white rounded-xl font-bold text-sm shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all">Save Changes</button>
                 )}
-                <button onClick={onClose} className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all">Apply to Article</button>
+                <button onClick={() => onSelect(p)} className="px-8 py-2.5 bg-slate-900 text-white rounded-xl font-bold text-sm shadow-lg shadow-slate-200 hover:bg-slate-800 transition-all">Apply to Article</button>
               </div>
             </div>
           </>

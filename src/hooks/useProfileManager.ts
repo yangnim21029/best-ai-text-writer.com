@@ -66,9 +66,9 @@ export const useProfileManager = ({
       const updatedProfiles = savedProfiles.map((p) =>
         p.id === id
           ? {
-              ...p,
-              ...updates,
-            }
+            ...p,
+            ...updates,
+          }
           : p
       );
 
@@ -137,7 +137,7 @@ export const useProfileManager = ({
 
   // --- Page Profile Logic ---
   const createPage = useCallback(
-    (data: Partial<PageProfile> & { name: string }) => {
+    (data: Partial<PageProfile> & { name: string; urlInput?: string }) => {
       if (!setSavedPages || !data.name.trim()) return null;
 
       const newPage: PageProfile = {
@@ -149,6 +149,7 @@ export const useProfileManager = ({
         websiteType: data.websiteType,
         authorityTerms: data.authorityTerms,
         targetAudience: data.targetAudience || 'zh-TW',
+        originalUrl: data.urlInput || data.originalUrl || '', // Persist URL from form
         brandRagUrl: data.brandRagUrl, // Snapshotted link
       };
 
@@ -190,6 +191,7 @@ export const useProfileManager = ({
       }
       if (page.websiteType) setValue('websiteType', page.websiteType);
       if (page.authorityTerms) setValue('authorityTerms', page.authorityTerms);
+      if (page.originalUrl) setValue('urlInput', page.originalUrl); // Restore URL
       setValue('targetAudience', page.targetAudience);
       if (page.brandRagUrl) {
         // We need a way to set it in store, but useProfileManager doesn't have it directly.
