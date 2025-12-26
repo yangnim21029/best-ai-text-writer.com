@@ -189,6 +189,7 @@ export const analyzeReferenceStructure = async (
                     z.object({
                       title: z.string(),
                       keyFacts: z.array(z.string()),
+                      instruction: z.string().optional(),
                     })
                   ),
                   sourceCharCount: z.number(),

@@ -26,6 +26,7 @@ export interface SectionAnalysis {
     // NEW: Structured data corresponding to subheadings
     title: string;
     keyFacts: string[];
+    instruction?: string; // H3-level specific writing instruction
   }[];
   keyFacts?: string[]; // Checklist-ready atomic facts for this section
   uspNotes?: string[]; // USP/賣點提示

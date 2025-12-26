@@ -634,6 +634,7 @@ export const contentPrompts = {
        - ** Character Limit **: EACH fact must be **< 30 characters ** (for Chinese) or **< 60 characters ** (for English).
        - ** STRICT RULE **: Simple sentences only.No complex clauses.
        - ** Output **: Populate the 'subsections' array in the JSON.
+       - ** Sub-Instruction **: EACH subsection MUST have its own "instruction" field (see below).
 
     - ** "coreQuestion" **: The main problem this section answers.
 
@@ -641,7 +642,7 @@ export const contentPrompts = {
 - ESTIMATE the number of characters in the original source text that corresponds to this section(H2 + its H3s).
        - This is critical for controlling the writing length later.
 
-    - ** "instruction" **:
+    - ** "instruction" (Section Level) **:
        - ** ROLE **: 你是總編輯，在截稿現場直接指導編輯寫作。(You are the Editor -in -Chief giving immediate, on - site directives).
        - ** CRITICAL **:
 1. ** NO TONE INSTRUCTIONS **: The editor knows the tone.Focus purely on CONTENT strategy.
@@ -659,6 +660,13 @@ export const contentPrompts = {
        - ** EXAMPLE 1 **: "直接把『義大利裔』和『姓名未公開』這兩點寫出來。針對論壇上的『假名謠言』，直接點出那是沒有根據的，甚至可以引用『官方聲明』來駁斥。這段控制在 350 字內，聚焦在事實查核。"
   - ** EXAMPLE 2 **: "這段聚焦在『單親家庭』對她『性格孤僻』的影響。一定要引用那篇『2023年專訪』的內容來佐證，不要自己腦補心理戲。特別強調『外公外婆』的角色。"
 
+    - ** "instruction" (Subsection/H3 Level) - NEW **:
+       - ** EVERY subsection MUST have its own "instruction" field **.
+       - ** ROLE **: Same as section-level: you are the Editor-in-Chief giving immediate directives for THIS SPECIFIC H3.
+       - ** SCOPE **: Focus ONLY on what this H3 must cover. Be specific to this subsection's topic.
+       - ** FORMAT **: 1-2 sentences. Direct command style. Use exact keywords/concepts from source text.
+       - ** EXAMPLE **: For H3 "高ISO相機", instruction could be: "點出『Sony A7S III』和『Canon R6』這兩台是目前高 ISO 表現最好的機型。引用『DxOMark 評測數據』說明原因。"
+
     OUTPUT JSON(Array for the 'structure' property):
   {
     "structure": [
@@ -668,8 +676,8 @@ export const contentPrompts = {
         "logicalFlow": "One-sentence logic chain description",
         "coreFocus": "Description of emphasis",
         "subsections": [
-          { "title": "H3 Title 1", "keyFacts": ["Short Fact 1", "Short Fact 2"] },
-          { "title": "H3 Title 2", "keyFacts": ["Short Fact 3", "Short Fact 4"] }
+          { "title": "H3 Title 1", "keyFacts": ["Short Fact 1", "Short Fact 2"], "instruction": "Direct H3-specific writing instruction using exact source keywords." },
+          { "title": "H3 Title 2", "keyFacts": ["Short Fact 3", "Short Fact 4"], "instruction": "Another H3-specific instruction." }
         ],
         "keyFacts": ["Backwards compatible list of all facts above..."],
         "coreQuestion": "Main question",
@@ -680,7 +688,9 @@ export const contentPrompts = {
         "suppress": ["..."],
         "augment": ["..."],
         "sentenceStartFeatures": ["..."],
-        "sentenceEndFeatures": ["..." ]
+        "sentenceEndFeatures": ["..." ],
+        "sourceCharCount": 500,
+        "instruction": "Section-level writing instruction..."
       }
     ]
   }

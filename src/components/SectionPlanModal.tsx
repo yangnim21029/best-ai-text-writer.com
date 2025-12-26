@@ -264,11 +264,10 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
             {hasLocalizedPlan && (
               <button
                 onClick={() => setUseLocalizedPlan(!useLocalizedPlan)}
-                className={`px-3 py-2 text-sm font-semibold rounded-lg border flex items-center gap-1.5 transition ${
-                  useLocalizedPlan
+                className={`px-3 py-2 text-sm font-semibold rounded-lg border flex items-center gap-1.5 transition ${useLocalizedPlan
                     ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                     : 'bg-gray-50 text-gray-600 border-gray-200'
-                }`}
+                  }`}
               >
                 <Languages className="w-4 h-4" />
                 {useLocalizedPlan ? '本地化版本 ✓' : '原版'}
@@ -286,11 +285,10 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
               isLoading={isLocalizing || isSearchingAlternatives}
               loadingText={isSearchingAlternatives ? '掃描中...' : isLocalizing ? '本地化中...' : undefined}
               icon={<Languages className="w-4 h-4" />}
-              className={`px-3 py-2 text-sm font-bold rounded-lg border flex items-center gap-1.5 transition shadow-sm ${
-                regionalReplacements.length === 0
+              className={`px-3 py-2 text-sm font-bold rounded-lg border flex items-center gap-1.5 transition shadow-sm ${regionalReplacements.length === 0
                   ? 'bg-amber-500 text-white border-amber-600 hover:bg-amber-600'
                   : 'bg-emerald-500 text-white border-emerald-600 hover:bg-emerald-600'
-              }`}
+                }`}
             >
               {regionalReplacements.length === 0
                 ? '第一步：掃描需替換詞彙'
@@ -736,6 +734,16 @@ export const SectionPlanModal: React.FC<SectionPlanModalProps> = ({
                                           </span>
                                         </div>
                                       ))}
+                                    </div>
+                                  )}
+                                  {sub.instruction && (
+                                    <div className="mt-1.5 p-2 bg-blue-50/60 border border-blue-100 rounded-md">
+                                      <p className="text-[8px] font-bold text-blue-400 uppercase tracking-wide mb-0.5">
+                                        H3 Instruction
+                                      </p>
+                                      <p className="text-[10px] text-blue-800 leading-snug">
+                                        {sub.instruction}
+                                      </p>
                                     </div>
                                   )}
                                 </div>
