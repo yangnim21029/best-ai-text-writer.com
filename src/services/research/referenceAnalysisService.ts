@@ -850,15 +850,95 @@ export const extractVectorContext = async (sourceText: string, query: string): P
   }
 };
 
-// Strategy Constants
-const RAG_CHUNK_SIZE = 500;
-const RAG_CHUNK_OVERLAP = 100;
-const MAX_CHUNKS_PER_SECTION = 4;
+// Strategy Constants (Optimized for semantic boundary-aware chunking)
+const RAG_CHUNK_SIZE = 250;      // Smaller chunks for better precision
+const RAG_CHUNK_OVERLAP = 50;    // ~20% overlap
+const MAX_CHUNKS_PER_SECTION = 6; // More chunks allowed due to smaller size
+
+// Sentence-end patterns for both English and Chinese
+const SENTENCE_ENDS = ['。', '！', '？', '.', '!', '?'];
+const PARAGRAPH_SEPARATORS = ['\n\n', '\n'];
 
 /**
- * CORE LOGIC: Global Exclusive Allocation
+ * Semantic-aware text chunking.
+ * Prioritizes splitting at natural boundaries (paragraphs, sentences)
+ * to ensure each chunk has complete thoughts with proper beginning/ending.
+ */
+const splitIntoSemanticChunks = (
+  text: string,
+  maxSize: number = RAG_CHUNK_SIZE,
+  overlap: number = RAG_CHUNK_OVERLAP
+): string[] => {
+  if (!text || text.length === 0) return [];
+
+  const chunks: string[] = [];
+  let currentPosition = 0;
+
+  while (currentPosition < text.length) {
+    // Determine end position for this chunk
+    let endPosition = Math.min(currentPosition + maxSize, text.length);
+
+    // If we're not at the end of text, try to find a good breaking point
+    if (endPosition < text.length) {
+      let bestBreak = -1;
+
+      // 1. Try to find paragraph break (\n\n or \n)
+      for (const sep of PARAGRAPH_SEPARATORS) {
+        const sepIdx = text.lastIndexOf(sep, endPosition);
+        if (sepIdx > currentPosition + maxSize * 0.5) {
+          // Found a paragraph break in the second half of the chunk
+          bestBreak = sepIdx + sep.length;
+          break;
+        }
+      }
+
+      // 2. If no paragraph break, try sentence end
+      if (bestBreak === -1) {
+        for (let i = endPosition; i > currentPosition + maxSize * 0.5; i--) {
+          const char = text[i - 1];
+          if (SENTENCE_ENDS.includes(char)) {
+            bestBreak = i;
+            break;
+          }
+        }
+      }
+
+      // 3. If still no good break, try space (for English)
+      if (bestBreak === -1) {
+        const spaceIdx = text.lastIndexOf(' ', endPosition);
+        if (spaceIdx > currentPosition + maxSize * 0.5) {
+          bestBreak = spaceIdx + 1;
+        }
+      }
+
+      // Use the best break point if found
+      if (bestBreak > currentPosition) {
+        endPosition = bestBreak;
+      }
+    }
+
+    // Extract and trim the chunk
+    const chunk = text.substring(currentPosition, endPosition).trim();
+    if (chunk.length > 0) {
+      chunks.push(chunk);
+    }
+
+    // Move position with overlap (but not beyond where we just ended)
+    currentPosition = Math.max(currentPosition + 1, endPosition - overlap);
+  }
+
+  return chunks;
+};
+
+/**
+ * CORE LOGIC: Global Exclusive Allocation (v2 - Semantic Chunking)
  * Assigns chunks to sections such that overlaps are minimized (or zero),
  * enforcing that each section gets "fresh" insights.
+ * 
+ * Improvements in v2:
+ * - Semantic boundary-aware chunking (respects sentences/paragraphs)
+ * - No threshold filtering (all chunks considered)
+ * - Smaller chunk size for better precision
  */
 export const distributeChunksExclusively = async (
   sourceText: string,
@@ -866,17 +946,14 @@ export const distributeChunksExclusively = async (
 ): Promise<Map<string, string>> => {
   if (!sourceText || sections.length === 0) return new Map();
 
-  logger.log('nlp_analysis', `RefAnalysis: DistributeChunks: Allocating chunks for ${sections.length} sections...`);
+  logger.log('nlp_analysis', `RefAnalysis: DistributeChunks v2: Allocating chunks for ${sections.length} sections...`);
 
-  // 1. Chunking (Overlap to avoid cutting sentences too harshly)
-  const step = RAG_CHUNK_SIZE - RAG_CHUNK_OVERLAP;
-  const chunks: string[] = [];
-
-  for (let i = 0; i < sourceText.length; i += step) {
-    chunks.push(sourceText.substring(i, i + RAG_CHUNK_SIZE));
-  }
+  // 1. Semantic-aware Chunking (NEW)
+  const chunks = splitIntoSemanticChunks(sourceText, RAG_CHUNK_SIZE, RAG_CHUNK_OVERLAP);
 
   if (chunks.length === 0) return new Map();
+
+  logger.log('nlp_analysis', `RefAnalysis: DistributeChunks v2: Created ${chunks.length} semantic chunks`);
 
   // 2. Embed Everything (Sections + Chunks)
   const sectionQueries = sections.map(s => `${s.title} ${s.coreFocus || ''}`);
@@ -894,20 +971,18 @@ export const distributeChunksExclusively = async (
   const chunkVecs = embeddings.slice(sections.length);
 
   // 3. Score Everything Matrix [SectionIndex][ChunkIndex] = Score
-  // We flatten this to a list of potential assignments: { sectionIdx, chunkIdx, score }
+  // No threshold filtering - all matches are considered (user request)
   const allMatches: { sectionIdx: number; chunkIdx: number; score: number }[] = [];
 
   for (let sIdx = 0; sIdx < sections.length; sIdx++) {
     for (let cIdx = 0; cIdx < chunks.length; cIdx++) {
       const score = cosineSimilarity(sectionVecs[sIdx], chunkVecs[cIdx]);
-      // Only consider meaningful matches
-      if (score > 0.35) {
-        allMatches.push({ sectionIdx: sIdx, chunkIdx: cIdx, score });
-      }
+      // No threshold - include all matches
+      allMatches.push({ sectionIdx: sIdx, chunkIdx: cIdx, score });
     }
   }
 
-  // 4. Sort by Strength
+  // 4. Sort by Strength (highest first)
   allMatches.sort((a, b) => b.score - a.score);
 
   // 5. Exclusive Allocation Loop
@@ -920,7 +995,7 @@ export const distributeChunksExclusively = async (
   sections.forEach(s => assignments.set(s.title, []));
 
   for (const match of allMatches) {
-    const { sectionIdx, chunkIdx, score } = match;
+    const { sectionIdx, chunkIdx } = match;
 
     // Check constraints
     if (usedChunks.has(chunkIdx)) continue; // Already taken
@@ -943,7 +1018,7 @@ export const distributeChunksExclusively = async (
     result.set(title, chunkList.join('\n\n---\n\n'));
   });
 
-  logger.log('nlp_analysis', `RefAnalysis: DistributeChunks: Allocation Complete. Used ${usedChunks.size}/${chunks.length} chunks.`);
+  logger.log('nlp_analysis', `RefAnalysis: DistributeChunks v2: Allocation Complete. Used ${usedChunks.size}/${chunks.length} chunks.`);
   return result;
 };
 
