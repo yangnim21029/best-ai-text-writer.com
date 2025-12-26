@@ -851,9 +851,9 @@ export const extractVectorContext = async (sourceText: string, query: string): P
 };
 
 // Strategy Constants (Optimized for semantic boundary-aware chunking)
-const RAG_CHUNK_SIZE = 250;      // Smaller chunks for better precision
-const RAG_CHUNK_OVERLAP = 50;    // ~20% overlap
-const MAX_CHUNKS_PER_SECTION = 6; // More chunks allowed due to smaller size
+const RAG_CHUNK_SIZE = 100;      // Very fine-grained chunks for maximum precision
+const RAG_CHUNK_OVERLAP = 20;    // ~20% overlap
+const MAX_CHUNKS_PER_SECTION = 10; // More chunks needed due to smaller size
 
 // Sentence-end patterns for both English and Chinese
 const SENTENCE_ENDS = ['。', '！', '？', '.', '!', '?'];
